@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 540" role="img" aria-label="Ortho L3 tiles are 100 km squares named after their lower-left corner in hundreds of kilometres">
+<style>
+  text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+  .bg{fill:#fcfcfb} .tile{fill:#f0efec;stroke:#d9d8d2} .sel{fill:#cfe0f6;stroke:#2a78d6}
+  .hl{fill:#2a78d6} .area{fill:none;stroke:#eb6834;stroke-width:2.5;stroke-dasharray:7 5}
+  .tn{fill:#52514e;font-size:13px} .tl{fill:#ffffff;font-size:14px;font-weight:700}
+  .ax{fill:#7a7974;font-size:11px} .h{fill:#0b0b0b;font-size:17px;font-weight:700}
+  .p{fill:#52514e;font-size:14px} .c{fill:#0b0b0b;font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .ln{stroke:#a3a29b;stroke-width:1.2;fill:none} .px{fill:#2a78d6;opacity:.85}
+  @media (prefers-color-scheme: dark){
+    .bg{fill:#1a1a19} .tile{fill:#2a2a28;stroke:#383835} .sel{fill:#1f3550;stroke:#3987e5} .hl{fill:#3987e5}
+    .area{stroke:#d95926} .tn{fill:#c3c2b7} .ax{fill:#8f8e88} .h{fill:#f0efec} .p{fill:#c3c2b7} .c{fill:#f0efec}
+    .ln{stroke:#6b6a65} .px{fill:#3987e5}
+  }
+</style>
+<rect class="bg" width="980" height="540" rx="14"/>
+<rect class="tile" x="111" y="41" width="88" height="88" rx="4"/>
+<text class="tn" x="155.0" y="89.0" text-anchor="middle">E44N21</text>
+<rect class="tile" x="111" y="131" width="88" height="88" rx="4"/>
+<text class="tn" x="155.0" y="179.0" text-anchor="middle">E44N20</text>
+<rect class="tile" x="111" y="221" width="88" height="88" rx="4"/>
+<text class="tn" x="155.0" y="269.0" text-anchor="middle">E44N19</text>
+<rect class="tile" x="111" y="311" width="88" height="88" rx="4"/>
+<text class="tn" x="155.0" y="359.0" text-anchor="middle">E44N18</text>
+<rect class="tile" x="111" y="401" width="88" height="88" rx="4"/>
+<text class="tn" x="155.0" y="449.0" text-anchor="middle">E44N17</text>
+<rect class="tile" x="201" y="41" width="88" height="88" rx="4"/>
+<text class="tn" x="245.0" y="89.0" text-anchor="middle">E45N21</text>
+<rect class="tile" x="201" y="131" width="88" height="88" rx="4"/>
+<text class="tn" x="245.0" y="179.0" text-anchor="middle">E45N20</text>
+<rect class="tile" x="201" y="221" width="88" height="88" rx="4"/>
+<text class="tn" x="245.0" y="269.0" text-anchor="middle">E45N19</text>
+<rect class="sel" x="201" y="311" width="88" height="88" rx="4"/>
+<text class="tn" x="245.0" y="359.0" text-anchor="middle">E45N18</text>
+<rect class="sel" x="201" y="401" width="88" height="88" rx="4"/>
+<text class="tn" x="245.0" y="449.0" text-anchor="middle">E45N17</text>
+<rect class="tile" x="291" y="41" width="88" height="88" rx="4"/>
+<text class="tn" x="335.0" y="89.0" text-anchor="middle">E46N21</text>
+<rect class="tile" x="291" y="131" width="88" height="88" rx="4"/>
+<text class="tn" x="335.0" y="179.0" text-anchor="middle">E46N20</text>
+<rect class="tile" x="291" y="221" width="88" height="88" rx="4"/>
+<text class="tn" x="335.0" y="269.0" text-anchor="middle">E46N19</text>
+<rect class="sel" x="291" y="311" width="88" height="88" rx="4"/>
+<text class="tn" x="335.0" y="359.0" text-anchor="middle">E46N18</text>
+<rect class="sel" x="291" y="401" width="88" height="88" rx="4"/>
+<text class="tn" x="335.0" y="449.0" text-anchor="middle">E46N17</text>
+<rect class="tile" x="381" y="41" width="88" height="88" rx="4"/>
+<text class="tn" x="425.0" y="89.0" text-anchor="middle">E47N21</text>
+<rect class="tile" x="381" y="131" width="88" height="88" rx="4"/>
+<text class="tn" x="425.0" y="179.0" text-anchor="middle">E47N20</text>
+<rect class="hl" x="381" y="221" width="88" height="88" rx="4"/>
+<text class="tl" x="425.0" y="269.0" text-anchor="middle">E47N19</text>
+<rect class="tile" x="381" y="311" width="88" height="88" rx="4"/>
+<text class="tn" x="425.0" y="359.0" text-anchor="middle">E47N18</text>
+<rect class="tile" x="381" y="401" width="88" height="88" rx="4"/>
+<text class="tn" x="425.0" y="449.0" text-anchor="middle">E47N17</text>
+<rect class="tile" x="471" y="41" width="88" height="88" rx="4"/>
+<text class="tn" x="515.0" y="89.0" text-anchor="middle">E48N21</text>
+<rect class="tile" x="471" y="131" width="88" height="88" rx="4"/>
+<text class="tn" x="515.0" y="179.0" text-anchor="middle">E48N20</text>
+<rect class="tile" x="471" y="221" width="88" height="88" rx="4"/>
+<text class="tn" x="515.0" y="269.0" text-anchor="middle">E48N19</text>
+<rect class="tile" x="471" y="311" width="88" height="88" rx="4"/>
+<text class="tn" x="515.0" y="359.0" text-anchor="middle">E48N18</text>
+<rect class="tile" x="471" y="401" width="88" height="88" rx="4"/>
+<text class="tn" x="515.0" y="449.0" text-anchor="middle">E48N17</text>
+<rect class="tile" x="561" y="41" width="88" height="88" rx="4"/>
+<text class="tn" x="605.0" y="89.0" text-anchor="middle">E49N21</text>
+<rect class="tile" x="561" y="131" width="88" height="88" rx="4"/>
+<text class="tn" x="605.0" y="179.0" text-anchor="middle">E49N20</text>
+<rect class="tile" x="561" y="221" width="88" height="88" rx="4"/>
+<text class="tn" x="605.0" y="269.0" text-anchor="middle">E49N19</text>
+<rect class="tile" x="561" y="311" width="88" height="88" rx="4"/>
+<text class="tn" x="605.0" y="359.0" text-anchor="middle">E49N18</text>
+<rect class="tile" x="561" y="401" width="88" height="88" rx="4"/>
+<text class="tn" x="605.0" y="449.0" text-anchor="middle">E49N17</text>
+<text class="ax" x="110" y="510" text-anchor="middle">4,400</text>
+<text class="ax" x="200" y="510" text-anchor="middle">4,500</text>
+<text class="ax" x="290" y="510" text-anchor="middle">4,600</text>
+<circle cx="381" cy="309" r="5" fill="#eb6834"/><text class="ax" x="380" y="510" text-anchor="middle">4,700</text>
+<text class="ax" x="470" y="510" text-anchor="middle">4,800</text>
+<text class="ax" x="560" y="510" text-anchor="middle">4,900</text>
+<text class="ax" x="650" y="510" text-anchor="middle">5,000</text>
+<text class="ax" x="100" y="44" text-anchor="end">2,200</text>
+<text class="ax" x="100" y="134" text-anchor="end">2,100</text>
+<text class="ax" x="100" y="224" text-anchor="end">2,000</text>
+<text class="ax" x="100" y="314" text-anchor="end">1,900</text>
+<text class="ax" x="100" y="404" text-anchor="end">1,800</text>
+<text class="ax" x="100" y="494" text-anchor="end">1,700</text>
+<rect class="area" x="230" y="335" width="130" height="120" rx="3"/>
+<text class="ax" x="380" y="530" text-anchor="middle">east, km (EPSG:3035)</text>
+<text class="ax" x="30" y="265.0" text-anchor="middle" transform="rotate(-90 30 265.0)">north, km</text>
+
+<g transform="translate(680,40)">
+  <text class="h" x="0" y="14">How tiles are named</text>
+  <text class="p" x="0" y="44">E47N19 = lower-left corner</text>
+  <text class="p" x="0" y="64">at 4,700 km east, 1,900 km north.</text>
+  <text class="p" x="0" y="94">One tile = 100 × 100 km</text>
+  <text class="p" x="0" y="114">= 1,000 × 1,000 pixels of 100 m.</text>
+  <g transform="translate(0,134)">
+    <rect class="tile" x="0" y="0" width="80" height="80" rx="4"/>
+    <rect class="px" x="0" y="0" width="8" height="8"/>
+    <path class="ln" d="M8 4 H110"/>
+    <text class="p" x="116" y="9">1 pixel = 100 m</text>
+    <text class="p" x="116" y="29">value = mm / year</text>
+  </g>
+  <text class="h" x="0" y="268">Your area → tiles</text>
+  <text class="p" x="0" y="296">The dashed rectangle touches</text>
+  <text class="p" x="0" y="316">four tiles:</text>
+  <text class="c" x="0" y="344">tiles_for_bounds(...)</text>
+  <text class="c" x="0" y="364">→ [(45,17), (45,18),</text>
+  <text class="c" x="0" y="384">   (46,17), (46,18)]</text>
+</g>
+</svg>
