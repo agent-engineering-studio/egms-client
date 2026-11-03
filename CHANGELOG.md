@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `egms_client.decompose`: `grid_los` averages L2 points (mean velocity and
+  line-of-sight vector, coherent points only) on a grid in EPSG:3035, and
+  `decompose` turns one ascending and one descending grid into vertical and
+  east-west `Mosaic`s. Over Ancona it matches L3 with correlation 0.93
+  (vertical) and 0.79 (east-west), median difference 0.6 and 0.2 mm/year.
+
 ## [0.4.0] - 2026-11-03
 
 ### Added
