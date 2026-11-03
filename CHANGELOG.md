@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Documentation site (MkDocs Material + mkdocstrings): the README as home
+  page, the notebooks, an API reference generated from the docstrings, the
+  changelog. Built with `--strict` on every pull request, published to
+  GitHub Pages from `main` (`make docs` builds it locally).
+- README links are absolute, so they work on GitHub, PyPI and the site.
+
 ## [0.5.0] - 2026-11-03
 
 ### Added

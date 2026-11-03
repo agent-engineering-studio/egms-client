@@ -66,6 +66,10 @@ dev = [
     "pyarrow>=17",
     "xarray>=2024.6",
 ]
+docs = [
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.26",
+]
 
 [tool.ruff]
 line-length = 100
