@@ -162,3 +162,37 @@ def test_the_key_comes_from_the_environment(service_key: ServiceKey, tmp_path: P
     assert ServiceKey.from_env({"EGMS_SERVICE_KEY": " ", "EGMS_SERVICE_KEY_FILE": str(path)})
     with pytest.raises(LookupError, match="EGMS_SERVICE_KEY"):
         ServiceKey.from_env({})
+
+
+def test_a_burst_covers_its_footprint_not_its_whole_bbox() -> None:
+    search = parse_search((FIXTURES / "search_bbox_L2B.json").read_bytes())
+    assert search is not None
+    hit = search.hits[0]
+    assert len(hit.footprint) == 4
+    lons = [x for x, _ in hit.footprint]
+    lats = [y for _, y in hit.footprint]
+    centre = (sum(lons) / 4, sum(lats) / 4)
+    assert hit.covers(*centre)
+    assert hit.bbox is not None
+    west, south, _, _ = hit.bbox
+    # The bbox corner is outside the tilted parallelogram.
+    assert not hit.covers(west + 0.001, south + 0.001)
+    assert not hit.covers(0.0, 0.0)
+
+
+def test_without_a_footprint_the_bbox_decides() -> None:
+    search = parse_search((FIXTURES / "search_E47N19_U.json").read_bytes())
+    assert search is not None
+    hit = dataclasses.replace(search.hits[0], footprint=())
+    assert hit.bbox is not None
+    w, s, e, n = hit.bbox
+    assert hit.covers((w + e) / 2, (s + n) / 2)
+    assert not hit.covers(w - 1, s)
+    assert not dataclasses.replace(hit, bbox=None).covers(w, s)
+
+
+def test_a_malformed_footprint_is_empty() -> None:
+    body = json.loads((FIXTURES / "search_bbox_L2B.json").read_text())
+    body["hits"][0]["poly"] = [["x", "y"]]
+    search = parse_search(json.dumps(body))
+    assert search is not None and search.hits[0].footprint == ()
