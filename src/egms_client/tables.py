@@ -72,6 +72,33 @@ def series_long(frame: Any) -> Any:
     return long
 
 
+def to_xarray(frame: Any) -> Any:
+    """The series of a table as an ``xarray.DataArray`` over ``(pid, time)``.
+
+    Values are the displacement in mm (float32). Every attribute column
+    (``easting``, ``mean_velocity``, ...) becomes a coordinate along ``pid``,
+    so points can be selected by them. Needs ``xarray``.
+    """
+    import numpy as np
+    import xarray as xr
+
+    columns = [c for c in frame.columns if DATE_COLUMN.fullmatch(str(c))]
+    if not columns:
+        raise ValueError("the table has no date columns: read it with series=True")
+    others = [c for c in frame.columns if c not in columns and c != "pid"]
+    return xr.DataArray(
+        frame[columns].to_numpy(dtype="float32"),
+        dims=("pid", "time"),
+        coords={
+            "pid": frame["pid"].astype(str).to_numpy(),
+            "time": np.array(dates(frame), dtype="datetime64[ns]"),
+            **{c: ("pid", frame[c].to_numpy()) for c in others},
+        },
+        name="displacement",
+        attrs={"units": "mm", "source": "Copernicus EGMS"},
+    )
+
+
 def to_geoparquet(frame: Any, path: Path) -> Path:
     """Write a table as GeoParquet: points in EPSG:3035 from ``easting`` / ``northing``.
 

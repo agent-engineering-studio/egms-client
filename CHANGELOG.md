@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `mosaic.to_xarray(m)`: a mosaic as an `xarray.DataArray` on `y` / `x`
+  pixel centres in EPSG:3035, with the CRS CF-style in a `spatial_ref`
+  coordinate (read by rioxarray, GDAL, pyproj).
+- `tables.to_xarray(frame)`: the series of a CSV as a `DataArray` over
+  `(pid, time)`, every attribute (`mean_velocity`, `easting`, ...) a
+  coordinate along `pid`. New extra `xarray`.
+
 ## [0.4.0] - 2026-11-03
 
 ### Added
