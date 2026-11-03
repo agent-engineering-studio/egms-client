@@ -477,6 +477,35 @@ rising = series.where(series.mean_velocity > 10, drop=True)
 rising.mean("pid").plot()  # the average curve of the fastest-rising cells
 ```
 
+### Your own vertical and east-west maps from L2 points
+
+L2 points move along each satellite's line of sight. Take one **ascending**
+and one **descending** burst over the same place, average their points on a
+grid, and two equations per cell give the vertical and east-west speed: what
+L3 does, on the grid and the area you choose.
+
+```python
+import pandas as pd
+
+from egms_client.decompose import decompose, grid_los
+from egms_client.mosaic import lonlat_to_laea
+
+bounds = dict(zip(("minx", "miny", "maxx", "maxy"), lonlat_to_laea(13.40, 43.55, 13.60, 43.66)))
+ascending = grid_los(pd.read_parquet("egms/EGMS_L2b_117_0256_IW3_VV_2020_2025_1.parquet"), **bounds)
+descending = grid_los(
+    pd.read_parquet("egms/EGMS_L2b_022_0816_IW2_VV_2020_2025_1.parquet"), **bounds
+)
+up, east = decompose(ascending, descending)  # two Mosaics, mm/year: to_cog, to_xarray...
+```
+
+`grid_los(..., pixel=50, min_coherence=0.8)` picks the grid and how
+strict to be. Checked against L3 over Ancona: correlation 0.93 on the
+vertical, median difference 0.6 mm/year.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/agent-engineering-studio/egms-client/main/docs/images/decompose-ancona.png" alt="Ancona vertical speed from L2B points next to the official L3, correlation 0.93" width="100%">
+</p>
+
 ### Always use the newest release
 
 ```python
@@ -590,6 +619,7 @@ All checked against the live archive on 3 November 2026.
 | `hit.covers(lon, lat)` / `hit.footprint` | Whether a file's real outline contains a point (bursts are tilted, their bbox is larger). |
 | `default_directory()` | Where downloads go when no directory is given. |
 | `mosaic(tiffs, minx=, miny=, maxx=, maxy=)` | One float32 array, NaN where no data. |
+| `decompose.grid_los(points, minx=, ...)` / `decompose.decompose(asc, desc)` | L2 points on a grid; ascending + descending into vertical and east-west `Mosaic`s. |
 | `to_cog(mosaic, path)` / `lonlat_to_laea(w, s, e, n)` | A mosaic as Cloud-Optimized GeoTIFF; a box in degrees as EPSG:3035 metres. |
 | `tables.read_csv(path, series=, columns=)` | A CSV as a pandas DataFrame (extra `tables`). |
 | `tables.dates(df)` / `.attributes(df)` / `.series_long(df)` | Its dates, its attributes, its series one row per date. |
@@ -662,7 +692,7 @@ issue to discuss one before starting.
 | Idea | Why it matters | Good for |
 |---|---|---|
 | 📓 **More example notebooks** (a coastline, a dam, a mine) | Show what the data can do | first contribution, GIS users |
-| 🧭 **Mosaics from L2 points** (gridding, line-of-sight decomposition) | Your own maps from the raw measurements | advanced, InSAR users |
+| 🧭 **North component and uncertainties** in `decompose` (a third geometry, `mean_velocity_std`) | Closer to L3, with error bars | advanced, InSAR users |
 | 📚 **Documentation site** | Search, API reference, tutorials | anyone |
 
 Found something odd in the archive? That is a contribution too: open an issue
