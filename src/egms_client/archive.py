@@ -1,4 +1,4 @@
-"""Searching and downloading Ortho L3 tiles from the EGMS archive.
+"""Searching and downloading from the EGMS archive: Ortho L3 tiles and L2 bursts.
 
 The Ortho L3 product is the ground velocity resampled on a 100 m grid in
 EPSG:3035 (LAEA Europe), in 100 km tiles, one per component: ``U``
@@ -21,6 +21,22 @@ Verified against the live archive on 2026-11-03:
 * each hit carries its own ``filename`` and ``version`` (``2020_2025_1``):
   the trailing number is a sub-release, so read the name from the hit
   instead of building it.
+
+Beyond Ortho L3 the archive serves two levels of measurement points, one
+ZIP per Sentinel-1 burst (a CSV of points with their time series and an XML
+of metadata): L2A (``BASIC``) and L2B (``CALIBRATED``, tied to GNSS).
+Verified on 2026-11-03:
+
+* ``GET /levels`` names them ``L2A``, ``L2B``, ``L3``; the lower-case
+  ``L2a`` of the file names is refused as ``Invalid level``;
+* a search needs a place: ``bbox``, ``tileId``, ``swath``, ``burstCycle``
+  or ``relativeOrbit``, else ``You must provide either bbox, ...``;
+* ``bbox`` is ``[[west, south], [east, north]]`` in degrees, for every level;
+  any other shape is answered ``An error occurred processing the search``,
+  and an area of 7° x 7° is ``Requested area is too large`` (5° x 5° passes);
+* ``relativeOrbit`` is a string of three digits: ``"022"`` works, ``22`` and
+  ``"22"`` are ``Invalid relative orbit``;
+* one relative orbit is ~400 bursts and ~90 GB per level.
 """
 
 from __future__ import annotations
@@ -28,13 +44,19 @@ from __future__ import annotations
 import io
 import json
 import math
+import re
+import shutil
 import zipfile
+from collections.abc import Iterable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Literal
 
 from egms_client.errors import EgmsError
 
 ARCHIVE_URL = "https://egms.land.copernicus.eu/insar-api/archive"
+
+_CHUNK = 1 << 20
 
 Component = Literal["U", "E"]
 COMPONENTS: tuple[Component, ...] = ("U", "E")
@@ -46,10 +68,42 @@ TILE_SIZE_M = 100_000
 #: (E, N): the lower-left corner in hundreds of kilometres.
 Tile = tuple[int, int]
 
+Level = Literal["L2A", "L2B", "L3"]
+LEVELS: tuple[Level, ...] = ("L2A", "L2B", "L3")
+
+Direction = Literal["ascending", "descending"]
+
+#: (west, south, east, north) in degrees.
+LonLatBounds = tuple[float, float, float, float]
+
+#: Side of the largest box searched at once, in degrees: 5° x 5° passes,
+#: 7° x 7° is "Requested area is too large".
+MAX_BBOX_DEG = 5.0
+
+
+@dataclass(frozen=True, slots=True)
+class Query:
+    """What to look for: levels, a release and at least one place.
+
+    ``bbox`` works for every level; ``tile`` is for L3; ``relative_orbit``,
+    ``burst_cycle`` and ``swath`` are for L2A and L2B. ``product_type``
+    narrows L3 to ``ORTHO-UP`` or ``ORTHO-EAST``.
+    """
+
+    levels: tuple[Level, ...]
+    release: str
+    bbox: LonLatBounds | None = None
+    tile: Tile | None = None
+    relative_orbit: int | str | None = None
+    burst_cycle: int | str | None = None
+    swath: str | None = None
+    direction: Direction | None = None
+    product_type: str | None = None
+
 
 @dataclass(frozen=True, slots=True)
 class Hit:
-    """One downloadable file of a search."""
+    """One downloadable file of a search. The L2 fields are empty for L3."""
 
     filename: str
     filesize: int
@@ -57,11 +111,25 @@ class Hit:
     release: str
     version: str
     product_type: str
+    level: str = ""
+    path: str = ""
+    bbox: LonLatBounds | None = None
+    burst_id: str = ""
+    relative_orbit: str = ""
+    burst_cycle: str = ""
+    swath: str = ""
+    direction: str = ""
+    polarization: str = ""
 
     @property
     def stem(self) -> str:
-        """The file name without ``.zip``: also the name of the GeoTIFF inside."""
+        """The file name without ``.zip``: also the name of every file inside."""
         return self.filename.removesuffix(".zip")
+
+    @property
+    def family(self) -> str:
+        """The name up to the sub-release: hits of one family are versions of one file."""
+        return self.stem.rsplit("_", 1)[0]
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +144,14 @@ def tile_id(tile: Tile) -> str:
     """``(47, 19)`` → ``"E47N19"``."""
     e, n = tile
     return f"E{e}N{n}"
+
+
+def parse_tile_id(text: str) -> Tile:
+    """``"E47N19"`` → ``(47, 19)``; ``ValueError`` for anything else."""
+    match = re.fullmatch(r"E(\d+)N(\d+)", text.strip().upper())
+    if match is None:
+        raise ValueError(f"not a tile id: {text!r} (expected like E47N19)")
+    return int(match[1]), int(match[2])
 
 
 def tiles_for_bounds(minx: float, miny: float, maxx: float, maxy: float) -> list[Tile]:
@@ -110,12 +186,62 @@ def search_body(tile: Tile, component: Component, release: str) -> dict[str, Any
     }
 
 
+def query_body(query: Query) -> dict[str, Any]:
+    """The JSON body of ``POST {archive}/search`` for a :class:`Query`.
+
+    ``ValueError`` when the query has no place, which the archive would refuse.
+    """
+    if not query.levels:
+        raise ValueError("a query needs at least one level")
+    body: dict[str, Any] = {
+        "releases": [api_release(query.release)],
+        "levels": list(query.levels),
+    }
+    if query.bbox is not None:
+        west, south, east, north = query.bbox
+        if not (west < east and south < north):
+            raise ValueError(f"bbox is (west, south, east, north): {query.bbox}")
+        body["bbox"] = [[west, south], [east, north]]
+    if query.tile is not None:
+        body["tileId"] = tile_id(query.tile)
+    if query.relative_orbit is not None:
+        body["relativeOrbit"] = f"{int(query.relative_orbit):03d}"
+    if query.burst_cycle is not None:
+        body["burstCycle"] = f"{int(query.burst_cycle):04d}"
+    if query.swath is not None:
+        body["swath"] = query.swath.upper()
+    if query.direction is not None:
+        body["direction"] = query.direction
+    if query.product_type is not None:
+        body["productType"] = query.product_type
+    if body.keys() <= {"releases", "levels", "direction", "productType"}:
+        raise ValueError("a query needs a place: bbox, tile, relative_orbit, burst_cycle or swath")
+    return body
+
+
+def split_bbox(bbox: LonLatBounds, step: float = MAX_BBOX_DEG) -> list[LonLatBounds]:
+    """A box cut into pieces no larger than ``step`` degrees a side, west to east."""
+    west, south, east, north = bbox
+    nx, ny = math.ceil((east - west) / step), math.ceil((north - south) / step)
+    dx, dy = (east - west) / nx, (north - south) / ny
+    return [
+        (west + i * dx, south + j * dy, west + (i + 1) * dx, south + (j + 1) * dy)
+        for i in range(nx)
+        for j in range(ny)
+    ]
+
+
 def parse_releases(body: bytes | str) -> list[str]:
     """The release names, oldest first. :class:`EgmsError` when not logged in."""
+    return sorted(parse_names(body, "release list"))
+
+
+def parse_names(body: bytes | str, what: str) -> list[str]:
+    """A JSON list of names (``/levels``, ``/bursts``), in the archive's order."""
     data = _json(body)
     if not isinstance(data, list):
-        raise EgmsError(f"EGMS archive refused the release list: {_message(data)}")
-    return sorted(str(r) for r in data)
+        raise EgmsError(f"EGMS archive refused the {what}: {_message(data)}")
+    return [str(r) for r in data]
 
 
 def parse_search(body: bytes | str) -> Search | None:
@@ -130,23 +256,23 @@ def parse_search(body: bytes | str) -> Search | None:
         if str(data.get("message") or "").startswith("Invalid tile ID"):
             return None
         raise EgmsError(f"EGMS archive refused the search: {_message(data)}")
-    hits = [
-        Hit(
-            filename=str(h["filename"]),
-            filesize=int(h.get("filesize") or 0),
-            tile_id=str(h.get("tileId") or ""),
-            release=str(h.get("release") or ""),
-            version=str(h.get("version") or ""),
-            product_type=str(h.get("productType") or ""),
-        )
-        for h in data.get("hits") or []
-    ]
+    hits = [_hit(h) for h in data.get("hits") or []]
     return Search(id=str(data["id"]), hits=hits)
 
 
 def latest_hit(search: Search) -> Hit | None:
     """The hit with the highest sub-release, or ``None`` if there is none."""
     return max(search.hits, key=lambda h: _sub_release(h.version), default=None)
+
+
+def latest_hits(hits: Iterable[Hit]) -> list[Hit]:
+    """One hit per file, the highest sub-release of each, in their first order."""
+    best: dict[str, Hit] = {}
+    for hit in hits:
+        known = best.get(hit.family)
+        if known is None or _sub_release(hit.version) > _sub_release(known.version):
+            best[hit.family] = hit
+    return list(best.values())
 
 
 def download_url(archive_url: str, hit: Hit) -> str:
@@ -169,6 +295,58 @@ def extract_tiff(archive: bytes, hit: Hit) -> bytes:
             return z.read(f"{hit.stem}.tiff")
         except KeyError as exc:
             raise EgmsError(f"{hit.filename} has no {hit.stem}.tiff: {z.namelist()}") from exc
+
+
+def extract(archive: Path, suffixes: Iterable[str], directory: Path) -> list[Path]:
+    """The files ``<stem>.<suffix>`` of a downloaded ZIP, written to ``directory``.
+
+    Each is streamed to a ``.part`` file and renamed, so a file that exists is
+    whole. :class:`EgmsError` if the ZIP lacks one of them.
+    """
+    stem = archive.name.removesuffix(".zip")
+    paths = []
+    with zipfile.ZipFile(archive) as z:
+        for suffix in suffixes:
+            name = f"{stem}.{suffix}"
+            try:
+                info = z.getinfo(name)
+            except KeyError as exc:
+                raise EgmsError(f"{archive.name} has no {name}: {z.namelist()}") from exc
+            path = directory / name
+            partial = path.with_name(f"{name}.part")
+            with z.open(info) as src, partial.open("wb") as dst:
+                shutil.copyfileobj(src, dst, _CHUNK)
+            partial.rename(path)
+            paths.append(path)
+    return paths
+
+
+def _hit(h: dict[str, Any]) -> Hit:
+    def text(key: str) -> str:
+        return str(h.get(key) or "")
+
+    try:
+        (west, south), (east, north) = h["bbox"]
+        bbox: LonLatBounds | None = (float(west), float(south), float(east), float(north))
+    except (KeyError, TypeError, ValueError):
+        bbox = None
+    return Hit(
+        filename=str(h["filename"]),
+        filesize=int(h.get("filesize") or 0),
+        tile_id=text("tileId"),
+        release=text("release"),
+        version=text("version"),
+        product_type=text("productType"),
+        level=text("productLevel"),
+        path=text("path"),
+        bbox=bbox,
+        burst_id=text("burstId"),
+        relative_orbit=text("relativeOrbit"),
+        burst_cycle=text("burstCycle"),
+        swath=text("swath"),
+        direction=text("direction"),
+        polarization=text("polarization"),
+    )
 
 
 def _sub_release(version: str) -> int:

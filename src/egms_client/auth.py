@@ -18,7 +18,10 @@ from __future__ import annotations
 
 import base64
 import json
+import os
+from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from egms_client.errors import EgmsError
@@ -26,6 +29,10 @@ from egms_client.errors import EgmsError
 #: Lifetime of the signed assertion, in seconds.
 ASSERTION_LIFETIME = 3600
 GRANT_TYPE = "urn:ietf:params:oauth:grant-type:jwt-bearer"
+
+#: The environment variables :meth:`ServiceKey.from_env` reads.
+ENV_KEY = "EGMS_SERVICE_KEY"
+ENV_KEY_FILE = "EGMS_SERVICE_KEY_FILE"
 
 _FIELDS = ("client_id", "user_id", "private_key", "token_uri")
 
@@ -49,6 +56,29 @@ class ServiceKey:
         if missing:
             raise ValueError(f"CLMS service key without {', '.join(missing)}")
         return cls(**{f: str(data[f]) for f in _FIELDS})
+
+    @classmethod
+    def from_file(cls, path: str | os.PathLike[str]) -> ServiceKey:
+        """Read the JSON file saved from the profile page (``~`` is expanded)."""
+        return cls.from_json(Path(path).expanduser().read_text())
+
+    @classmethod
+    def from_env(cls, environ: Mapping[str, str] | None = None) -> ServiceKey:
+        """The key named by the environment, so no application hard-codes a path.
+
+        ``EGMS_SERVICE_KEY`` holds the JSON itself (for containers and CI
+        secrets); ``EGMS_SERVICE_KEY_FILE`` holds the path of the file. The
+        first one set wins; neither is ``LookupError``.
+        """
+        env = os.environ if environ is None else environ
+        if text := env.get(ENV_KEY, "").strip():
+            return cls.from_json(text)
+        if path := env.get(ENV_KEY_FILE, "").strip():
+            return cls.from_file(path)
+        raise LookupError(
+            f"no CLMS service key: set {ENV_KEY} to its JSON or {ENV_KEY_FILE} to its path "
+            "(land.copernicus.eu → profile → API Tokens → Create new token)"
+        )
 
     def __repr__(self) -> str:
         return f"ServiceKey(client_id={self.client_id!r}, user_id={self.user_id!r}, private_key=…)"
