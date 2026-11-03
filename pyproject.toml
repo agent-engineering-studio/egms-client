@@ -40,6 +40,9 @@ tables = [
     "pyarrow>=17",
     "pyproj>=3.6",
 ]
+xarray = [
+    "xarray>=2024.6",
+]
 
 [project.urls]
 Homepage = "https://github.com/agent-engineering-studio/egms-client"
@@ -61,6 +64,7 @@ dev = [
     "ruff>=0.8",
     "pandas>=2.2",
     "pyarrow>=17",
+    "xarray>=2024.6",
 ]
 
 [tool.ruff]
@@ -72,6 +76,8 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "ARG", "PTH", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["ARG", "B018"]
+# Notebooks favour readable plotting calls over the line limit.
+"notebooks/**" = ["E501"]
 
 [tool.mypy]
 strict = true
@@ -81,7 +87,7 @@ warn_unused_ignores = true
 warn_redundant_casts = true
 
 [[tool.mypy.overrides]]
-module = ["rasterio.*", "pyproj.*", "pandas.*", "pyarrow.*"]
+module = ["rasterio.*", "pyproj.*", "pandas.*", "pyarrow.*", "xarray.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

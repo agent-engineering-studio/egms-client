@@ -29,6 +29,7 @@ path = await archive.fetch_tile((47, 19), "U", "2020-2025", Path("egms"))
 - [What this library does](#what-this-library-does)
 - [Who is it for](#who-is-it-for)
 - [Quick start](#quick-start)
+- [Example notebooks](#example-notebooks)
 - [Where downloads are saved](#where-downloads-are-saved)
 - [Time series as tables](#time-series-as-tables)
 - [How it works](#how-it-works)
@@ -116,6 +117,7 @@ landslide-risk model, and was extracted so that anyone can use it.
 pip install egms-client           # login, search, download
 pip install "egms-client[raster]" # + mosaics (numpy, rasterio, pyproj)
 pip install "egms-client[tables]" # + CSVs as pandas / GeoParquet (pandas, pyarrow, pyproj)
+pip install "egms-client[xarray]" # + maps and series as xarray DataArray
 ```
 
 Python 3.12 or newer.
@@ -229,6 +231,20 @@ plt.show()
 ```
 
 ---
+
+## Example notebooks
+
+Three stories with real data, from download to figure, in [`notebooks/`](notebooks/):
+
+| | |
+|---|---|
+| [**Campi Flegrei**](notebooks/01_campi_flegrei.ipynb) | a caldera rising +79 cm in five years near Pozzuoli |
+| [**A landslide in Ancona**](notebooks/02_landslide_ancona.ipynb) | measurement points on a moving slope, against still ones |
+| [**Bologna sinking**](notebooks/03_sinking_bologna.ipynb) | how much of the plain subsides, and how fast |
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/agent-engineering-studio/egms-client/main/docs/images/notebook-campi-flegrei.png" alt="Vertical speed around Naples and uplift near Pozzuoli, from the Campi Flegrei notebook" width="100%">
+</p>
 
 ## Where downloads are saved
 
@@ -444,6 +460,23 @@ cells.plot(column="mean_velocity", cmap="RdBu_r", vmin=-10, vmax=10, markersize=
 
 DuckDB reads it too: `SELECT avg(mean_velocity) FROM 'egms/*.parquet'`.
 
+### As xarray
+
+With the `xarray` extra (`pip install "egms-client[raster,tables,xarray]"`),
+maps and series become labelled arrays for the scientific Python stack:
+
+```python
+from egms_client.mosaic import to_xarray
+from egms_client.tables import to_xarray as series_to_xarray
+
+grid = to_xarray(vertical)  # dims (y, x), EPSG:3035 in `spatial_ref`
+grid.sel(x=4_773_750, y=1_900_050, method="nearest")
+
+series = series_to_xarray(points)  # dims (pid, time), displacement in mm
+rising = series.where(series.mean_velocity > 10, drop=True)
+rising.mean("pid").plot()  # the average curve of the fastest-rising cells
+```
+
 ### Your own vertical and east-west maps from L2 points
 
 L2 points move along each satellite's line of sight. Take one **ascending**
@@ -562,6 +595,7 @@ library handles all of these for you:
 | relative orbit `22` | `Invalid relative orbit`: it must be the string `"022"` | pads it for you |
 | a bbox in any other shape than `[[w, s], [e, n]]` | `An error occurred processing the search` | builds the right shape |
 | a box of 7° × 7° | `Requested area is too large` (5° × 5° passes) | splits it and merges the results |
+| a third download at the same time | HTTP **429** `At most 2 downloads may be performed simultaneously` (per account) | never more than 2 at once, whatever you ask |
 
 All checked against the live archive on 3 November 2026.
 
@@ -582,6 +616,7 @@ All checked against the live archive on 3 November 2026.
 | `.fetch_tile(tile, component, release, dir)` | GeoTIFF path (cached), or `None`. |
 | `tiles_for_bounds(minx, miny, maxx, maxy)` | Tiles covering a rectangle (EPSG:3035 m). |
 | `tile_id((e, n))` / `parse_tile_id(text)` | `(47, 19)` ↔ `"E47N19"`. |
+| `hit.covers(lon, lat)` / `hit.footprint` | Whether a file's real outline contains a point (bursts are tilted, their bbox is larger). |
 | `default_directory()` | Where downloads go when no directory is given. |
 | `mosaic(tiffs, minx=, miny=, maxx=, maxy=)` | One float32 array, NaN where no data. |
 | `decompose.grid_los(points, minx=, ...)` / `decompose.decompose(asc, desc)` | L2 points on a grid; ascending + descending into vertical and east-west `Mosaic`s. |
@@ -589,6 +624,7 @@ All checked against the live archive on 3 November 2026.
 | `tables.read_csv(path, series=, columns=)` | A CSV as a pandas DataFrame (extra `tables`). |
 | `tables.dates(df)` / `.attributes(df)` / `.series_long(df)` | Its dates, its attributes, its series one row per date. |
 | `tables.csv_to_geoparquet(csv)` / `.to_geoparquet(df, path)` | GeoParquet, points in EPSG:3035. |
+| `mosaic.to_xarray(m)` / `tables.to_xarray(df)` | A map over `(y, x)`, series over `(pid, time)`, as `xarray.DataArray` (extra `xarray`). |
 | `EgmsError` | The server answered, but refused. |
 
 Lower level, for your own HTTP layer: `token_request` / `parse_token`,
@@ -655,8 +691,7 @@ issue to discuss one before starting.
 
 | Idea | Why it matters | Good for |
 |---|---|---|
-| 📓 **Example notebooks** (a city, a landslide, a coastline) | Show what the data can do | first contribution, GIS users |
-| 🧊 **Export to xarray** (mosaics and time series as `DataArray`) | Plug into the scientific Python stack | intermediate |
+| 📓 **More example notebooks** (a coastline, a dam, a mine) | Show what the data can do | first contribution, GIS users |
 | 🧭 **North component and uncertainties** in `decompose` (a third geometry, `mean_velocity_std`) | Closer to L3, with error bars | advanced, InSAR users |
 | 📚 **Documentation site** | Search, API reference, tutorials | anyone |
 

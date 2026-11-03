@@ -8,6 +8,17 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `mosaic.to_xarray(m)`: a mosaic as an `xarray.DataArray` on `y` / `x`
+  pixel centres in EPSG:3035, with the CRS CF-style in a `spatial_ref`
+  coordinate (read by rioxarray, GDAL, pyproj).
+- `tables.to_xarray(frame)`: the series of a CSV as a `DataArray` over
+  `(pid, time)`, every attribute (`mean_velocity`, `easting`, ...) a
+  coordinate along `pid`. New extra `xarray`.
+- `Hit.footprint` (the outline the archive returns, `(lon, lat)` corners)
+  and `Hit.covers(lon, lat)`: a burst is a tilted parallelogram, so its
+  bbox claims points it does not contain.
+- `notebooks/`: Campi Flegrei, a landslide in Ancona, Bologna sinking, run
+  on real data, each with its figure in `docs/images/`.
 - `egms_client.decompose`: `grid_los` averages L2 points (mean velocity and
   line-of-sight vector, coherent points only) on a grid in EPSG:3035, and
   `decompose` turns one ascending and one descending grid into vertical and
@@ -31,6 +42,16 @@ All notable changes to this project are documented here. The format follows
   small L2B download) checked against the real archive, with an issue opened
   on failure. Needs the repository secret `EGMS_SERVICE_KEY`.
 - README: a real map (vertical speed around Naples, 2020-2025).
+
+### Fixed
+
+- The archive allows **2 concurrent downloads per account**; a third is
+  answered HTTP 429. Every download of an `EgmsArchive` (`fetch`,
+  `fetch_tile`, and the caller's own parallel calls) now goes through one
+  gate of `MAX_DOWNLOADS = 2`; `concurrency` defaults to 2 (it was 4, which
+  failed on the third file). A 429 waits for `Retry-After`, or at least 30 s.
+- A download interrupted by an error or a cancellation no longer leaves a
+  `.part` file.
 
 ## [0.3.0] - 2026-11-03
 

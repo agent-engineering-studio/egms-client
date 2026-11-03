@@ -120,6 +120,23 @@ class Hit:
     swath: str = ""
     direction: str = ""
     polarization: str = ""
+    #: The file's outline, ``(lon, lat)`` corners: a burst is a tilted
+    #: parallelogram, so its ``bbox`` covers more than the burst does.
+    footprint: tuple[tuple[float, float], ...] = ()
+
+    def covers(self, lon: float, lat: float) -> bool:
+        """True if the point is inside the footprint (inside the bbox if there is none)."""
+        if not self.footprint:
+            if self.bbox is None:
+                return False
+            west, south, east, north = self.bbox
+            return west <= lon <= east and south <= lat <= north
+        inside = False
+        corners = self.footprint
+        for (x1, y1), (x2, y2) in zip(corners, corners[1:] + corners[:1], strict=True):
+            if (y1 > lat) != (y2 > lat) and lon < x1 + (lat - y1) * (x2 - x1) / (y2 - y1):
+                inside = not inside
+        return inside
 
     @property
     def stem(self) -> str:
@@ -330,6 +347,10 @@ def _hit(h: dict[str, Any]) -> Hit:
         bbox: LonLatBounds | None = (float(west), float(south), float(east), float(north))
     except (KeyError, TypeError, ValueError):
         bbox = None
+    try:
+        footprint = tuple((float(x), float(y)) for x, y in h.get("poly") or ())
+    except (TypeError, ValueError):
+        footprint = ()
     return Hit(
         filename=str(h["filename"]),
         filesize=int(h.get("filesize") or 0),
@@ -346,6 +367,7 @@ def _hit(h: dict[str, Any]) -> Hit:
         swath=text("swath"),
         direction=text("direction"),
         polarization=text("polarization"),
+        footprint=footprint,
     )
 
 
