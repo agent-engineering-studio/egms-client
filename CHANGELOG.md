@@ -6,6 +6,29 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-03
+
+### Added
+
+- `egms_client.tables` (extra `tables`: pandas, pyarrow, pyproj): `read_csv`
+  reads any CSV of the archive (L2A, L2B, L3) with float32 dates, optionally
+  without them or with fewer attributes; `dates`, `attributes`,
+  `series_long`; `to_geoparquet` and `csv_to_geoparquet` write GeoParquet
+  1.1 with WKB points in EPSG:3035 from `easting` / `northing`. The CSV is
+  streamed in blocks: a 250 MB L3 CSV converts in ~7 s with ~0.5 GB of
+  memory, to ~60 MB.
+- `fetch(..., keep=["parquet"])`: the CSV of each ZIP converted to
+  GeoParquet, the CSV removed unless also kept.
+- `egms convert`: CSVs already on disk to GeoParquet; `egms download --keep
+  parquet`.
+
+### Fixed
+
+- Concurrent requests share one token request instead of each asking for
+  one; a busy token endpoint (429/502/503/504, network errors) is retried.
+  Its 500 (a bad assertion) is still not.
+- L3 ZIPs also hold an XML: `keep="xml"` is documented for every level.
+
 ## [0.2.0] - 2026-11-03
 
 ### Added

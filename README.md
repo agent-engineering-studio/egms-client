@@ -30,6 +30,7 @@ path = await archive.fetch_tile((47, 19), "U", "2020-2025", Path("egms"))
 - [Who is it for](#who-is-it-for)
 - [Quick start](#quick-start)
 - [Where downloads are saved](#where-downloads-are-saved)
+- [Time series as tables](#time-series-as-tables)
 - [How it works](#how-it-works)
 - [Recipes](#recipes)
 - [The traps we already fell into](#the-traps-we-already-fell-into)
@@ -73,7 +74,8 @@ What you can see with it, for example:
 | 🔑 | **Login with a CLMS service key** | Your key file is all it needs, from a path or an environment variable. Tokens are created and renewed for you. |
 | 🔎 | **Every product of the archive** | **L3** speed maps (vertical `U`, east-west `E`, 100 m grid) and **L2A / L2B** measurement points with their full time series. |
 | 🗺️ | **Search by area in degrees** | Give a box in longitude/latitude; areas larger than the archive accepts are split for you. |
-| 💾 | **Never download twice** | Files already on disk are skipped, interrupted runs resume, and you choose what to keep of each ZIP (`tiff`, `csv`, `xml` or the ZIP). |
+| 💾 | **Never download twice** | Files already on disk are skipped, interrupted runs resume, and you choose what to keep of each ZIP (`tiff`, `csv`, `xml`, `parquet` or the ZIP). |
+| 📈 | **Time series as tables** | The CSVs in pandas, or straight to **GeoParquet** (a 250 MB CSV becomes ~60 MB) for GeoPandas, QGIS, DuckDB. |
 | 🛡️ | **Safe by default** | Parallel downloads with a limit, automatic retries, a size check before the first byte. |
 | 🖥️ | **Command line** | `egms search` and `egms download`, no Python needed. |
 | 🧩 | **Mosaics** | Glue tiles into one array over any rectangle, with no resampling. |
@@ -101,6 +103,7 @@ landslide-risk model, and was extracted so that anyone can use it.
 ```bash
 pip install egms-client           # login, search, download
 pip install "egms-client[raster]" # + mosaics (numpy, rasterio, pyproj)
+pip install "egms-client[tables]" # + CSVs as pandas / GeoParquet (pandas, pyarrow, pyproj)
 ```
 
 Python 3.12 or newer.
@@ -155,7 +158,8 @@ vertical speed of a 100 m square, in mm/year.
 egms releases
 egms search   --level L2B --bbox 14.4,40.0,15.7,41.0     # what is there, and how many GB
 egms download --tile E47N19 --component U --keep tiff --out egms
-egms download --level L2B --bbox 14.4,40.0,15.7,41.0 --keep csv --max-gb 10
+egms download --level L2B --bbox 14.4,40.0,15.7,41.0 --keep parquet --max-gb 10
+egms convert  egms/EGMS_L3_E47N19_100km_U_2020_2025_1.csv   # a CSV you already have
 ```
 
 `--bbox` is *west,south,east,north* in degrees. `download` stops before the
@@ -316,8 +320,9 @@ half-written GeoTIFF behind.
 </p>
 
 Each ZIP also holds a CSV with the full time series of every pixel. It is
-large and most uses only need the mean speed, so the library leaves it out.
-(Need the time series? See [Ideas to work on](#ideas-to-work-on).)
+large and most uses only need the mean speed, so `fetch_tile` leaves it out.
+Need the time series? `fetch(..., keep=["parquet"])` keeps it as GeoParquet,
+about a quarter of the CSV: see [Time series as tables](#time-series-as-tables).
 
 ### The building blocks
 
@@ -385,6 +390,39 @@ sight) and one column per acquisition date with the displacement in mm.
 
 Other filters: `relative_orbit=124`, `burst_cycle=835`, `swath="IW3"`,
 `direction="descending"`. L2A is the same with `levels=("L2A",)`.
+
+### Time series as tables
+
+With the `tables` extra, every CSV of the archive (L2A, L2B and L3) reads
+the same way: attributes first, then one column per acquisition date with
+the displacement in mm.
+
+```python
+from egms_client.tables import attributes, dates, read_csv, series_long
+
+points = read_csv(Path("egms/EGMS_L3_E47N19_100km_U_2020_2025_1.csv"))
+print(len(points), len(dates(points)))  # 169917 cells, 302 dates
+fast = attributes(points).query("mean_velocity < -10")  # sinking > 1 cm/year
+long = series_long(points[points.pid.isin(fast.pid)])  # pid, date, displacement_mm
+```
+
+`read_csv(path, series=False)` skips the dates and uses far less memory.
+
+Or skip pandas and go straight to **GeoParquet**, points in EPSG:3035,
+streamed in blocks so memory stays flat (~0.5 GB for a 250 MB CSV):
+
+```python
+paths = await archive.fetch(query, Path("egms"), keep=["parquet"])  # no CSV left on disk
+```
+
+```python
+import geopandas as gpd
+
+cells = gpd.read_parquet("egms/EGMS_L3_E47N19_100km_U_2020_2025_1.parquet")
+cells.plot(column="mean_velocity", cmap="RdBu_r", vmin=-10, vmax=10, markersize=0.1)
+```
+
+DuckDB reads it too: `SELECT avg(mean_velocity) FROM 'egms/*.parquet'`.
 
 ### Always use the newest release
 
@@ -497,6 +535,9 @@ All checked against the live archive on 3 November 2026.
 | `tile_id((e, n))` / `parse_tile_id(text)` | `(47, 19)` ↔ `"E47N19"`. |
 | `default_directory()` | Where downloads go when no directory is given. |
 | `mosaic(tiffs, minx=, miny=, maxx=, maxy=)` | One float32 array, NaN where no data. |
+| `tables.read_csv(path, series=, columns=)` | A CSV as a pandas DataFrame (extra `tables`). |
+| `tables.dates(df)` / `.attributes(df)` / `.series_long(df)` | Its dates, its attributes, its series one row per date. |
+| `tables.csv_to_geoparquet(csv)` / `.to_geoparquet(df, path)` | GeoParquet, points in EPSG:3035. |
 | `EgmsError` | The server answered, but refused. |
 
 Lower level, for your own HTTP layer: `token_request` / `parse_token`,
@@ -557,7 +598,6 @@ issue to discuss one before starting.
 |---|---|---|
 | 📓 **Example notebooks** (a city, a landslide, a coastline) | Show what the data can do | first contribution, GIS users |
 | 📊 **Progress bar** for `egms download` | Big downloads feel less like a black box | first contribution |
-| 📈 **Read the CSVs** into pandas / GeoParquet (optional extra) | L2 points and L3 time series in one line | intermediate |
 | 🧊 **Export to xarray / Cloud-Optimized GeoTIFF** | Plug into the scientific Python stack | intermediate |
 | 🧭 **Mosaics from L2 points** (gridding, line-of-sight decomposition) | Your own maps from the raw measurements | advanced, InSAR users |
 | 📚 **Documentation site** | Search, API reference, tutorials | anyone |

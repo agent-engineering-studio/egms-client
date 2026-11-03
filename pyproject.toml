@@ -1,7 +1,7 @@
 [project]
 name = "egms-client"
-version = "0.2.0"
-description = "Client for the EGMS archive: CLMS service-key auth, search and download of L2A, L2B and Ortho L3, mosaics, CLI"
+version = "0.3.0"
+description = "Client for the EGMS archive: CLMS service-key auth, search and download of L2A, L2B and Ortho L3, mosaics, GeoParquet, CLI"
 readme = "README.md"
 keywords = ["egms", "copernicus", "insar", "ground motion", "sentinel-1", "subsidence", "landslide", "clms"]
 requires-python = ">=3.12"
@@ -35,6 +35,11 @@ raster = [
     "pyproj>=3.6",
     "rasterio>=1.4",
 ]
+tables = [
+    "pandas>=2.2",
+    "pyarrow>=17",
+    "pyproj>=3.6",
+]
 
 [project.urls]
 Homepage = "https://github.com/agent-engineering-studio/egms-client"
@@ -54,6 +59,8 @@ dev = [
     "pytest>=8.3",
     "pytest-cov>=6.0",
     "ruff>=0.8",
+    "pandas>=2.2",
+    "pyarrow>=17",
 ]
 
 [tool.ruff]
@@ -74,7 +81,7 @@ warn_unused_ignores = true
 warn_redundant_casts = true
 
 [[tool.mypy.overrides]]
-module = ["rasterio.*", "pyproj.*"]
+module = ["rasterio.*", "pyproj.*", "pandas.*", "pyarrow.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

@@ -3,6 +3,7 @@
     egms releases
     egms search   --bbox 14.4,40.0,15.7,41.0 --level L2B
     egms download --tile E47N19 --component U --keep tiff --out egms
+    egms convert  egms/EGMS_L2b_124_0835_IW3_VV_2020_2025_1.csv
 
 The key comes from ``--key-file``, else from ``EGMS_SERVICE_KEY`` or
 ``EGMS_SERVICE_KEY_FILE``. Downloads go to ``--out``, else to
@@ -32,10 +33,15 @@ def main(argv: Sequence[str] | None = None, *, client: httpx.AsyncClient | None 
     """Run the command line; the exit status."""
     args = _parser().parse_args(argv)
     try:
+        if args.command == "convert":
+            return _convert(args)
         key = ServiceKey.from_file(args.key_file) if args.key_file else ServiceKey.from_env()
         return asyncio.run(_run(args, key, client))
     except (EgmsError, LookupError, ValueError, OSError) as exc:
         print(f"egms: {exc}", file=sys.stderr)
+        return 1
+    except ImportError as exc:
+        print(f"egms: {exc} (pip install 'egms-client[tables]')", file=sys.stderr)
         return 1
 
 
@@ -72,6 +78,15 @@ async def _run(args: argparse.Namespace, key: ServiceKey, client: httpx.AsyncCli
         )
         print(f"{len(paths)} files in {out}", file=sys.stderr)
         return 0
+
+
+def _convert(args: argparse.Namespace) -> int:
+    from egms_client.tables import csv_to_geoparquet
+
+    for name in args.csv:
+        path = csv_to_geoparquet(Path(name), series=not args.no_series)
+        print(path, file=sys.stderr)
+    return 0
 
 
 def _query(args: argparse.Namespace, release: str) -> Query:
@@ -116,11 +131,14 @@ def _parser() -> argparse.ArgumentParser:
             sub.add_argument(
                 "--keep",
                 action="append",
-                choices=["zip", "tiff", "csv", "xml"],
+                choices=["zip", "tiff", "csv", "xml", "parquet"],
                 help="repeatable; zip if none",
             )
             sub.add_argument("--concurrency", type=int, default=4)
             sub.add_argument("--max-gb", type=float, default=10.0, help="0: no limit")
+    convert = commands.add_parser("convert", help="CSV of the archive to GeoParquet (extra tables)")
+    convert.add_argument("csv", nargs="+", help="CSV files; each .parquet is written next to it")
+    convert.add_argument("--no-series", action="store_true", help="attributes only, no dates")
     return parser
 
 
