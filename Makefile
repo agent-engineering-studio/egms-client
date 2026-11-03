@@ -1,4 +1,4 @@
-.PHONY: check lint format typecheck test build
+.PHONY: check lint format typecheck test build docs
 
 check: lint typecheck test
 
@@ -18,3 +18,6 @@ test:
 
 build:
 	uv build
+
+docs:
+	uv run --group docs mkdocs build --strict

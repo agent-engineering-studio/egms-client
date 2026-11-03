@@ -5,9 +5,10 @@
 <p align="center">
   <a href="https://github.com/agent-engineering-studio/egms-client/actions/workflows/ci.yml"><img src="https://github.com/agent-engineering-studio/egms-client/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
   <a href="https://pypi.org/project/egms-client/"><img src="https://img.shields.io/pypi/v/egms-client" alt="PyPI"></a>
+  <a href="https://agent-engineering-studio.github.io/egms-client/"><img src="https://img.shields.io/badge/docs-site-informational" alt="docs"></a>
   <img src="https://img.shields.io/badge/python-3.12%20%7C%203.13-blue" alt="Python 3.12 | 3.13">
   <img src="https://img.shields.io/badge/typing-mypy%20strict-informational" alt="mypy strict">
-  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-green" alt="Apache-2.0"></a>
+  <a href="https://github.com/agent-engineering-studio/egms-client/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-green" alt="Apache-2.0"></a>
 </p>
 
 **egms-client** is a small, typed, async Python library for the archive of
@@ -234,13 +235,13 @@ plt.show()
 
 ## Example notebooks
 
-Three stories with real data, from download to figure, in [`notebooks/`](notebooks/):
+Three stories with real data, from download to figure, in [`notebooks/`](https://github.com/agent-engineering-studio/egms-client/tree/main/notebooks):
 
 | | |
 |---|---|
-| [**Campi Flegrei**](notebooks/01_campi_flegrei.ipynb) | a caldera rising +79 cm in five years near Pozzuoli |
-| [**A landslide in Ancona**](notebooks/02_landslide_ancona.ipynb) | measurement points on a moving slope, against still ones |
-| [**Bologna sinking**](notebooks/03_sinking_bologna.ipynb) | how much of the plain subsides, and how fast |
+| [**Campi Flegrei**](https://github.com/agent-engineering-studio/egms-client/blob/main/notebooks/01_campi_flegrei.ipynb) | a caldera rising +79 cm in five years near Pozzuoli |
+| [**A landslide in Ancona**](https://github.com/agent-engineering-studio/egms-client/blob/main/notebooks/02_landslide_ancona.ipynb) | measurement points on a moving slope, against still ones |
+| [**Bologna sinking**](https://github.com/agent-engineering-studio/egms-client/blob/main/notebooks/03_sinking_bologna.ipynb) | how much of the plain subsides, and how fast |
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/agent-engineering-studio/egms-client/main/docs/images/notebook-campi-flegrei.png" alt="Vertical speed around Naples and uplift near Pozzuoli, from the Campi Flegrei notebook" width="100%">
@@ -635,6 +636,8 @@ Lower level, for your own HTTP layer: `token_request` / `parse_token`,
 
 ## Contributing
 
+Full documentation, with the API reference: **https://agent-engineering-studio.github.io/egms-client/**
+
 Contributions of every size are welcome, from a typo to a new feature. You
 don't need to be an InSAR expert: most of the code is plain Python, HTTP and
 files.
@@ -647,7 +650,7 @@ make check       # ruff + mypy --strict + pytest, the same gate as CI
 ```
 
 The tests **do not need a service key or network**: they run against
-recorded answers of the real archive in [`tests/fixtures/`](tests/fixtures/).
+recorded answers of the real archive in [`tests/fixtures/`](https://github.com/agent-engineering-studio/egms-client/tree/main/tests/fixtures).
 
 ```text
 egms-client/
@@ -680,7 +683,7 @@ flowchart LR
     E --> F["Review & merge 🎉"]
 ```
 
-Rules are short: see [CONTRIBUTING.md](./CONTRIBUTING.md). Commits follow
+Rules are short: see [CONTRIBUTING.md](https://github.com/agent-engineering-studio/egms-client/blob/main/CONTRIBUTING.md). Commits follow
 [Conventional Commits](https://www.conventionalcommits.org/), coverage stays
 above 90%, and contributions are accepted under Apache-2.0.
 
@@ -693,7 +696,7 @@ issue to discuss one before starting.
 |---|---|---|
 | 📓 **More example notebooks** (a coastline, a dam, a mine) | Show what the data can do | first contribution, GIS users |
 | 🧭 **North component and uncertainties** in `decompose` (a third geometry, `mean_velocity_std`) | Closer to L3, with error bars | advanced, InSAR users |
-| 📚 **Documentation site** | Search, API reference, tutorials | anyone |
+| 📚 **Tutorials on the documentation site** (a page per recipe, with figures) | Easier to follow than one long README | anyone |
 
 Found something odd in the archive? That is a contribution too: open an issue
 with what you sent and what came back.
@@ -710,7 +713,7 @@ Anything you publish from it **must credit the source**, for example:
 
 The images in this README are illustrations, not EGMS data.
 
-Code: [Apache-2.0](./LICENSE). Extracted from
+Code: [Apache-2.0](https://github.com/agent-engineering-studio/egms-client/blob/main/LICENSE). Extracted from
 [Limen](https://github.com/agent-engineering-studio/limen).
 
 If this project is useful to you, a ⭐ on GitHub helps others find it.
