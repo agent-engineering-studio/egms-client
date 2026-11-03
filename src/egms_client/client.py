@@ -52,9 +52,10 @@ from egms_client.errors import EgmsError
 #: lasts longer than the token's hour.
 RENEW_MARGIN_S = 300
 
-#: What to keep of each downloaded ZIP: the ZIP itself, or the files inside
-#: (``tiff`` for L3 only; ``csv`` for all levels; ``xml`` for L2 only).
-Keep = Literal["zip", "tiff", "csv", "xml"]
+#: What to keep of each downloaded ZIP: the ZIP itself, the files inside
+#: (``tiff`` for L3 only; ``csv`` and ``xml`` for all levels), or ``parquet``:
+#: the CSV as GeoParquet (needs the ``tables`` extra).
+Keep = Literal["zip", "tiff", "csv", "xml", "parquet"]
 
 _RETRY_STATUS = frozenset({429, 502, 503, 504})
 
@@ -109,6 +110,7 @@ class EgmsArchive:
         self._token: Token | None = None
         self._bodies: dict[str, dict[str, Any]] = {}
         self._renewed: dict[str, str] = {}
+        self._token_lock = asyncio.Lock()
 
     async def __aenter__(self) -> EgmsArchive:
         return self
@@ -127,16 +129,33 @@ class EgmsArchive:
             await self._client.aclose()
 
     async def token(self) -> Token:
-        """A valid bearer token, asking for a new one when the current is about to expire."""
-        now = self._clock()
-        if self._token is None or now > self._token.expires_at - RENEW_MARGIN_S:
-            response = await self._client.post(
-                self._key.token_uri,
-                data=token_request(self._key, now=int(now)),
-                headers={"Accept": "application/json"},
-            )
-            self._token = parse_token(response.status_code, response.content, now=now)
-        return self._token
+        """A valid bearer token, asking for a new one when the current is about to expire.
+
+        Concurrent callers share one request. A busy endpoint (429/502/503/504,
+        or a network error) is retried; its 500 is a bad assertion, not retried.
+        """
+        async with self._token_lock:
+            now = self._clock()
+            if self._token is None or now > self._token.expires_at - RENEW_MARGIN_S:
+                self._token = await self._new_token(now)
+            return self._token
+
+    async def _new_token(self, now: float) -> Token:
+        for attempt in range(self._retries + 1):
+            try:
+                response = await self._client.post(
+                    self._key.token_uri,
+                    data=token_request(self._key, now=int(now)),
+                    headers={"Accept": "application/json"},
+                )
+            except httpx.TransportError:
+                if attempt == self._retries:
+                    raise
+            else:
+                if response.status_code not in _RETRY_STATUS or attempt == self._retries:
+                    return parse_token(response.status_code, response.content, now=now)
+            await self._sleep(self._backoff_s * 2**attempt)
+        raise AssertionError("unreachable")  # pragma: no cover
 
     async def releases(self) -> list[str]:
         """The published releases, oldest first (``["2020-2024", "2020-2025"]``)."""
@@ -284,12 +303,24 @@ class EgmsArchive:
             archive = await self._download(search.id, hit, directory)
         if archive is None:
             return []
-        members = [k for k in keep if k != "zip"]
+        members = [k for k in keep if k not in ("zip", "parquet")]
+        if "parquet" in keep and "csv" not in members:
+            members.append("csv")
         try:
             paths = extract(archive, members, directory)
         finally:
             if "zip" not in keep:
                 archive.unlink()
+        if "parquet" in keep:
+            from egms_client.tables import csv_to_geoparquet
+
+            csv = directory / f"{hit.stem}.csv"
+            try:
+                paths.append(await asyncio.to_thread(csv_to_geoparquet, csv))
+            finally:
+                if "csv" not in keep:
+                    csv.unlink()
+                    paths.remove(csv)
         return [archive, *paths] if "zip" in keep else paths
 
     async def _download(self, search_id: str, hit: Hit, directory: Path) -> Path | None:
