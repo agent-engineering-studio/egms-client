@@ -222,7 +222,9 @@ def _parser() -> argparse.ArgumentParser:
             )
             sub.add_argument("--data-dir", help="tile cache (default: EGMS_DATA_DIR or user cache)")
         if name != "search":
-            sub.add_argument("--concurrency", type=int, default=4)
+            sub.add_argument(
+                "--concurrency", type=int, default=2, help="the archive allows 2 per account"
+            )
             sub.add_argument("--max-gb", type=float, default=10.0, help="0: no limit")
     convert = commands.add_parser("convert", help="CSV of the archive to GeoParquet (extra tables)")
     convert.add_argument("csv", nargs="+", help="CSV files; each .parquet is written next to it")

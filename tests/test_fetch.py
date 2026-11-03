@@ -249,3 +249,84 @@ def test_the_cli_reports_errors_without_a_traceback(
         == 1
     )
     assert "max_bytes" in capsys.readouterr().err
+
+
+def test_never_more_than_two_downloads_at_once(service_key: ServiceKey, tmp_path: Path) -> None:
+    """The archive answers 429 to a third concurrent download per account."""
+    fake = Archive()
+    flight = {"now": 0, "max": 0}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if "/download/" not in request.url.path:
+            return fake(request)
+        flight["now"] += 1
+        flight["max"] = max(flight["max"], flight["now"])
+        await asyncio.sleep(0.01)
+        flight["now"] -= 1
+        return fake(request)
+
+    async def main() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            archive = EgmsArchive(client, service_key, archive_url=ARCHIVE)
+            # fetch with a high concurrency, and fetch_tile-like calls beside it
+            await asyncio.gather(
+                archive.fetch(QUERY, tmp_path / "a", keep=["csv"], concurrency=8),
+                archive.fetch(QUERY, tmp_path / "b", keep=["csv"], concurrency=8),
+            )
+
+    asyncio.run(main())
+    assert flight["max"] == 2
+    assert fake.downloaded() == 6
+
+
+def test_a_429_waits_as_long_as_the_server_says(service_key: ServiceKey, tmp_path: Path) -> None:
+    waits: list[float] = []
+
+    class Busy(Archive):
+        def __call__(self, request: httpx.Request) -> httpx.Response:
+            if "/download/" in request.url.path and not waits:
+                return httpx.Response(429, headers={"Retry-After": "7"}, text="too many")
+            return super().__call__(request)
+
+    async def record(seconds: float) -> None:
+        waits.append(seconds)
+
+    async def main() -> list[Path]:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(Busy())) as client:
+            archive = EgmsArchive(client, service_key, archive_url=ARCHIVE, sleep=record)
+            return await archive.fetch(QUERY, tmp_path, keep=["csv"], concurrency=1)
+
+    assert len(asyncio.run(main())) == 3
+    assert waits == [7.0]
+
+
+def test_a_429_without_retry_after_waits_at_least_half_a_minute(
+    service_key: ServiceKey, tmp_path: Path
+) -> None:
+    waits: list[float] = []
+
+    async def record(seconds: float) -> None:
+        waits.append(seconds)
+
+    async def main() -> list[Path]:
+        archive_ = Archive(downloads=[429])
+        async with httpx.AsyncClient(transport=httpx.MockTransport(archive_)) as client:
+            archive = EgmsArchive(client, service_key, archive_url=ARCHIVE, sleep=record)
+            return await archive.fetch(QUERY, tmp_path, keep=["csv"], concurrency=1)
+
+    assert len(asyncio.run(main())) == 3
+    assert waits == [30.0]
+
+
+def test_a_download_stopped_midway_leaves_no_part(service_key: ServiceKey, tmp_path: Path) -> None:
+    def stop(hit: Hit, received: int, total: int) -> None:
+        raise KeyboardInterrupt
+
+    async def main() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(Archive())) as client:
+            archive = EgmsArchive(client, service_key, archive_url=ARCHIVE)
+            await archive.fetch(QUERY, tmp_path, concurrency=1, on_progress=stop)
+
+    with pytest.raises(KeyboardInterrupt):
+        asyncio.run(main())
+    assert not list(tmp_path.glob("*.part"))

@@ -24,6 +24,16 @@ All notable changes to this project are documented here. The format follows
   on failure. Needs the repository secret `EGMS_SERVICE_KEY`.
 - README: a real map (vertical speed around Naples, 2020-2025).
 
+### Fixed
+
+- The archive allows **2 concurrent downloads per account**; a third is
+  answered HTTP 429. Every download of an `EgmsArchive` (`fetch`,
+  `fetch_tile`, and the caller's own parallel calls) now goes through one
+  gate of `MAX_DOWNLOADS = 2`; `concurrency` defaults to 2 (it was 4, which
+  failed on the third file). A 429 waits for `Retry-After`, or at least 30 s.
+- A download interrupted by an error or a cancellation no longer leaves a
+  `.part` file.
+
 ## [0.3.0] - 2026-11-03
 
 ### Added
