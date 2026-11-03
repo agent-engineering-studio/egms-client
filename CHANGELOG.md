@@ -14,6 +14,11 @@ All notable changes to this project are documented here. The format follows
 - `tables.to_xarray(frame)`: the series of a CSV as a `DataArray` over
   `(pid, time)`, every attribute (`mean_velocity`, `easting`, ...) a
   coordinate along `pid`. New extra `xarray`.
+- `Hit.footprint` (the outline the archive returns, `(lon, lat)` corners)
+  and `Hit.covers(lon, lat)`: a burst is a tilted parallelogram, so its
+  bbox claims points it does not contain.
+- `notebooks/`: Campi Flegrei, a landslide in Ancona, Bologna sinking, run
+  on real data, each with its figure in `docs/images/`.
 
 ## [0.4.0] - 2026-11-03
 

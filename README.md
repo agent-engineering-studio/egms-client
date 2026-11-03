@@ -29,6 +29,7 @@ path = await archive.fetch_tile((47, 19), "U", "2020-2025", Path("egms"))
 - [What this library does](#what-this-library-does)
 - [Who is it for](#who-is-it-for)
 - [Quick start](#quick-start)
+- [Example notebooks](#example-notebooks)
 - [Where downloads are saved](#where-downloads-are-saved)
 - [Time series as tables](#time-series-as-tables)
 - [How it works](#how-it-works)
@@ -230,6 +231,20 @@ plt.show()
 ```
 
 ---
+
+## Example notebooks
+
+Three stories with real data, from download to figure, in [`notebooks/`](notebooks/):
+
+| | |
+|---|---|
+| [**Campi Flegrei**](notebooks/01_campi_flegrei.ipynb) | a caldera rising +79 cm in five years near Pozzuoli |
+| [**A landslide in Ancona**](notebooks/02_landslide_ancona.ipynb) | measurement points on a moving slope, against still ones |
+| [**Bologna sinking**](notebooks/03_sinking_bologna.ipynb) | how much of the plain subsides, and how fast |
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/agent-engineering-studio/egms-client/main/docs/images/notebook-campi-flegrei.png" alt="Vertical speed around Naples and uplift near Pozzuoli, from the Campi Flegrei notebook" width="100%">
+</p>
 
 ## Where downloads are saved
 
@@ -572,6 +587,7 @@ All checked against the live archive on 3 November 2026.
 | `.fetch_tile(tile, component, release, dir)` | GeoTIFF path (cached), or `None`. |
 | `tiles_for_bounds(minx, miny, maxx, maxy)` | Tiles covering a rectangle (EPSG:3035 m). |
 | `tile_id((e, n))` / `parse_tile_id(text)` | `(47, 19)` ↔ `"E47N19"`. |
+| `hit.covers(lon, lat)` / `hit.footprint` | Whether a file's real outline contains a point (bursts are tilted, their bbox is larger). |
 | `default_directory()` | Where downloads go when no directory is given. |
 | `mosaic(tiffs, minx=, miny=, maxx=, maxy=)` | One float32 array, NaN where no data. |
 | `to_cog(mosaic, path)` / `lonlat_to_laea(w, s, e, n)` | A mosaic as Cloud-Optimized GeoTIFF; a box in degrees as EPSG:3035 metres. |
@@ -645,7 +661,7 @@ issue to discuss one before starting.
 
 | Idea | Why it matters | Good for |
 |---|---|---|
-| 📓 **Example notebooks** (a city, a landslide, a coastline) | Show what the data can do | first contribution, GIS users |
+| 📓 **More example notebooks** (a coastline, a dam, a mine) | Show what the data can do | first contribution, GIS users |
 | 🧭 **Mosaics from L2 points** (gridding, line-of-sight decomposition) | Your own maps from the raw measurements | advanced, InSAR users |
 | 📚 **Documentation site** | Search, API reference, tutorials | anyone |
 
