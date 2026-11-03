@@ -40,6 +40,9 @@ tables = [
     "pyarrow>=17",
     "pyproj>=3.6",
 ]
+xarray = [
+    "xarray>=2024.6",
+]
 
 [project.urls]
 Homepage = "https://github.com/agent-engineering-studio/egms-client"
@@ -61,6 +64,7 @@ dev = [
     "ruff>=0.8",
     "pandas>=2.2",
     "pyarrow>=17",
+    "xarray>=2024.6",
 ]
 
 [tool.ruff]
@@ -81,7 +85,7 @@ warn_unused_ignores = true
 warn_redundant_casts = true
 
 [[tool.mypy.overrides]]
-module = ["rasterio.*", "pyproj.*", "pandas.*", "pyarrow.*"]
+module = ["rasterio.*", "pyproj.*", "pandas.*", "pyarrow.*", "xarray.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

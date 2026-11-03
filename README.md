@@ -116,6 +116,7 @@ landslide-risk model, and was extracted so that anyone can use it.
 pip install egms-client           # login, search, download
 pip install "egms-client[raster]" # + mosaics (numpy, rasterio, pyproj)
 pip install "egms-client[tables]" # + CSVs as pandas / GeoParquet (pandas, pyarrow, pyproj)
+pip install "egms-client[xarray]" # + maps and series as xarray DataArray
 ```
 
 Python 3.12 or newer.
@@ -444,6 +445,23 @@ cells.plot(column="mean_velocity", cmap="RdBu_r", vmin=-10, vmax=10, markersize=
 
 DuckDB reads it too: `SELECT avg(mean_velocity) FROM 'egms/*.parquet'`.
 
+### As xarray
+
+With the `xarray` extra (`pip install "egms-client[raster,tables,xarray]"`),
+maps and series become labelled arrays for the scientific Python stack:
+
+```python
+from egms_client.mosaic import to_xarray
+from egms_client.tables import to_xarray as series_to_xarray
+
+grid = to_xarray(vertical)  # dims (y, x), EPSG:3035 in `spatial_ref`
+grid.sel(x=4_773_750, y=1_900_050, method="nearest")
+
+series = series_to_xarray(points)  # dims (pid, time), displacement in mm
+rising = series.where(series.mean_velocity > 10, drop=True)
+rising.mean("pid").plot()  # the average curve of the fastest-rising cells
+```
+
 ### Always use the newest release
 
 ```python
@@ -560,6 +578,7 @@ All checked against the live archive on 3 November 2026.
 | `tables.read_csv(path, series=, columns=)` | A CSV as a pandas DataFrame (extra `tables`). |
 | `tables.dates(df)` / `.attributes(df)` / `.series_long(df)` | Its dates, its attributes, its series one row per date. |
 | `tables.csv_to_geoparquet(csv)` / `.to_geoparquet(df, path)` | GeoParquet, points in EPSG:3035. |
+| `mosaic.to_xarray(m)` / `tables.to_xarray(df)` | A map over `(y, x)`, series over `(pid, time)`, as `xarray.DataArray` (extra `xarray`). |
 | `EgmsError` | The server answered, but refused. |
 
 Lower level, for your own HTTP layer: `token_request` / `parse_token`,
@@ -627,7 +646,6 @@ issue to discuss one before starting.
 | Idea | Why it matters | Good for |
 |---|---|---|
 | 📓 **Example notebooks** (a city, a landslide, a coastline) | Show what the data can do | first contribution, GIS users |
-| 🧊 **Export to xarray** (mosaics and time series as `DataArray`) | Plug into the scientific Python stack | intermediate |
 | 🧭 **Mosaics from L2 points** (gridding, line-of-sight decomposition) | Your own maps from the raw measurements | advanced, InSAR users |
 | 📚 **Documentation site** | Search, API reference, tutorials | anyone |
 

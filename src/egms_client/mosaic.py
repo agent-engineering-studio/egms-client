@@ -124,3 +124,27 @@ def to_cog(m: Mosaic, path: Path) -> Path:
         dst.update_tags(units="mm/year", source="Copernicus EGMS Ortho L3")
     partial.rename(path)
     return path
+
+
+def to_xarray(m: Mosaic, *, name: str = "velocity") -> Any:
+    """A mosaic as an ``xarray.DataArray`` on ``y`` / ``x`` pixel centres.
+
+    The CRS travels CF-style in a ``spatial_ref`` coordinate, which rioxarray
+    and GDAL read; values are mm/year, NaN where no data. Needs ``xarray``.
+    """
+    import numpy as np
+    import xarray as xr
+    from pyproj import CRS
+
+    rows, cols = m.values.shape
+    x = m.left + (np.arange(cols) + 0.5) * m.pixel
+    y = m.top - (np.arange(rows) + 0.5) * m.pixel
+    crs = CRS.from_epsg(3035)
+    spatial_ref = xr.DataArray(0, attrs={**crs.to_cf(), "spatial_ref": crs.to_wkt()})
+    return xr.DataArray(
+        m.values.astype("float32"),
+        dims=("y", "x"),
+        coords={"y": y, "x": x, "spatial_ref": spatial_ref},
+        name=name,
+        attrs={"units": "mm/year", "grid_mapping": "spatial_ref", "source": "Copernicus EGMS"},
+    )
