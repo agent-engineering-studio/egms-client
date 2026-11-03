@@ -6,6 +6,36 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-03
+
+### Added
+
+- All the archive's levels: L2A (`BASIC`) and L2B (`CALIBRATED`) bursts
+  besides Ortho L3. `Query` describes a search (levels, release, `bbox` in
+  degrees, `tile`, `relative_orbit`, `burst_cycle`, `swath`, `direction`,
+  `product_type`); `query_body` builds it, padding the orbit to the three
+  digits the archive requires.
+- `EgmsArchive.find`: the files a query matches, latest sub-release of each;
+  a box larger than the archive accepts (5° a side) is split by `split_bbox`
+  and the results merged.
+- `EgmsArchive.fetch`: downloads streamed to disk (`.part`, then renamed),
+  in parallel with a limit, retried on network errors and 429/502/503/504,
+  a search searched again when its id expires, files already on disk
+  skipped, `keep` choosing the ZIP or its `tiff` / `csv` / `xml`, and
+  `max_bytes` refusing a download before its first byte.
+- `EgmsArchive.levels`, `.bursts`; `Hit` carries level, path, bbox and the
+  burst fields.
+- `ServiceKey.from_env` (`EGMS_SERVICE_KEY` or `EGMS_SERVICE_KEY_FILE`) and
+  `ServiceKey.from_file`; `EgmsArchive()` with no arguments opens its own
+  HTTP client and reads the key from the environment.
+- `default_directory`: `EGMS_DATA_DIR`, else the user cache.
+- `egms` command line: `releases`, `levels`, `search`, `download`.
+
+### Changed
+
+- `fetch_tile` streams the ZIP to disk instead of holding it in memory, and
+  its `directory` is optional.
+
 ## [0.1.1] - 2026-11-03
 
 ### Fixed

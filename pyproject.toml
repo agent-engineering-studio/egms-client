@@ -1,7 +1,7 @@
 [project]
 name = "egms-client"
-version = "0.1.1"
-description = "Client for the EGMS archive: CLMS service-key auth, tile search and download, Ortho L3 mosaics"
+version = "0.2.0"
+description = "Client for the EGMS archive: CLMS service-key auth, search and download of L2A, L2B and Ortho L3, mosaics, CLI"
 readme = "README.md"
 keywords = ["egms", "copernicus", "insar", "ground motion", "sentinel-1", "subsidence", "landslide", "clms"]
 requires-python = ">=3.12"
@@ -25,6 +25,9 @@ dependencies = [
     "cryptography>=43",
     "httpx>=0.27",
 ]
+
+[project.scripts]
+egms = "egms_client.cli:main"
 
 [project.optional-dependencies]
 raster = [

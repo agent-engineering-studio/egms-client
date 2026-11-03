@@ -29,6 +29,7 @@ path = await archive.fetch_tile((47, 19), "U", "2020-2025", Path("egms"))
 - [What this library does](#what-this-library-does)
 - [Who is it for](#who-is-it-for)
 - [Quick start](#quick-start)
+- [Where downloads are saved](#where-downloads-are-saved)
 - [How it works](#how-it-works)
 - [Recipes](#recipes)
 - [The traps we already fell into](#the-traps-we-already-fell-into)
@@ -69,9 +70,12 @@ What you can see with it, for example:
 
 | | Feature | In plain words |
 |---|---|---|
-| 🔑 | **Login with a CLMS service key** | Your key file is all it needs. Tokens are created and renewed for you. |
-| 🔎 | **Search and download Ortho L3 tiles** | Vertical (`U`) and east-west (`E`) speed on a 100 m grid, in 100 km squares. |
-| 💾 | **Disk cache** | It keeps the 4 MB map, drops the 60 MB ZIP, and remembers tiles that do not exist (at sea). Run it twice: the second run asks the server nothing. |
+| 🔑 | **Login with a CLMS service key** | Your key file is all it needs, from a path or an environment variable. Tokens are created and renewed for you. |
+| 🔎 | **Every product of the archive** | **L3** speed maps (vertical `U`, east-west `E`, 100 m grid) and **L2A / L2B** measurement points with their full time series. |
+| 🗺️ | **Search by area in degrees** | Give a box in longitude/latitude; areas larger than the archive accepts are split for you. |
+| 💾 | **Never download twice** | Files already on disk are skipped, interrupted runs resume, and you choose what to keep of each ZIP (`tiff`, `csv`, `xml` or the ZIP). |
+| 🛡️ | **Safe by default** | Parallel downloads with a limit, automatic retries, a size check before the first byte. |
+| 🖥️ | **Command line** | `egms search` and `egms download`, no Python needed. |
 | 🧩 | **Mosaics** | Glue tiles into one array over any rectangle, with no resampling. |
 | 🧪 | **Pure functions too** | Every step is also a plain function, if you have your own HTTP stack. |
 
@@ -110,8 +114,16 @@ Python 3.12 or newer.
 It contains `client_id`, `user_id`, `private_key` and `token_uri`, and it
 **does not expire**. Treat it like a password: keep it out of git.
 
+> The key is shown **only once**, right after *Create new token*: copy the
+> whole JSON then. The token list shows only its `key_id`, which is not
+> enough to log in.
+
+Then tell egms-client where it is, with **one** of these environment
+variables, so no code ever contains a path or a secret:
+
 ```bash
-echo "clms-service-key.json" >> .gitignore
+export EGMS_SERVICE_KEY_FILE=~/clms-service-key.json   # a file on disk
+export EGMS_SERVICE_KEY="$(cat ~/clms-service-key.json)"  # or the JSON itself (CI, Docker secrets)
 ```
 
 ### 3. Download your first tile
@@ -120,17 +132,11 @@ echo "clms-service-key.json" >> .gitignore
 import asyncio
 from pathlib import Path
 
-import httpx
-
-from egms_client import EgmsArchive, ServiceKey
-
-key = ServiceKey.from_json(Path("clms-service-key.json").read_text())
+from egms_client import EgmsArchive
 
 
 async def main() -> None:
-    async with httpx.AsyncClient(timeout=120) as client:
-        archive = EgmsArchive(client, key)
-
+    async with EgmsArchive() as archive:  # key from the environment
         print(await archive.releases())  # ['2020-2024', '2020-2025']
 
         path = await archive.fetch_tile((47, 19), "U", "2020-2025", Path("egms"))
@@ -142,6 +148,18 @@ asyncio.run(main())
 
 That's it: `path` is a GeoTIFF of 1,000 × 1,000 pixels, each one the mean
 vertical speed of a 100 m square, in mm/year.
+
+### 3b. Or from the command line
+
+```bash
+egms releases
+egms search   --level L2B --bbox 14.4,40.0,15.7,41.0     # what is there, and how many GB
+egms download --tile E47N19 --component U --keep tiff --out egms
+egms download --level L2B --bbox 14.4,40.0,15.7,41.0 --keep csv --max-gb 10
+```
+
+`--bbox` is *west,south,east,north* in degrees. `download` stops before the
+first byte if the total is above `--max-gb` (10 by default).
 
 ### 4. Make a mosaic and look at it
 
@@ -184,6 +202,39 @@ plt.imshow(vertical.values, cmap="RdBu_r", vmin=-10, vmax=10, extent=extent)
 plt.colorbar(label="vertical speed (mm/year)")  # blue: sinking, red: rising
 plt.title("EGMS Ortho L3 · E47N19 · 2020-2025")
 plt.show()
+```
+
+---
+
+## Where downloads are saved
+
+In the directory you pass (`directory` in Python, `--out` on the command
+line). If you pass none:
+
+1. `EGMS_DATA_DIR`, if set;
+2. otherwise `~/.cache/egms-client` (or `$XDG_CACHE_HOME/egms-client`).
+
+The directory is also the cache: whatever is already there is **not
+downloaded again**, so the next run with the same request only asks the
+archive for the list of files (a few KB) and returns.
+
+In **Docker**, point it at a volume so the data survives the container:
+
+```yaml
+services:
+  app:
+    environment:
+      EGMS_DATA_DIR: /data/egms
+      EGMS_SERVICE_KEY_FILE: /run/secrets/clms_service_key
+    volumes:
+      - egms-data:/data/egms
+    secrets:
+      - clms_service_key
+volumes:
+  egms-data:
+secrets:
+  clms_service_key:
+    file: ./clms-service-key.json
 ```
 
 ---
@@ -312,6 +363,29 @@ for component in ("U", "E"):  # vertical, east-west
 
 Stop it and start it again whenever you like: finished tiles are skipped.
 
+### Measurement points (L2A, L2B) over an area
+
+```python
+from egms_client import EgmsArchive, Query
+
+query = Query(levels=("L2B",), release="2020-2025", bbox=(14.4, 40.0, 15.7, 41.0))
+
+async with EgmsArchive() as archive:
+    found = await archive.find(query)  # nothing downloaded yet
+    gb = sum(h.filesize for s in found for h in s.hits) / 1e9
+    print(f"{gb:.1f} GB")  # 8.5 GB: 41 bursts
+
+    paths = await archive.fetch(query, Path("egms"), keep=["csv"], max_bytes=10**10)
+```
+
+Each CSV holds one row per measurement point: position (`latitude`,
+`longitude`, `easting`, `northing`), quality (`temporal_coherence`,
+`rmse_ts`), speed (`mean_velocity`, in mm/year along the satellite's line of
+sight) and one column per acquisition date with the displacement in mm.
+
+Other filters: `relative_orbit=124`, `burst_cycle=835`, `swath="IW3"`,
+`direction="descending"`. L2A is the same with `levels=("L2A",)`.
+
 ### Always use the newest release
 
 ```python
@@ -330,7 +404,7 @@ except EgmsError as exc:
     # bad key, expired search, missing GeoTIFF in the ZIP...
     print("EGMS said no:", exc)
 except httpx.HTTPError as exc:
-    # Network problems and HTTP error codes: your retry policy decides.
+    # Network problems still failing after 3 retries.
     print("network:", exc)
 ```
 
@@ -397,6 +471,10 @@ library handles all of these for you:
 | a malformed token request | HTTP **500** `DecodeError`, not 401: retrying won't help | raises `EgmsError` with the message |
 | comparing CRS by name | four 2020-2025 tiles say `IGNF:ETRS89LAEA`, not `EPSG:3035` | compares projection parameters |
 | expecting 2021-2025 after 2020-2024 | the next release was 2020-2025: windows grow | lists releases from the API |
+| asking for level `L2a` as in the file names | `Invalid level`: the API wants `L2A` | uses the API's names |
+| relative orbit `22` | `Invalid relative orbit`: it must be the string `"022"` | pads it for you |
+| a bbox in any other shape than `[[w, s], [e, n]]` | `An error occurred processing the search` | builds the right shape |
+| a box of 7° × 7° | `Requested area is too large` (5° × 5° passes) | splits it and merges the results |
 
 All checked against the live archive on 3 November 2026.
 
@@ -406,13 +484,18 @@ All checked against the live archive on 3 November 2026.
 
 | Name | What it does |
 |---|---|
-| `ServiceKey.from_json(text)` | Read your CLMS key file. |
-| `EgmsArchive(client, key)` | The async client. |
-| `.releases()` | Published releases, oldest first. |
+| `ServiceKey.from_env()` | The key from `EGMS_SERVICE_KEY` or `EGMS_SERVICE_KEY_FILE`. |
+| `ServiceKey.from_file(path)` / `.from_json(text)` | The key from a file or a string. |
+| `EgmsArchive(client=None, key=None)` | The async client; opens its own HTTP client and reads the key from the environment if not given. |
+| `.releases()` / `.levels()` / `.bursts()` | What the archive publishes. |
+| `Query(levels, release, bbox=, tile=, relative_orbit=, ...)` | What to look for. |
+| `.find(query)` | The matching files, latest version of each; nothing downloaded. |
+| `.fetch(query, dir, keep=, concurrency=, max_bytes=)` | Download them, skipping what is on disk. |
 | `.search(tile, component, release)` | One search; `None` if the tile does not exist. |
 | `.fetch_tile(tile, component, release, dir)` | GeoTIFF path (cached), or `None`. |
 | `tiles_for_bounds(minx, miny, maxx, maxy)` | Tiles covering a rectangle (EPSG:3035 m). |
-| `tile_id((e, n))` | `(47, 19)` → `"E47N19"`. |
+| `tile_id((e, n))` / `parse_tile_id(text)` | `(47, 19)` ↔ `"E47N19"`. |
+| `default_directory()` | Where downloads go when no directory is given. |
 | `mosaic(tiffs, minx=, miny=, maxx=, maxy=)` | One float32 array, NaN where no data. |
 | `EgmsError` | The server answered, but refused. |
 
@@ -472,13 +555,11 @@ issue to discuss one before starting.
 
 | Idea | Why it matters | Good for |
 |---|---|---|
-| 🖥️ **Command-line tool** (`egms fetch --bbox ...`) | Download without writing Python | first contribution |
 | 📓 **Example notebooks** (a city, a landslide, a coastline) | Show what the data can do | first contribution, GIS users |
-| 🗺️ **Bounds from lat/lon** | Most people don't think in EPSG:3035 | first contribution |
-| 📈 **Keep the CSV time series** as an option | Speed over time, not only the mean | intermediate |
-| 🛰️ **Other EGMS products** (L2a, L2b, Calibrated) | Point measurements, more detail | intermediate, InSAR users |
+| 📊 **Progress bar** for `egms download` | Big downloads feel less like a black box | first contribution |
+| 📈 **Read the CSVs** into pandas / GeoParquet (optional extra) | L2 points and L3 time series in one line | intermediate |
 | 🧊 **Export to xarray / Cloud-Optimized GeoTIFF** | Plug into the scientific Python stack | intermediate |
-| ⚡ **Parallel downloads** with a concurrency limit | A country in minutes, not hours | intermediate |
+| 🧭 **Mosaics from L2 points** (gridding, line-of-sight decomposition) | Your own maps from the raw measurements | advanced, InSAR users |
 | 📚 **Documentation site** | Search, API reference, tutorials | anyone |
 
 Found something odd in the archive? That is a contribution too: open an issue
