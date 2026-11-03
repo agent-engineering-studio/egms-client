@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-03
+
 ### Added
 
 - `mosaic.to_xarray(m)`: a mosaic as an `xarray.DataArray` on `y` / `x`
