@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 345" role="img" aria-label="Per tile: the ZIP is about 60 MB, its CSV about 245 MB unpacked, the GeoTIFF kept is about 4 MB">
+<style>
+  text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+  .bg{fill:#fcfcfb} .h{fill:#0b0b0b;font-size:17px;font-weight:700} .lab{fill:#52514e;font-size:14px}
+  .val{fill:#0b0b0b;font-size:14px;font-weight:600} .ax{fill:#7a7974;font-size:11px} .grid{stroke:#e6e5e0;stroke-width:1}
+  .dl{fill:#a3a29b} .drop{fill:#d9d8d2} .keep{fill:#2a78d6} .note{fill:#52514e;font-size:14px} .big{fill:#0b0b0b;font-size:15px;font-weight:700}
+  @media (prefers-color-scheme: dark){
+    .bg{fill:#1a1a19} .h{fill:#f0efec} .lab{fill:#c3c2b7} .val{fill:#f0efec} .ax{fill:#8f8e88} .grid{stroke:#2e2e2b}
+    .dl{fill:#6b6a65} .drop{fill:#45443f} .keep{fill:#3987e5} .note{fill:#c3c2b7} .big{fill:#f0efec}
+  }
+</style>
+<rect class="bg" width="980" height="345" rx="14"/>
+<text class="h" x="40" y="40">What one tile weighs (MB)</text>
+<line class="grid" x1="300.0" y1="62" x2="300.0" y2="224"/><text class="ax" x="300.0" y="242" text-anchor="middle">0</text><line class="grid" x1="404.0" y1="62" x2="404.0" y2="224"/><text class="ax" x="404.0" y="242" text-anchor="middle">50</text><line class="grid" x1="508.0" y1="62" x2="508.0" y2="224"/><text class="ax" x="508.0" y="242" text-anchor="middle">100</text><line class="grid" x1="612.0" y1="62" x2="612.0" y2="224"/><text class="ax" x="612.0" y="242" text-anchor="middle">150</text><line class="grid" x1="716.0" y1="62" x2="716.0" y2="224"/><text class="ax" x="716.0" y="242" text-anchor="middle">200</text><line class="grid" x1="820.0" y1="62" x2="820.0" y2="224"/><text class="ax" x="820.0" y="242" text-anchor="middle">250</text>
+<text class="lab" x="286" y="92.0" text-anchor="end">ZIP downloaded from the archive</text><rect class="dl" x="300" y="70" width="124.8" height="34" rx="4"><title>ZIP downloaded from the archive: ~60 MB</title></rect><text class="val" x="434.8" y="92.0">~60 MB</text><text class="lab" x="286" y="148.0" text-anchor="end">CSV time series inside (unpacked)</text><rect class="drop" x="300" y="126" width="509.6" height="34" rx="4"><title>CSV time series inside (unpacked): ~245 MB</title></rect><text class="val" x="819.6" y="148.0">~245 MB</text><text class="lab" x="286" y="204.0" text-anchor="end">GeoTIFF of mean velocity: kept</text><rect class="keep" x="300" y="182" width="8.3" height="34" rx="4"><title>GeoTIFF of mean velocity: kept: ~4 MB</title></rect><text class="val" x="318.3" y="204.0">~4 MB</text>
+<text class="ax" x="560.0" y="260" text-anchor="middle">megabytes per tile, per component</text>
+<text class="note" x="40" y="298">A 1,000 × 1,000 km area, both components = 200 tiles:</text>
+<text class="big" x="40" y="322">~12 GB downloaded once → ~0.8 GB on disk.</text>
+</svg>

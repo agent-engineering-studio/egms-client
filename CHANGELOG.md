@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-03
+
+### Fixed
+
+- `EgmsArchive.fetch_tile` refuses a hit whose file name does not belong to
+  the requested tile or contains `/` (`EgmsError`), instead of saving it
+  where the cache never finds it again.
+- The cached sub-release is chosen by number (`_10` over `_9`), as
+  `latest_hit` already did.
+
 ## [0.1.0] - 2026-11-03
 
 ### Added

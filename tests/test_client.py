@@ -151,3 +151,25 @@ def test_a_search_without_hits_is_absent(service_key: ServiceKey, tmp_path: Path
         run(Empty(), service_key, lambda a: a.fetch_tile((48, 19), "E", "2020_2025", tmp_path))
         is None
     )
+
+
+def test_a_hit_for_another_tile_is_refused(service_key: ServiceKey, tmp_path: Path) -> None:
+    class Wrong(Archive):
+        def __call__(self, request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/search"):
+                body = json.loads((FIXTURES / "search_E47N19_U.json").read_text())
+                body["hits"][0]["filename"] = "../EGMS_L3_E47N19_100km_U_2020_2025_1.zip"
+                return httpx.Response(200, json=body)
+            return super().__call__(request)
+
+    with pytest.raises(EgmsError, match="unexpected file name"):
+        run(Wrong(), service_key, lambda a: a.fetch_tile((47, 19), "U", "2020_2025", tmp_path))
+
+
+def test_the_highest_cached_sub_release_wins(service_key: ServiceKey, tmp_path: Path) -> None:
+    for sub in (9, 10):
+        (tmp_path / f"EGMS_L3_E47N19_100km_U_2020_2025_{sub}.tiff").write_bytes(b"x")
+    found = run(
+        Archive(), service_key, lambda a: a.fetch_tile((47, 19), "U", "2020_2025", tmp_path)
+    )
+    assert found == tmp_path / "EGMS_L3_E47N19_100km_U_2020_2025_10.tiff"

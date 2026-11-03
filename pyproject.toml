@@ -1,6 +1,6 @@
 [project]
 name = "egms-client"
-version = "0.1.0"
+version = "0.1.1"
 description = "Client for the EGMS archive: CLMS service-key auth, tile search and download, Ortho L3 mosaics"
 readme = "README.md"
 keywords = ["egms", "copernicus", "insar", "ground motion", "sentinel-1", "subsidence", "landslide", "clms"]

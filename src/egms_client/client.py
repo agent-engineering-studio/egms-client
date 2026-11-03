@@ -17,6 +17,7 @@ from egms_client.archive import (
     Component,
     Search,
     Tile,
+    _sub_release,
     check_download,
     download_url,
     extract_tiff,
@@ -27,6 +28,7 @@ from egms_client.archive import (
     tile_prefix,
 )
 from egms_client.auth import ServiceKey, Token, parse_token, token_request
+from egms_client.errors import EgmsError
 
 if TYPE_CHECKING:
     import httpx
@@ -93,7 +95,7 @@ class EgmsArchive:
         again for a whole country asks the archive nothing.
         """
         prefix = tile_prefix(tile, component, release)
-        cached = sorted(directory.glob(f"{prefix}*.tiff"))
+        cached = sorted(directory.glob(f"{prefix}*.tiff"), key=lambda p: _sub_release(p.stem))
         if cached:
             return cached[-1]
         marker = directory / f"{prefix}absent"
@@ -105,6 +107,10 @@ class EgmsArchive:
         if search is None or hit is None:
             marker.touch()
             return None
+        if not hit.stem.startswith(prefix) or "/" in hit.filename:
+            # A name the glob above cannot find again would mean a ~60 MB
+            # download on every run; one with "/" would write elsewhere.
+            raise EgmsError(f"unexpected file name for {prefix}: {hit.filename!r}")
         response = await self._client.get(
             download_url(self._archive, hit), params={"id": search.id}
         )
