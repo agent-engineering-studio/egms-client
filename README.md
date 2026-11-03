@@ -67,6 +67,18 @@ What you can see with it, for example:
 > Negative vertical speed (`U < 0`) means the ground goes **down**;
 > positive means it goes **up**.
 
+Here is real data, made with one command of this library. Around Pozzuoli
+the Campi Flegrei caldera is **rising by up to 16 cm a year**, while Naples
+and Vesuvius barely move:
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/agent-engineering-studio/egms-client/main/docs/images/naples-vertical.png" alt="EGMS vertical ground speed around Naples, 2020-2025: the Campi Flegrei caldera at Pozzuoli rises by up to 160 mm a year" width="100%">
+</p>
+
+```bash
+egms mosaic --bbox 13.95,40.75,14.55,41.0 --component U --out naples-U.tif
+```
+
 ## What this library does
 
 | | Feature | In plain words |
@@ -160,10 +172,18 @@ egms search   --level L2B --bbox 14.4,40.0,15.7,41.0     # what is there, and ho
 egms download --tile E47N19 --component U --keep tiff --out egms
 egms download --level L2B --bbox 14.4,40.0,15.7,41.0 --keep parquet --max-gb 10
 egms convert  egms/EGMS_L3_E47N19_100km_U_2020_2025_1.csv   # a CSV you already have
+egms mosaic   --bbox 13.95,40.75,14.55,41.0 --component U --out naples-U.tif   # a map, extra raster
 ```
 
-`--bbox` is *west,south,east,north* in degrees. `download` stops before the
-first byte if the total is above `--max-gb` (10 by default).
+`--bbox` is *west,south,east,north* in degrees. `download` and `mosaic` stop
+before the first byte if the total is above `--max-gb` (10 by default), and
+show their progress: one updating line in a terminal, a line per file in a
+log.
+
+`egms mosaic` downloads the L3 tiles a box touches (once: they stay in
+`--data-dir`), pastes them, and writes a **Cloud-Optimized GeoTIFF** in
+EPSG:3035 (float32, NaN as nodata, with overviews): drag it into QGIS, or
+serve it over HTTP as is.
 
 ### 4. Make a mosaic and look at it
 
@@ -339,7 +359,7 @@ flowchart LR
         CL["client.py<br/>EgmsArchive"]
         AU["auth.py<br/>ServiceKey · token_request · parse_token"]
         AR["archive.py<br/>search_body · parse_search · extract_tiff …"]
-        MO["mosaic.py<br/>mosaic · is_laea<br/>(extra: raster)"]
+        MO["mosaic.py<br/>mosaic · to_cog<br/>(extra: raster)"]
         ER["errors.py<br/>EgmsError"]
     end
     H --> CL
@@ -528,13 +548,14 @@ All checked against the live archive on 3 November 2026.
 | `.releases()` / `.levels()` / `.bursts()` | What the archive publishes. |
 | `Query(levels, release, bbox=, tile=, relative_orbit=, ...)` | What to look for. |
 | `.find(query)` | The matching files, latest version of each; nothing downloaded. |
-| `.fetch(query, dir, keep=, concurrency=, max_bytes=)` | Download them, skipping what is on disk. |
+| `.fetch(query, dir, keep=, concurrency=, max_bytes=, on_progress=)` | Download them, skipping what is on disk; `on_plan`, `on_progress`, `on_file` report as it goes. |
 | `.search(tile, component, release)` | One search; `None` if the tile does not exist. |
 | `.fetch_tile(tile, component, release, dir)` | GeoTIFF path (cached), or `None`. |
 | `tiles_for_bounds(minx, miny, maxx, maxy)` | Tiles covering a rectangle (EPSG:3035 m). |
 | `tile_id((e, n))` / `parse_tile_id(text)` | `(47, 19)` ↔ `"E47N19"`. |
 | `default_directory()` | Where downloads go when no directory is given. |
 | `mosaic(tiffs, minx=, miny=, maxx=, maxy=)` | One float32 array, NaN where no data. |
+| `to_cog(mosaic, path)` / `lonlat_to_laea(w, s, e, n)` | A mosaic as Cloud-Optimized GeoTIFF; a box in degrees as EPSG:3035 metres. |
 | `tables.read_csv(path, series=, columns=)` | A CSV as a pandas DataFrame (extra `tables`). |
 | `tables.dates(df)` / `.attributes(df)` / `.series_long(df)` | Its dates, its attributes, its series one row per date. |
 | `tables.csv_to_geoparquet(csv)` / `.to_geoparquet(df, path)` | GeoParquet, points in EPSG:3035. |
@@ -568,11 +589,19 @@ egms-client/
 │   ├── auth.py      # service key → JWT → bearer token
 │   ├── archive.py   # tiles, search, download: pure functions
 │   ├── client.py    # EgmsArchive: async client, cache, token renewal
-│   ├── mosaic.py    # tiles → one array (extra: raster)
+│   ├── mosaic.py    # tiles → one array, Cloud-Optimized GeoTIFF (extra: raster)
+│   ├── tables.py    # CSVs → pandas, GeoParquet (extra: tables)
+│   ├── cli.py       # the `egms` command
 │   └── errors.py    # EgmsError
 └── tests/
-    └── fixtures/    # real archive answers, for offline tests
+    ├── fixtures/    # real archive answers, for offline tests
+    └── live/        # the same behaviour, checked weekly on the real archive
 ```
+
+The archive's API is undocumented, so a **weekly workflow**
+(`.github/workflows/live.yml`) runs `tests/live` against the real archive
+and opens an issue if something changed. To run it yourself:
+`EGMS_LIVE=1 EGMS_SERVICE_KEY_FILE=~/clms-service-key.json uv run pytest tests/live`.
 
 How to propose a change:
 
@@ -597,8 +626,7 @@ issue to discuss one before starting.
 | Idea | Why it matters | Good for |
 |---|---|---|
 | 📓 **Example notebooks** (a city, a landslide, a coastline) | Show what the data can do | first contribution, GIS users |
-| 📊 **Progress bar** for `egms download` | Big downloads feel less like a black box | first contribution |
-| 🧊 **Export to xarray / Cloud-Optimized GeoTIFF** | Plug into the scientific Python stack | intermediate |
+| 🧊 **Export to xarray** (mosaics and time series as `DataArray`) | Plug into the scientific Python stack | intermediate |
 | 🧭 **Mosaics from L2 points** (gridding, line-of-sight decomposition) | Your own maps from the raw measurements | advanced, InSAR users |
 | 📚 **Documentation site** | Search, API reference, tutorials | anyone |
 

@@ -81,3 +81,46 @@ def mosaic(tiffs: Iterable[Path], *, minx: float, miny: float, maxx: float, maxy
         valid = ~np.isnan(piece)
         target[valid] = piece[valid]
     return Mosaic(values=out, left=x0, top=y1)
+
+
+def lonlat_to_laea(west: float, south: float, east: float, north: float) -> tuple[float, ...]:
+    """A box in degrees as ``(minx, miny, maxx, maxy)`` in EPSG:3035 metres.
+
+    The edges are densified, so the result contains the whole box, not
+    only its corners: what :func:`mosaic` and ``tiles_for_bounds`` take.
+    """
+    from pyproj import Transformer
+
+    to_laea = Transformer.from_crs("EPSG:4326", "EPSG:3035", always_xy=True)
+    return tuple(to_laea.transform_bounds(west, south, east, north, densify_pts=21))
+
+
+def to_cog(m: Mosaic, path: Path) -> Path:
+    """Write a mosaic as a Cloud-Optimized GeoTIFF in EPSG:3035.
+
+    float32, NaN as nodata, deflate-compressed with overviews: it opens in
+    QGIS or a browser map and streams over HTTP. Written to ``.part`` first.
+    """
+    import rasterio
+    from rasterio.transform import from_origin
+
+    rows, cols = m.values.shape
+    partial = path.with_name(f"{path.name}.part")
+    with rasterio.open(
+        partial,
+        "w",
+        driver="COG",
+        height=rows,
+        width=cols,
+        count=1,
+        dtype="float32",
+        crs="EPSG:3035",
+        transform=from_origin(m.left, m.top, m.pixel, m.pixel),
+        nodata=float("nan"),
+        compress="deflate",
+        predictor=3,
+    ) as dst:
+        dst.write(m.values.astype("float32"), 1)
+        dst.update_tags(units="mm/year", source="Copernicus EGMS Ortho L3")
+    partial.rename(path)
+    return path
