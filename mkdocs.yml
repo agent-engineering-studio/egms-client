@@ -1,6 +1,6 @@
 site_name: egms-client
 site_description: Ground motion of Europe from space, in a few lines of Python (Copernicus EGMS)
-site_url: https://agent-engineering-studio.github.io/egms-client/
+site_url: https://agentengineering.it/egms-client/
 repo_url: https://github.com/agent-engineering-studio/egms-client
 repo_name: agent-engineering-studio/egms-client
 edit_uri: edit/main/docs/

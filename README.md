@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://github.com/agent-engineering-studio/egms-client/actions/workflows/ci.yml"><img src="https://github.com/agent-engineering-studio/egms-client/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
   <a href="https://pypi.org/project/egms-client/"><img src="https://img.shields.io/pypi/v/egms-client" alt="PyPI"></a>
-  <a href="https://agent-engineering-studio.github.io/egms-client/"><img src="https://img.shields.io/badge/docs-site-informational" alt="docs"></a>
+  <a href="https://agentengineering.it/egms-client/"><img src="https://img.shields.io/badge/docs-site-informational" alt="docs"></a>
   <img src="https://img.shields.io/badge/python-3.12%20%7C%203.13-blue" alt="Python 3.12 | 3.13">
   <img src="https://img.shields.io/badge/typing-mypy%20strict-informational" alt="mypy strict">
   <a href="https://github.com/agent-engineering-studio/egms-client/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-green" alt="Apache-2.0"></a>
@@ -636,7 +636,7 @@ Lower level, for your own HTTP layer: `token_request` / `parse_token`,
 
 ## Contributing
 
-Full documentation, with the API reference: **https://agent-engineering-studio.github.io/egms-client/**
+Full documentation, with the API reference: **https://agentengineering.it/egms-client/**
 
 Contributions of every size are welcome, from a typo to a new feature. You
 don't need to be an InSAR expert: most of the code is plain Python, HTTP and
