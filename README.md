@@ -533,6 +533,7 @@ library handles all of these for you:
 | relative orbit `22` | `Invalid relative orbit`: it must be the string `"022"` | pads it for you |
 | a bbox in any other shape than `[[w, s], [e, n]]` | `An error occurred processing the search` | builds the right shape |
 | a box of 7° × 7° | `Requested area is too large` (5° × 5° passes) | splits it and merges the results |
+| a third download at the same time | HTTP **429** `At most 2 downloads may be performed simultaneously` (per account) | never more than 2 at once, whatever you ask |
 
 All checked against the live archive on 3 November 2026.
 

@@ -47,6 +47,7 @@ from egms_client.auth import (
 )
 from egms_client.client import (
     ENV_DATA_DIR,
+    MAX_DOWNLOADS,
     EgmsArchive,
     Keep,
     default_directory,
@@ -63,6 +64,7 @@ __all__ = [
     "ENV_KEY_FILE",
     "LEVELS",
     "MAX_BBOX_DEG",
+    "MAX_DOWNLOADS",
     "PRODUCT_TYPES",
     "TILE_SIZE_M",
     "Component",

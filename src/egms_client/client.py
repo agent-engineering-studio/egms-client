@@ -62,6 +62,11 @@ _RETRY_STATUS = frozenset({429, 502, 503, 504})
 #: ``(hit, bytes received so far, bytes expected)``, as a download goes.
 Progress = Callable[[Hit, int, int], None]
 
+#: Downloads the archive allows at once per account: a third is answered
+#: "HTTP 429: You have too many concurrent downloads. At most 2 downloads may
+#: be performed simultaneously" (seen on 2026-11-03).
+MAX_DOWNLOADS = 2
+
 #: The environment variable :func:`default_directory` reads.
 ENV_DATA_DIR = "EGMS_DATA_DIR"
 
@@ -98,6 +103,7 @@ class EgmsArchive:
         clock: Callable[[], float] = time.time,
         retries: int = 3,
         backoff_s: float = 2.0,
+        max_downloads: int = MAX_DOWNLOADS,
         sleep: Callable[[float], Awaitable[Any]] = asyncio.sleep,
     ) -> None:
         self._own = client is None
@@ -114,6 +120,9 @@ class EgmsArchive:
         self._bodies: dict[str, dict[str, Any]] = {}
         self._renewed: dict[str, str] = {}
         self._token_lock = asyncio.Lock()
+        # One gate for every download of this archive: fetch, fetch_tile and
+        # the caller's own parallel calls all count against the account.
+        self._downloads = asyncio.Semaphore(max_downloads)
 
     async def __aenter__(self) -> EgmsArchive:
         return self
@@ -203,7 +212,7 @@ class EgmsArchive:
         directory: Path | None = None,
         *,
         keep: Iterable[Keep] = ("zip",),
-        concurrency: int = 4,
+        concurrency: int = MAX_DOWNLOADS,
         max_bytes: int | None = None,
         on_file: Callable[[Hit, list[Path]], None] | None = None,
         on_progress: Progress | None = None,
@@ -214,7 +223,9 @@ class EgmsArchive:
         ``directory`` defaults to :func:`default_directory`.
 
         Files already in ``directory`` are not downloaded again, so an
-        interrupted run resumes where it stopped. ``keep`` picks what stays of
+        interrupted run resumes where it stopped. At most :data:`MAX_DOWNLOADS`
+        files stream at once per archive, whatever ``concurrency`` says: a
+        higher one only overlaps extraction and conversion. ``keep`` picks what stays of
         each ZIP. With ``max_bytes`` set, a download larger than that raises
         :class:`EgmsError` before any byte is fetched.
 
@@ -348,8 +359,12 @@ class EgmsArchive:
         partial = directory / f"{hit.filename}.part"
         url = download_url(self._archive, hit)
         for attempt in range(self._retries + 1):
+            wait = self._backoff_s * 2**attempt
             try:
-                async with self._client.stream("GET", url, params={"id": search_id}) as response:
+                async with (
+                    self._downloads,
+                    self._client.stream("GET", url, params={"id": search_id}) as response,
+                ):
                     status = response.status_code
                     if status == 404:
                         return None
@@ -368,11 +383,19 @@ class EgmsArchive:
                         return path
                     if status not in _RETRY_STATUS or attempt == self._retries:
                         check_download(status, await response.aread())
+                    if status == 429:
+                        # Another process downloads with the same account:
+                        # its files take minutes, so wait longer than for a 5xx.
+                        wait = _retry_after(response) or max(wait, 30.0)
             except httpx.TransportError:
                 partial.unlink(missing_ok=True)
                 if attempt == self._retries:
                     raise
-            await self._sleep(self._backoff_s * 2**attempt)
+            except BaseException:
+                # Cancelled, or refused: a half-written file must not stay.
+                partial.unlink(missing_ok=True)
+                raise
+            await self._sleep(wait)
         raise AssertionError("unreachable")  # pragma: no cover
 
     async def _search(self, body: dict[str, Any]) -> Search | None:
@@ -413,3 +436,9 @@ def _check_name(hit: Hit) -> None:
     # The name becomes a path: one with a separator would write elsewhere.
     if "/" in hit.filename or "\\" in hit.filename or hit.filename.startswith("."):
         raise EgmsError(f"unexpected file name: {hit.filename!r}")
+
+
+def _retry_after(response: httpx.Response) -> float | None:
+    """The ``Retry-After`` header in seconds, if the server sent one."""
+    value = response.headers.get("Retry-After", "")
+    return float(value) if value.strip().isdigit() else None
