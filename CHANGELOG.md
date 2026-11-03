@@ -6,6 +6,24 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-03
+
+### Added
+
+- `egms mosaic --bbox W,S,E,N --component U|E`: the L3 tiles a box in
+  degrees touches, downloaded once, pasted and written as a Cloud-Optimized
+  GeoTIFF in EPSG:3035 (extra `raster`).
+- `egms_client.mosaic.to_cog` (float32, NaN nodata, deflate, overviews) and
+  `lonlat_to_laea` (a box in degrees to EPSG:3035 metres, edges densified).
+- Download progress: `fetch(..., on_plan=, on_progress=)`; `egms download`
+  and `egms mosaic` show one updating line on a terminal, a line per file in
+  a log.
+- `tests/live` and a weekly `live` workflow: the archive behaviour the
+  library relies on (lists, the five known refusals, a 5° box, an L3 tile, a
+  small L2B download) checked against the real archive, with an issue opened
+  on failure. Needs the repository secret `EGMS_SERVICE_KEY`.
+- README: a real map (vertical speed around Naples, 2020-2025).
+
 ## [0.3.0] - 2026-11-03
 
 ### Added

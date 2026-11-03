@@ -59,6 +59,9 @@ Keep = Literal["zip", "tiff", "csv", "xml", "parquet"]
 
 _RETRY_STATUS = frozenset({429, 502, 503, 504})
 
+#: ``(hit, bytes received so far, bytes expected)``, as a download goes.
+Progress = Callable[[Hit, int, int], None]
+
 #: The environment variable :func:`default_directory` reads.
 ENV_DATA_DIR = "EGMS_DATA_DIR"
 
@@ -203,6 +206,8 @@ class EgmsArchive:
         concurrency: int = 4,
         max_bytes: int | None = None,
         on_file: Callable[[Hit, list[Path]], None] | None = None,
+        on_progress: Progress | None = None,
+        on_plan: Callable[[list[Hit]], None] | None = None,
     ) -> list[Path]:
         """Download what a query matches into ``directory``; the paths kept.
 
@@ -212,6 +217,11 @@ class EgmsArchive:
         interrupted run resumes where it stopped. ``keep`` picks what stays of
         each ZIP. With ``max_bytes`` set, a download larger than that raises
         :class:`EgmsError` before any byte is fetched.
+
+        ``on_plan(hits)`` is called once with the files about to be downloaded;
+        ``on_file(hit, paths)`` when each is done;
+        ``on_progress(hit, received, total)`` as its bytes arrive (``received``
+        starts again from 0 if a download is retried).
         """
         directory = directory or default_directory()
         kept = tuple(dict.fromkeys(keep))
@@ -234,11 +244,13 @@ class EgmsArchive:
                 f"max_bytes ({max_bytes / 1e9:.1f} GB). Narrow the query or raise the limit."
             )
         directory.mkdir(parents=True, exist_ok=True)
+        if on_plan is not None:
+            on_plan([hit for _, hit in todo])
         gate = asyncio.Semaphore(concurrency)
 
         async def one(search_id: str, hit: Hit) -> list[Path]:
             async with gate:
-                paths = await self._fetch_hit(search_id, hit, kept, directory)
+                paths = await self._fetch_hit(search_id, hit, kept, directory, on_progress)
             if on_file is not None:
                 on_file(hit, paths)
             return paths
@@ -288,11 +300,16 @@ class EgmsArchive:
         return path
 
     async def _fetch_hit(
-        self, search_id: str, hit: Hit, keep: tuple[Keep, ...], directory: Path
+        self,
+        search_id: str,
+        hit: Hit,
+        keep: tuple[Keep, ...],
+        directory: Path,
+        progress: Progress | None = None,
     ) -> list[Path]:
         search_id = self._renewed.get(search_id, search_id)
         try:
-            archive = await self._download(search_id, hit, directory)
+            archive = await self._download(search_id, hit, directory, progress)
         except _ExpiredError:
             # Ids expire while a long queue waits: search again, once, and
             # let the rest of the queue use the new id.
@@ -300,7 +317,7 @@ class EgmsArchive:
             if search is None or hit.family not in {h.family for h in search.hits}:
                 raise EgmsError(f"{hit.filename} is no longer in the archive") from None
             self._renewed[search_id] = search.id
-            archive = await self._download(search.id, hit, directory)
+            archive = await self._download(search.id, hit, directory, progress)
         if archive is None:
             return []
         members = [k for k in keep if k not in ("zip", "parquet")]
@@ -323,7 +340,9 @@ class EgmsArchive:
                     paths.remove(csv)
         return [archive, *paths] if "zip" in keep else paths
 
-    async def _download(self, search_id: str, hit: Hit, directory: Path) -> Path | None:
+    async def _download(
+        self, search_id: str, hit: Hit, directory: Path, progress: Progress | None = None
+    ) -> Path | None:
         """The ZIP streamed into ``directory``; ``None`` on 404."""
         path = directory / hit.filename
         partial = directory / f"{hit.filename}.part"
@@ -338,9 +357,13 @@ class EgmsArchive:
                         text = (await response.aread())[:200].decode("utf-8", "replace")
                         raise _ExpiredError(f"EGMS download refused (HTTP 401): {text}")
                     if status == 200:
+                        received = 0
                         with partial.open("wb") as out:
                             async for chunk in response.aiter_bytes(_CHUNK):
                                 out.write(chunk)
+                                received += len(chunk)
+                                if progress is not None:
+                                    progress(hit, received, hit.filesize)
                         partial.rename(path)
                         return path
                     if status not in _RETRY_STATUS or attempt == self._retries:

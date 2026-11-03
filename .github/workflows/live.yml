@@ -1,0 +1,38 @@
+# Once a week, the behaviour this library relies on is checked against the
+# real archive: its API is undocumented, and a change shows up here before it
+# shows up in a user's download. Needs the repository secret
+# EGMS_SERVICE_KEY (the CLMS service key JSON). A failure opens an issue.
+name: live
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - name: Live archive checks
+        env:
+          EGMS_LIVE: "1"
+          EGMS_SERVICE_KEY: ${{ secrets.EGMS_SERVICE_KEY }}
+        run: uv run pytest tests/live -v
+      - name: Open an issue
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "Live archive check failed ($(date -u +%F))" \
+            --body "The weekly check against the EGMS archive failed: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. The archive may have changed; see the failing test."
