@@ -711,9 +711,6 @@ launches a command:
 }
 ```
 
-Until the next release is on PyPI, use
-`--from "egms-client[mcp] @ git+https://github.com/agent-engineering-studio/egms-client"`.
-
 ### As documentation: `llms.txt` and a skill
 
 The site publishes the documentation in the forms AI assistants read:
