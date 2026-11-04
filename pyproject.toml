@@ -3,7 +3,7 @@ name = "egms-client"
 version = "0.5.0"
 description = "Client for the EGMS archive: CLMS service-key auth, search and download of L2A, L2B and Ortho L3, mosaics, GeoParquet, CLI"
 readme = "README.md"
-keywords = ["egms", "copernicus", "insar", "ground motion", "sentinel-1", "subsidence", "landslide", "clms"]
+keywords = ["egms", "mcp", "copernicus", "insar", "ground motion", "sentinel-1", "subsidence", "landslide", "clms"]
 requires-python = ">=3.12"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
@@ -43,6 +43,12 @@ tables = [
 xarray = [
     "xarray>=2024.6",
 ]
+mcp = [
+    "mcp>=2.3",
+    "numpy>=2.0",
+    "pyproj>=3.6",
+    "rasterio>=1.4",
+]
 
 [project.urls]
 Homepage = "https://github.com/agent-engineering-studio/egms-client"
@@ -65,6 +71,7 @@ dev = [
     "pandas>=2.2",
     "pyarrow>=17",
     "xarray>=2024.6",
+    "mcp>=2.3",
 ]
 docs = [
     "mkdocs-material>=9.5",

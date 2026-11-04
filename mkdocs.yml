@@ -76,6 +76,7 @@ nav:
       - Tables and GeoParquet: api/tables.md
       - Maps from L2 points: api/decompose.md
       - Command line: api/cli.md
+      - MCP server: api/mcp.md
       - Errors: api/errors.md
   - Roadmap: roadmap.md
   - Changelog: changelog.md

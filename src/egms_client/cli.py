@@ -37,13 +37,15 @@ def main(argv: Sequence[str] | None = None, *, client: httpx.AsyncClient | None 
     try:
         if args.command == "convert":
             return _convert(args)
+        if args.command == "mcp":
+            return _mcp(args)
         key = ServiceKey.from_file(args.key_file) if args.key_file else ServiceKey.from_env()
         return asyncio.run(_run(args, key, client))
     except (EgmsError, LookupError, ValueError, OSError) as exc:
         print(f"egms: {exc}", file=sys.stderr)
         return 1
     except ImportError as exc:
-        extra = "raster" if args.command == "mosaic" else "tables"
+        extra = {"mosaic": "raster", "mcp": "mcp"}.get(args.command, "tables")
         print(f"egms: {exc} (pip install 'egms-client[{extra}]')", file=sys.stderr)
         return 1
 
@@ -159,6 +161,17 @@ def _convert(args: argparse.Namespace) -> int:
     return 0
 
 
+def _mcp(args: argparse.Namespace) -> int:
+    from egms_client.mcp_server import run
+
+    run(
+        directory=Path(args.data_dir) if args.data_dir else None,
+        max_tiles=args.max_tiles,
+        key_file=Path(args.key_file) if args.key_file else None,
+    )
+    return 0
+
+
 def _query(args: argparse.Namespace, release: str) -> Query:
     bbox: Any = None
     if args.bbox:
@@ -226,6 +239,13 @@ def _parser() -> argparse.ArgumentParser:
                 "--concurrency", type=int, default=2, help="the archive allows 2 per account"
             )
             sub.add_argument("--max-gb", type=float, default=10.0, help="0: no limit")
+    server = commands.add_parser(
+        "mcp", help="serve EGMS as tools for AI agents, over stdio (extra mcp)"
+    )
+    server.add_argument("--data-dir", help="tile cache (default: EGMS_DATA_DIR or user cache)")
+    server.add_argument(
+        "--max-tiles", type=int, default=9, help="L3 tiles area_summary downloads at most per box"
+    )
     convert = commands.add_parser("convert", help="CSV of the archive to GeoParquet (extra tables)")
     convert.add_argument("csv", nargs="+", help="CSV files; each .parquet is written next to it")
     convert.add_argument("--no-series", action="store_true", help="attributes only, no dates")

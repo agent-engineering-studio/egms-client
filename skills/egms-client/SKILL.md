@@ -116,6 +116,12 @@ asyncio.run(main())
    message is the archive's message, so show it rather than retrying
    blindly.
 
+## Without writing code
+
+If the user only needs answers (not code), the MCP server may already be
+connected: tools `releases`, `find_files`, `velocity_at`, `area_summary`
+from `egms mcp` (extra `mcp`). Prefer them to downloading data by hand.
+
 ## When reporting results
 
 State the release, the level, the component and the file(s) a number came

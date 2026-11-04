@@ -8,6 +8,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `egms mcp`, an MCP server (extra `mcp`, on the MCP Python SDK 2.x) with
+  four tools: `releases`, `find_files` (files and sizes over a box, nothing
+  downloaded), `velocity_at` and `area_summary` (coverage, mean,
+  percentiles, share below / above a stable band, the 5 fastest cells).
+  Answers carry their release and files; `area_summary` downloads at most
+  `--max-tiles` L3 tiles per box; the key is read from the server's
+  environment only. `mcp_server.create_server()` builds it in Python.
 - `EgmsArchive.velocity_at(lon, lat, component="U", release=None)`: the L3
   velocity of the 100 m cell at a point in degrees, as a `PointVelocity`
   that also carries its release, tile and file (`None` velocity at sea or
