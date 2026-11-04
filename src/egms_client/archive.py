@@ -171,6 +171,11 @@ def parse_tile_id(text: str) -> Tile:
     return int(match[1]), int(match[2])
 
 
+def tile_for_point(x: float, y: float) -> Tile:
+    """The tile containing a point in EPSG:3035 metres."""
+    return math.floor(x / TILE_SIZE_M), math.floor(y / TILE_SIZE_M)
+
+
 def tiles_for_bounds(minx: float, miny: float, maxx: float, maxy: float) -> list[Tile]:
     """The tiles covering a rectangle in EPSG:3035 metres."""
     e0, e1 = math.floor(minx / TILE_SIZE_M), math.floor(maxx / TILE_SIZE_M)

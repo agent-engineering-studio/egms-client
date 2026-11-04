@@ -8,6 +8,15 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `EgmsArchive.velocity_at(lon, lat, component="U", release=None)`: the L3
+  velocity of the 100 m cell at a point in degrees, as a `PointVelocity`
+  that also carries its release, tile and file (`None` velocity at sea or
+  without data). Only that tile is downloaded, once. Pure helpers:
+  `tile_for_point(x, y)`, `mosaic.lonlat_to_xy`, `mosaic.value_at`.
+- `egms_client.sync.Archive`: the client without `async`, its own event loop
+  in a background thread, so it also works inside Jupyter.
+- A live check: Pozzuoli rises by more than 50 mm/year, the sea has no
+  velocity.
 - Documentation site (MkDocs Material + mkdocstrings): the README as home
   page, the notebooks, an API reference generated from the docstrings, the
   changelog. Built with `--strict` on every pull request, published to

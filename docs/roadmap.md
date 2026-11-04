@@ -29,8 +29,8 @@ These features are useful as they are, and the AI track needs them.
 
 | Feature | What it is | Why | Effort |
 |---|---|---|---|
-| **Point query** | `await archive.velocity_at(lon, lat, component="U")`: the L3 value of the 100 m cell, fetching only its tile (cached) | "How fast does the ground move *here*?" is the first question every user asks. It is also the first tool an agent needs | S |
-| **Sync façade** | `egms_client.sync.Archive` wraps `EgmsArchive` with `asyncio.run`, for scripts and notebooks that do not want `await` | Removes the first stumbling block for GIS users | S |
+| **Point query** ✅ | `await archive.velocity_at(lon, lat, component="U")`: the L3 value of the 100 m cell, fetching only its tile (cached) | "How fast does the ground move *here*?" is the first question every user asks. It is also the first tool an agent needs | S |
+| **Sync façade** ✅ | `egms_client.sync.Archive` wraps `EgmsArchive` with `asyncio.run`, for scripts and notebooks that do not want `await` | Removes the first stumbling block for GIS users | S |
 | **Uncertainties and north** in `decompose` | propagate `mean_velocity_std`; a third geometry for N | Error bars on every map (an idea already listed in the README) | M |
 | **Release diff** | `egms diff --bbox ... 2019-2023 2020-2025`: the change in velocity between two releases | The windows overlap, and an area that speeds up between releases is news | M |
 | **Streaming large CSVs** | `tables.iter_csv(path, chunksize=)` → GeoParquet without loading the whole file | L2 CSVs of a dense burst do not fit in memory comfortably | M |
@@ -151,7 +151,7 @@ These are worth a notebook first, not a module:
 | # | Item | Track | Effort | Unlocks |
 |---|---|---|---|---|
 | 1 | ~~`llms.txt` + agent skill~~ ✅ | AI | S | better AI-written code, today |
-| 2 | Point query + sync façade | 1 | S | the MCP server, beginners |
+| 2 | ~~Point query + sync façade~~ ✅ | 1 | S | the MCP server, beginners |
 | 3 | MCP server (`find`, `velocity_at`, `area_summary`) | AI | M | agents over EGMS |
 | 4 | `analysis`: acceleration, seasonality, jumps | 2 | M | moving points, reports, Limen |
 | 5 | Active deformation areas + MCP `moving_points` | 2 · AI | M | the most useful question |

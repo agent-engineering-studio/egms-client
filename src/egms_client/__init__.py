@@ -32,6 +32,7 @@ from egms_client.archive import (
     query_body,
     search_body,
     split_bbox,
+    tile_for_point,
     tile_id,
     tile_prefix,
     tiles_for_bounds,
@@ -50,6 +51,7 @@ from egms_client.client import (
     MAX_DOWNLOADS,
     EgmsArchive,
     Keep,
+    PointVelocity,
     default_directory,
 )
 from egms_client.errors import EgmsError
@@ -75,6 +77,7 @@ __all__ = [
     "Keep",
     "Level",
     "LonLatBounds",
+    "PointVelocity",
     "Query",
     "Search",
     "ServiceKey",
@@ -99,6 +102,7 @@ __all__ = [
     "query_body",
     "search_body",
     "split_bbox",
+    "tile_for_point",
     "tile_id",
     "tile_prefix",
     "tiles_for_bounds",
