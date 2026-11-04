@@ -112,3 +112,23 @@ def test_pozzuoli_rises_and_the_sea_has_no_velocity(tmp_path: Path) -> None:
     assert pozzuoli.velocity is not None and pozzuoli.velocity > 50  # mm/year, up
     assert pozzuoli.file is not None and pozzuoli.file.name.startswith("EGMS_L3_")
     assert sea.velocity is None
+
+
+def test_the_mcp_server_summarises_campi_flegrei(tmp_path: Path) -> None:
+    """area_summary on real data, through an MCP client (one or two L3 tiles)."""
+    pytest.importorskip("mcp")
+    from mcp import Client
+
+    from egms_client.mcp_server import create_server
+
+    async def main() -> Any:
+        box = {"west": 14.05, "south": 40.80, "east": 14.20, "north": 40.88}
+        async with Client(create_server(directory=tmp_path)) as client:
+            return await client.call_tool("area_summary", {**box, "release": "2020-2025"})
+
+    result = asyncio.run(main())
+    assert not result.is_error, result.content
+    area = result.structured_content
+    assert area is not None
+    assert area["max"] > 50 and area["share_above"] > 0.1  # the caldera rises
+    assert area["files"] and all(f.startswith("EGMS_L3_") for f in area["files"])

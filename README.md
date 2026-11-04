@@ -120,6 +120,7 @@ pip install egms-client           # login, search, download
 pip install "egms-client[raster]" # + mosaics (numpy, rasterio, pyproj)
 pip install "egms-client[tables]" # + CSVs as pandas / GeoParquet (pandas, pyarrow, pyproj)
 pip install "egms-client[xarray]" # + maps and series as xarray DataArray
+pip install "egms-client[mcp]"    # + an MCP server for AI agents (egms mcp)
 ```
 
 Python 3.12 or newer.
@@ -644,6 +645,7 @@ All checked against the live archive on 3 November 2026.
 | `.fetch_tile(tile, component, release, dir)` | GeoTIFF path (cached), or `None`. |
 | `.velocity_at(lon, lat, component=, release=, dir)` | The L3 velocity of the cell at a point, with its file (`PointVelocity`). |
 | `egms_client.sync.Archive` | The same methods without `async`, for scripts and notebooks. |
+| `egms mcp` / `mcp_server.create_server()` | EGMS as tools for AI agents (extra `mcp`). |
 | `tiles_for_bounds(minx, miny, maxx, maxy)` | Tiles covering a rectangle (EPSG:3035 m). |
 | `tile_for_point(x, y)` | The tile containing a point (EPSG:3035 m). |
 | `tile_id((e, n))` / `parse_tile_id(text)` | `(47, 19)` ↔ `"E47N19"`. |
@@ -665,6 +667,54 @@ Lower level, for your own HTTP layer: `token_request` / `parse_token`,
 ---
 
 ## With an AI assistant
+
+### As tools: an MCP server
+
+`egms mcp` (extra `mcp`) serves EGMS as tools to any
+[MCP](https://modelcontextprotocol.io/) client: Claude Desktop, Claude Code,
+IDE assistants. Ask "is the ground moving under Pozzuoli?" and the answer
+is computed from the data:
+
+| Tool | What it returns |
+|---|---|
+| `releases` | the published releases |
+| `find_files(west, south, east, north, level)` | the files over a box and their size; nothing downloaded |
+| `velocity_at(lon, lat, component)` | the L3 velocity of the 100 m cell at a point |
+| `area_summary(west, south, east, north, component)` | coverage, mean, percentiles, share sinking / rising, the 5 fastest cells |
+
+Every answer names its release and files. The server's instructions tell
+the model to quote numbers only as returned, and never to turn a velocity
+into a safety verdict. `area_summary` downloads at most `--max-tiles` L3
+tiles per box (9 by default, about 60 MB each, kept for the next call).
+The key stays in the server's environment and never enters the
+conversation.
+
+In Claude Code:
+
+```bash
+claude mcp add egms -e EGMS_SERVICE_KEY_FILE=$HOME/clms-service-key.json \
+  -- uvx --from "egms-client[mcp]" egms mcp
+```
+
+In Claude Desktop (`claude_desktop_config.json`), or any client that
+launches a command:
+
+```json
+{
+  "mcpServers": {
+    "egms": {
+      "command": "uvx",
+      "args": ["--from", "egms-client[mcp]", "egms", "mcp"],
+      "env": { "EGMS_SERVICE_KEY_FILE": "/path/to/clms-service-key.json" }
+    }
+  }
+}
+```
+
+Until the next release is on PyPI, use
+`--from "egms-client[mcp] @ git+https://github.com/agent-engineering-studio/egms-client"`.
+
+### As documentation: `llms.txt` and a skill
 
 The site publishes the documentation in the forms AI assistants read:
 

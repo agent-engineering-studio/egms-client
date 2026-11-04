@@ -67,6 +67,11 @@ what to expect.
 
 ### 3.1 An MCP server: EGMS for any agent
 
+!!! success "Done: `releases`, `find_files`, `velocity_at`, `area_summary`"
+    `egms mcp`, extra `mcp`. See
+    [With an AI assistant](index.md#with-an-ai-assistant). `moving_points`
+    and `map` wait for track 2.
+
 **What.** An optional extra, `egms-client[mcp]`, with an
 [MCP](https://modelcontextprotocol.io/) server, `egms mcp`. It exposes the
 library as tools for Claude, Claude Code, IDE assistants or any other MCP
@@ -152,7 +157,7 @@ These are worth a notebook first, not a module:
 |---|---|---|---|---|
 | 1 | ~~`llms.txt` + agent skill~~ ✅ | AI | S | better AI-written code, today |
 | 2 | ~~Point query + sync façade~~ ✅ | 1 | S | the MCP server, beginners |
-| 3 | MCP server (`find`, `velocity_at`, `area_summary`) | AI | M | agents over EGMS |
+| 3 | ~~MCP server (`find`, `velocity_at`, `area_summary`)~~ ✅ | AI | M | agents over EGMS |
 | 4 | `analysis`: acceleration, seasonality, jumps | 2 | M | moving points, reports, Limen |
 | 5 | Active deformation areas + MCP `moving_points` | 2 · AI | M | the most useful question |
 | 6 | Uncertainties in `decompose`, release diff | 1 | M | error bars, change |
