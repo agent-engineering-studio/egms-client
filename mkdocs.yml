@@ -72,5 +72,6 @@ nav:
       - Maps from L2 points: api/decompose.md
       - Command line: api/cli.md
       - Errors: api/errors.md
+  - Roadmap: roadmap.md
   - Changelog: changelog.md
   - Contributing: contributing.md

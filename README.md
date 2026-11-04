@@ -692,6 +692,10 @@ above 90%, and contributions are accepted under Apache-2.0.
 Not promises, just directions where help would make a difference. Open an
 issue to discuss one before starting.
 
+The [roadmap](https://agentengineering.it/egms-client/roadmap/) goes further:
+time-series analysis and AI features (an MCP server, `llms.txt`, reports
+that cite their data).
+
 | Idea | Why it matters | Good for |
 |---|---|---|
 | 📓 **More example notebooks** (a coastline, a dam, a mine) | Show what the data can do | first contribution, GIS users |

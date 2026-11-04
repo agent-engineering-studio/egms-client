@@ -13,6 +13,7 @@ All notable changes to this project are documented here. The format follows
   changelog. Built with `--strict` on every pull request, published to
   GitHub Pages from `main` (`make docs` builds it locally).
 - README links are absolute, so they work on GitHub, PyPI and the site.
+- A roadmap page: foundations, time-series analysis and AI features.
 
 ## [0.5.0] - 2026-11-03
 
