@@ -37,6 +37,7 @@ path = await archive.fetch_tile((47, 19), "U", "2020-2025", Path("egms"))
 - [Recipes](#recipes)
 - [The traps we already fell into](#the-traps-we-already-fell-into)
 - [API at a glance](#api-at-a-glance)
+- [With an AI assistant](#with-an-ai-assistant)
 - [Contributing](#contributing) · [Ideas to work on](#ideas-to-work-on)
 - [Data licence and credits](#data-licence-and-credits)
 
@@ -631,6 +632,34 @@ All checked against the live archive on 3 November 2026.
 Lower level, for your own HTTP layer: `token_request` / `parse_token`,
 `search_body` / `parse_search` / `latest_hit`, `parse_releases`,
 `download_url` / `check_download` / `extract_tiff`.
+
+---
+
+## With an AI assistant
+
+The site publishes the documentation in the forms AI assistants read:
+
+- [`llms.txt`](https://agentengineering.it/egms-client/llms.txt): an index
+  of the site ([llmstxt.org](https://llmstxt.org/));
+- [`llms-full.txt`](https://agentengineering.it/egms-client/llms-full.txt):
+  every page in one plain-text file, with the API reference rendered from
+  the docstrings;
+- an **agent skill**,
+  [`skills/egms-client/SKILL.md`](https://github.com/agent-engineering-studio/egms-client/blob/main/skills/egms-client/SKILL.md):
+  how to use the library, and the rules of the archive a model gets wrong
+  when it writes EGMS code from memory.
+
+To give the skill to Claude Code, copy it into your project (or into
+`~/.claude/skills/` for every project):
+
+```bash
+mkdir -p .claude/skills/egms-client
+curl -o .claude/skills/egms-client/SKILL.md \
+  https://agentengineering.it/egms-client/skills/egms-client/SKILL.md
+```
+
+All three are rebuilt from the sources with the site, and a test checks
+that every name the skill uses exists in the library.
 
 ---
 

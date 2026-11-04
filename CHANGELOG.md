@@ -14,6 +14,13 @@ All notable changes to this project are documented here. The format follows
   GitHub Pages from `main` (`make docs` builds it locally).
 - README links are absolute, so they work on GitHub, PyPI and the site.
 - A roadmap page: foundations, time-series analysis and AI features.
+- `llms.txt` and `llms-full.txt` on the site, built from the sources by a
+  MkDocs hook (`hooks/llms.py`): the index for AI assistants, and the whole
+  documentation as one text file with the API reference rendered from the
+  docstrings.
+- An agent skill, `skills/egms-client/SKILL.md`, also served by the site:
+  how to use the library and the rules the archive enforces. A test checks
+  that every import, method and constant it names exists.
 
 ## [0.5.0] - 2026-11-03
 
