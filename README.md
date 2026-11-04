@@ -506,6 +506,32 @@ rising = series.where(series.mean_velocity > 10, drop=True)
 rising.mean("pid").plot()  # the average curve of the fastest-rising cells
 ```
 
+### What the series say beyond their mean velocity
+
+Every CSV comes with one model fitted to each series over the whole
+release: `mean_velocity`, `acceleration`, `seasonality`, `rmse_ts`.
+`egms_client.analysis` is that same model (over the full window it gives
+back those columns), plus what they cannot show:
+
+```python
+from datetime import date
+
+from egms_client.analysis import fit, trend_change, unwrapping_jumps
+from egms_client.tables import read_csv
+
+points = read_csv(Path("egms/EGMS_L2b_117_0256_IW3_VV_2020_2025_1.csv"))
+
+now = fit(points, start=date(2024, 11, 1))  # velocity of the last year only, seasonal peak day
+change = trend_change(points)  # the date a series changes velocity, before / after
+creeping = change[(change.delta_bic > 10) & (change.change < -5)]  # started moving faster
+jumps = unwrapping_jumps(points)  # ±27.7 mm steps: processing errors, not ground motion
+```
+
+All three return one row per point with its `pid`. They run in blocks: a
+whole L3 tile (170,000 series) takes about 3 seconds each. `delta_bic`
+above 10 is strong evidence of a change of velocity. Read it as a ranking:
+InSAR residuals are not independent, so it overstates certainty.
+
 ### Your own vertical and east-west maps from L2 points
 
 L2 points move along each satellite's line of sight. Take one **ascending**
@@ -658,6 +684,7 @@ All checked against the live archive on 3 November 2026.
 | `tables.dates(df)` / `.attributes(df)` / `.series_long(df)` | Its dates, its attributes, its series one row per date. |
 | `tables.csv_to_geoparquet(csv)` / `.to_geoparquet(df, path)` | GeoParquet, points in EPSG:3035. |
 | `mosaic.to_xarray(m)` / `tables.to_xarray(df)` | A map over `(y, x)`, series over `(pid, time)`, as `xarray.DataArray` (extra `xarray`). |
+| `analysis.fit(df, start=, end=)` / `.trend_change(df)` / `.unwrapping_jumps(df)` | The archive's model on any window, with the seasonal peak; the date a velocity changes; ±27.7 mm processing steps. |
 | `EgmsError` | The server answered, but refused. |
 
 Lower level, for your own HTTP layer: `token_request` / `parse_token`,

@@ -75,6 +75,7 @@ nav:
       - Mosaics and maps: api/mosaic.md
       - Tables and GeoParquet: api/tables.md
       - Maps from L2 points: api/decompose.md
+      - Time-series analysis: api/analysis.md
       - Command line: api/cli.md
       - MCP server: api/mcp.md
       - Errors: api/errors.md
