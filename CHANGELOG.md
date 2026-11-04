@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-04
+
 ### Added
 
 - `egms mcp`, an MCP server (extra `mcp`, on the MCP Python SDK 2.x) with
