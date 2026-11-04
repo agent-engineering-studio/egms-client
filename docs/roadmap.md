@@ -92,6 +92,13 @@ environment and never passes through the conversation. Effort: **M**.
 
 ### 3.2 `llms.txt` and a skill for coding agents
 
+!!! success "Done"
+    [`llms.txt`](https://agentengineering.it/egms-client/llms.txt),
+    [`llms-full.txt`](https://agentengineering.it/egms-client/llms-full.txt)
+    and the [agent skill](https://agentengineering.it/egms-client/skills/egms-client/SKILL.md)
+    are published with the site. See
+    [With an AI assistant](index.md#with-an-ai-assistant).
+
 **What.** Publish `/llms.txt` and `/llms-full.txt` on this site: the API,
 the recipes and the traps table, in plain text that AI assistants read.
 Add an agent skill (`SKILL.md`) that tells a coding agent how to use the
@@ -143,7 +150,7 @@ These are worth a notebook first, not a module:
 
 | # | Item | Track | Effort | Unlocks |
 |---|---|---|---|---|
-| 1 | `llms.txt` + agent skill | AI | S | better AI-written code, today |
+| 1 | ~~`llms.txt` + agent skill~~ ✅ | AI | S | better AI-written code, today |
 | 2 | Point query + sync façade | 1 | S | the MCP server, beginners |
 | 3 | MCP server (`find`, `velocity_at`, `area_summary`) | AI | M | agents over EGMS |
 | 4 | `analysis`: acceleration, seasonality, jumps | 2 | M | moving points, reports, Limen |

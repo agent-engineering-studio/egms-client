@@ -23,6 +23,10 @@ theme:
       primary: blue grey
       toggle: {icon: material/weather-sunny, name: Light mode}
 
+# llms.txt, llms-full.txt and the agent skill, built from the sources.
+hooks:
+  - hooks/llms.py
+
 plugins:
   - search
   - mkdocstrings:
