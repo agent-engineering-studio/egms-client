@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `egms_client.analysis` (extra `tables`): `fit(frame, start=, end=)` is
+  the model the archive fits to each series (velocity, acceleration,
+  seasonal amplitude, rmse). It gives back `mean_velocity`, `acceleration`
+  and `rmse_ts` within rounding, on any window, with the day of the year
+  the seasonal cycle peaks. `trend_change` gives the date a series changes
+  velocity, the velocities before and after, and `delta_bic`.
+  `unwrapping_jumps` finds steps of half the Sentinel-1 wavelength
+  (27.7 mm). About 3 seconds each for a whole L3 tile.
+
 ## [0.6.0] - 2026-11-04
 
 ### Added

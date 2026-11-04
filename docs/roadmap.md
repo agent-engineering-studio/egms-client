@@ -49,12 +49,19 @@ language model involved. They would go in a new module,
 
 | Feature | What it finds | Method | Effort |
 |---|---|---|---|
-| **Acceleration** | points whose motion speeds up (often the warning sign of a landslide) | piecewise linear fit with a breakpoint, or a quadratic term, with its significance | M |
-| **Seasonality** | the yearly cycle (clay soils, aquifers, thermal dilation of structures) | harmonic regression; amplitude and phase per point | S |
-| **Unwrapping jumps** | steps of about ±28 mm (half the Sentinel-1 wavelength) that are processing errors, not ground motion | step detection on the differenced series | S |
+| **Acceleration** ✅ | points whose motion speeds up (often the warning sign of a landslide) | `analysis.trend_change`: a two-slope line with its date, and `delta_bic` | M |
+| **Seasonality** ✅ | the yearly cycle (clay soils, aquifers, thermal dilation of structures) | `analysis.fit`: amplitude and the day of the peak | S |
+| **Unwrapping jumps** ✅ | steps of about ±28 mm (half the Sentinel-1 wavelength) that are processing errors, not ground motion | step detection on the differenced series | S |
 | **Active deformation areas** | clusters of moving points, rather than isolated noisy ones | DBSCAN on position + velocity, above a stability threshold (the "ADA" approach in the InSAR literature) | M |
 | **Anomalies** | points that behave unlike their neighbours | isolation forest on per-point features (velocity, acceleration, seasonal amplitude, coherence) | M |
 | **Features for models** | per-cell features (velocity, acceleration, seasonality, share of moving points) on a regular grid | aggregation, the same as `grid_los` | S |
+
+!!! note "What the archive already gives"
+    Each CSV already holds `acceleration` and `seasonality`: one quadratic
+    and one annual cycle fitted over the whole release.
+    [`analysis.fit`](api/analysis.md) is that same model, checked against
+    those columns, so it can run on any window. `trend_change` and
+    `unwrapping_jumps` are what the columns cannot show.
 
 The last row is the one [Limen](https://github.com/agent-engineering-studio/limen)
 needs for its landslide-risk model. Every method should be validated on
@@ -158,7 +165,7 @@ These are worth a notebook first, not a module:
 | 1 | ~~`llms.txt` + agent skill~~ ✅ | AI | S | better AI-written code, today |
 | 2 | ~~Point query + sync façade~~ ✅ | 1 | S | the MCP server, beginners |
 | 3 | ~~MCP server (`find`, `velocity_at`, `area_summary`)~~ ✅ | AI | M | agents over EGMS |
-| 4 | `analysis`: acceleration, seasonality, jumps | 2 | M | moving points, reports, Limen |
+| 4 | ~~`analysis`: acceleration, seasonality, jumps~~ ✅ | 2 | M | moving points, reports, Limen |
 | 5 | Active deformation areas + MCP `moving_points` | 2 · AI | M | the most useful question |
 | 6 | Uncertainties in `decompose`, release diff | 1 | M | error bars, change |
 | 7 | `egms ask`, `egms report` | AI | M | non-programmers |

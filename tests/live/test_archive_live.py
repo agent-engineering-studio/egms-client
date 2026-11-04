@@ -132,3 +132,22 @@ def test_the_mcp_server_summarises_campi_flegrei(tmp_path: Path) -> None:
     assert area is not None
     assert area["max"] > 50 and area["share_above"] > 0.1  # the caldera rises
     assert area["files"] and all(f.startswith("EGMS_L3_") for f in area["files"])
+
+
+def test_fit_gives_back_the_columns_of_a_whole_burst(tmp_path: Path) -> None:
+    """analysis.fit on every point of a real L2B burst (~8 MB): the archive's own model."""
+    import numpy as np
+
+    from egms_client.analysis import fit, trend_change, unwrapping_jumps
+    from egms_client.tables import attributes, read_csv
+
+    paths = run(lambda a: a.fetch(SMALL_BURST, tmp_path, keep=["csv"], max_bytes=50_000_000))
+    table = read_csv(next(p for p in paths if p.suffix == ".csv"))
+    ours, theirs = fit(table), attributes(table)
+    complete = ours["velocity"].notna()
+    assert complete.mean() > 0.95
+    velocity = np.abs(ours["velocity"] - theirs["mean_velocity"])[complete]
+    acceleration = np.abs(ours["acceleration"] - theirs["acceleration"])[complete]
+    assert velocity.quantile(0.99) < 0.06  # the archive rounds to 0.1 mm/year
+    assert acceleration.quantile(0.99) < 0.02
+    assert len(trend_change(table)) == len(unwrapping_jumps(table)) == len(table)

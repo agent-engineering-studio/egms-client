@@ -87,6 +87,12 @@ asyncio.run(main())
   Use one **ascending** and one **descending** grid over the same bounds.
 - xarray: `egms_client.mosaic.to_xarray(m)` gives dims `(y, x)`, and
   `egms_client.tables.to_xarray(df)` gives dims `(pid, time)`.
+- Time series: `from egms_client.analysis import fit, trend_change, unwrapping_jumps`.
+  Do not refit what the CSV already has: `mean_velocity`, `acceleration`,
+  `seasonality` and `rmse_ts` are the archive's fit over the whole release.
+  Use `fit(table, start=...)` for a shorter window (the last year),
+  `trend_change` for the date a velocity changed, and `unwrapping_jumps` on L2
+  before trusting a fast point.
 - A file's real outline: `hit.covers(lon, lat)`. A burst is a tilted
   parallelogram, so its `bbox` claims points it does not contain.
 
