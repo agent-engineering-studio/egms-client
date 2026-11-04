@@ -43,6 +43,7 @@ from egms_client.archive import (
     query_body,
     search_body,
     split_bbox,
+    tile_for_point,
     tile_prefix,
 )
 from egms_client.auth import ServiceKey, Token, parse_token, token_request
@@ -81,6 +82,27 @@ def default_directory() -> Path:
         return Path(configured).expanduser()
     cache = os.environ.get("XDG_CACHE_HOME", "").strip() or "~/.cache"
     return Path(cache).expanduser() / "egms-client"
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class PointVelocity:
+    """The Ortho L3 velocity at one point, and where it comes from.
+
+    ``velocity`` is in mm/year (``U``: positive up; ``E``: positive east), or
+    ``None`` where EGMS has no measurement: no tile there (sea, outside
+    coverage) or a cell without data. ``file`` is the GeoTIFF it was read
+    from (``None`` without a tile); ``x``, ``y`` the point in EPSG:3035.
+    """
+
+    lon: float
+    lat: float
+    x: float
+    y: float
+    component: Component
+    release: str
+    tile: Tile
+    velocity: float | None
+    file: Path | None
 
 
 class _ExpiredError(EgmsError):
@@ -309,6 +331,40 @@ class EgmsArchive:
         finally:
             archive.unlink()
         return path
+
+    async def velocity_at(
+        self,
+        lon: float,
+        lat: float,
+        component: Component = "U",
+        release: str | None = None,
+        directory: Path | None = None,
+    ) -> PointVelocity:
+        """The L3 velocity of the 100 m cell containing a point in degrees.
+
+        Only the point's tile is downloaded (about 60 MB, once: it stays in
+        ``directory``, which defaults to :func:`default_directory`), so the
+        next points of the same tile cost nothing. ``release`` defaults to
+        the latest. Needs the ``raster`` extra.
+        """
+        from egms_client.mosaic import lonlat_to_xy, value_at
+
+        if release is None:
+            release = (await self.releases())[-1]
+        x, y = lonlat_to_xy(lon, lat)
+        tile = tile_for_point(x, y)
+        tiff = await self.fetch_tile(tile, component, release, directory)
+        return PointVelocity(
+            lon=lon,
+            lat=lat,
+            x=x,
+            y=y,
+            component=component,
+            release=release,
+            tile=tile,
+            velocity=value_at(tiff, x, y) if tiff is not None else None,
+            file=tiff,
+        )
 
     async def _fetch_hit(
         self,

@@ -56,6 +56,10 @@ async def main() -> None:
     async with EgmsArchive() as archive:
         release = (await archive.releases())[-1]
 
+        # The vertical velocity at a point (lon, lat): one tile downloaded, once.
+        point = await archive.velocity_at(14.12, 40.83, "U", release, Path("egms"))
+        print(point.velocity, point.file)  # mm/year (None at sea / no data), its source
+
         # One L3 tile: path to the GeoTIFF (cached), or None if the tile does not exist.
         tiff = await archive.fetch_tile((47, 19), "U", release, Path("egms"))
 
@@ -69,6 +73,9 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
+- Without `async` (scripts, Jupyter): `from egms_client.sync import Archive`.
+  It has the same methods, which block, and works as `with Archive() as archive:`.
+  Prefer it in notebooks over `asyncio.run`, which fails when a loop is already running.
 - A map over a box in degrees: `from egms_client.mosaic import mosaic, lonlat_to_laea, to_cog`.
   Convert the box with `lonlat_to_laea(w, s, e, n)`, pick tiles with
   `tiles_for_bounds(minx, miny, maxx, maxy)`, fetch each with `fetch_tile`, then

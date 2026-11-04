@@ -95,6 +95,38 @@ def lonlat_to_laea(west: float, south: float, east: float, north: float) -> tupl
     return tuple(to_laea.transform_bounds(west, south, east, north, densify_pts=21))
 
 
+def lonlat_to_xy(lon: float, lat: float) -> tuple[float, float]:
+    """A point in degrees (WGS84) as ``(x, y)`` in EPSG:3035 metres."""
+    from pyproj import Transformer
+
+    to_laea = Transformer.from_crs("EPSG:4326", "EPSG:3035", always_xy=True)
+    x, y = to_laea.transform(lon, lat)
+    return float(x), float(y)
+
+
+def value_at(tiff: Path, x: float, y: float) -> float | None:
+    """The value of the pixel containing ``(x, y)`` (EPSG:3035 metres).
+
+    ``None`` where the tile has no data, or when the point is outside it. A
+    tile in another projection raises ``ValueError``.
+    """
+    import numpy as np
+    import rasterio
+    from rasterio.windows import Window
+
+    with rasterio.open(tiff) as src:
+        if not is_laea(src.crs):
+            raise ValueError(f"{tiff.name}: not LAEA Europe ({src.crs})")
+        row, col = src.index(x, y)
+        if not (0 <= row < src.height and 0 <= col < src.width):
+            return None
+        value = float(src.read(1, window=Window(col, row, 1, 1))[0, 0])
+        nodata = src.nodata
+    if np.isnan(value) or (nodata is not None and value == nodata):
+        return None
+    return value
+
+
 def to_cog(m: Mosaic, path: Path) -> Path:
     """Write a mosaic as a Cloud-Optimized GeoTIFF in EPSG:3035.
 

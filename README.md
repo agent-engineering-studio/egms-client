@@ -396,6 +396,32 @@ flowchart LR
 
 ## Recipes
 
+### The speed at one point
+
+```python
+point = await archive.velocity_at(14.12, 40.83)  # lon, lat in degrees: Pozzuoli
+print(point.velocity, "mm/year")  # vertical, latest release, the 100 m cell
+print(point.file)  # the L3 GeoTIFF it was read from
+```
+
+Only the point's tile is downloaded (once), so more points nearby cost
+nothing. `component="E"` gives east-west. `velocity` is `None` where EGMS
+has no measurement (sea, or a cell without data). Needs the `raster` extra.
+
+### Without async
+
+Scripts and notebooks that would rather not `await` can use
+`egms_client.sync.Archive`. It has the same methods, which block until done,
+and it works inside Jupyter too:
+
+```python
+from egms_client.sync import Archive
+
+with Archive() as archive:
+    point = archive.velocity_at(14.12, 40.83)
+    tiff = archive.fetch_tile((47, 19), "U", "2020-2025", Path("egms"))
+```
+
 ### Download a whole region, both components
 
 ```python
@@ -616,7 +642,10 @@ All checked against the live archive on 3 November 2026.
 | `.fetch(query, dir, keep=, concurrency=, max_bytes=, on_progress=)` | Download them, skipping what is on disk; `on_plan`, `on_progress`, `on_file` report as it goes. |
 | `.search(tile, component, release)` | One search; `None` if the tile does not exist. |
 | `.fetch_tile(tile, component, release, dir)` | GeoTIFF path (cached), or `None`. |
+| `.velocity_at(lon, lat, component=, release=, dir)` | The L3 velocity of the cell at a point, with its file (`PointVelocity`). |
+| `egms_client.sync.Archive` | The same methods without `async`, for scripts and notebooks. |
 | `tiles_for_bounds(minx, miny, maxx, maxy)` | Tiles covering a rectangle (EPSG:3035 m). |
+| `tile_for_point(x, y)` | The tile containing a point (EPSG:3035 m). |
 | `tile_id((e, n))` / `parse_tile_id(text)` | `(47, 19)` ↔ `"E47N19"`. |
 | `hit.covers(lon, lat)` / `hit.footprint` | Whether a file's real outline contains a point (bursts are tilted, their bbox is larger). |
 | `default_directory()` | Where downloads go when no directory is given. |

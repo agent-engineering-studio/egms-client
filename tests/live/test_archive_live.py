@@ -100,3 +100,15 @@ def test_a_small_burst_downloads_with_the_expected_columns(tmp_path: Path) -> No
     assert any(c.isdigit() and len(c) == 8 for c in header)
     again = run(lambda a: a.fetch(SMALL_BURST, tmp_path, keep=["csv", "xml"]))
     assert sorted(again) == sorted(paths)
+
+
+def test_pozzuoli_rises_and_the_sea_has_no_velocity(tmp_path: Path) -> None:
+    """The point query on real data, through the sync façade (one L3 tile, ~60 MB)."""
+    from egms_client.sync import Archive
+
+    with Archive(key=ServiceKey.from_env()) as archive:
+        pozzuoli = archive.velocity_at(14.12, 40.83, "U", "2020-2025", tmp_path)
+        sea = archive.velocity_at(13.5, 40.5, "U", "2020-2025", tmp_path)
+    assert pozzuoli.velocity is not None and pozzuoli.velocity > 50  # mm/year, up
+    assert pozzuoli.file is not None and pozzuoli.file.name.startswith("EGMS_L3_")
+    assert sea.velocity is None

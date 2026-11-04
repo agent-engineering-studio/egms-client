@@ -69,6 +69,7 @@ nav:
   - Notebooks: notebooks.md
   - API reference:
       - Client: api/client.md
+      - Client without async: api/sync.md
       - Archive (pure functions): api/archive.md
       - Authentication: api/auth.md
       - Mosaics and maps: api/mosaic.md
