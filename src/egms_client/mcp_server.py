@@ -34,6 +34,7 @@ from egms_client.archive import Component, Query, tile_id, tiles_for_bounds
 from egms_client.auth import ServiceKey
 from egms_client.client import EgmsArchive, default_directory
 from egms_client.errors import EgmsError
+from egms_client.releases import window
 
 #: L3 tiles ``area_summary`` downloads at most for one box (~60 MB each).
 MAX_TILES = 9
@@ -48,7 +49,9 @@ ground moves across Europe, measured by Sentinel-1 radar (InSAR), in mm/year.
 - Component "U" is vertical (negative: the ground goes down), "E" east-west
   (negative: west). Ortho L3 is a 100 m grid; L2A/L2B are measurement points
   along the satellite's line of sight.
-- Quote numbers only as the tools return them, with their release and file.
+- Quote numbers only as the tools return them, with their release, window
+  and file. The window is when the satellites measured: say that the data
+  stops there, and do not describe the ground of today with it.
   A velocity is evidence, not a safety verdict: do not tell anyone that a
   building, slope or area is safe or dangerous.
 - Boxes are west, south, east, north in degrees. Use find_files to check
@@ -83,6 +86,7 @@ class Velocity(TypedDict):
     meaning: str
     velocity_mm_per_year: float | None
     release: str
+    window: str
     tile: str
     file: str | None
 
@@ -97,6 +101,7 @@ class AreaSummary(TypedDict):
     component: str
     meaning: str
     release: str
+    window: str
     box: list[float]
     cells_with_data: int
     coverage: float
@@ -236,6 +241,7 @@ def create_server(
             meaning=MEANING[component],
             velocity_mm_per_year=_round(point.velocity),
             release=point.release,
+            window=window(point.release).text(),
             tile=tile_id(point.tile),
             file=point.file.name if point.file else None,
         )
@@ -289,6 +295,7 @@ def create_server(
             component=component,
             meaning=MEANING[component],
             release=chosen,
+            window=window(chosen).text(),
             box=[west, south, east, north],
             stable_band_mm_per_year=stable_band,
             files=[t.name for t in tiffs],

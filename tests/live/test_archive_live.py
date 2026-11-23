@@ -151,3 +151,43 @@ def test_fit_gives_back_the_columns_of_a_whole_burst(tmp_path: Path) -> None:
     assert velocity.quantile(0.99) < 0.06  # the archive rounds to 0.1 mm/year
     assert acceleration.quantile(0.99) < 0.02
     assert len(trend_change(table)) == len(unwrapping_jumps(table)) == len(table)
+
+
+def test_no_release_this_version_has_not_seen() -> None:
+    """A new release fails here first: check its windows and the benchmark, then
+    update egms_client.releases."""
+    from egms_client.releases import new_releases
+
+    assert new_releases(run(lambda a: a.releases())) == []
+
+
+def test_the_sub_release_of_a_tile_has_not_changed() -> None:
+    """The trailing _1 is a sub-release: a reprocessed tile gets _2."""
+
+    async def body(a: EgmsArchive) -> list[str]:
+        search = await a.search((47, 19), "U", "2020-2025")
+        assert search is not None
+        return sorted(h.filename for h in search.hits)
+
+    assert run(body) == ["EGMS_L3_E47N19_100km_U_2020_2025_1.zip"]
+
+
+def test_a_search_answers_with_the_recorded_shape() -> None:
+    """The fields of a search answer are those of the recorded fixture."""
+    import json
+
+    from egms_client import search_body
+
+    recorded = json.loads(
+        (Path(__file__).parent.parent / "fixtures" / "search_E47N19_U.json").read_text()
+    )
+    answer = run(lambda a: _raw(a, search_body((47, 19), "U", "2020-2025")))
+
+    def keys(data: Any) -> set[str]:
+        if isinstance(data, dict):
+            return set(data) | {f"{k}.{s}" for k, v in data.items() for s in keys(v)}
+        if isinstance(data, list) and data:
+            return keys(data[0])
+        return set()
+
+    assert keys(recorded) <= keys(answer)
