@@ -114,15 +114,18 @@ In the Bologna box the ground sinks by 4.0 mm/year and the acceleration is
 signed and kept). Cells cut by the edge of a crop count only the pixels
 inside. A check of the Bologna slowdown against a source.
 
-**For Limen:** issues to open there.
-- Not measured is NULL, not 0.0, when training and when serving.
-- No EGMS feature for a landslide before the window starts (9 December 2020).
-- A signed vertical acceleration on the velocity's pixels instead of the
-  magnitude.
-- `scatterer_count` counts 100 m pixels, not radar targets: rename or
-  document it.
-- The backtest with and without EGMS (limen#618), with AUC by reliability
-  class.
+**For Limen** (issues opened on 23 November 2026):
+- [limen#698](https://github.com/agent-engineering-studio/limen/issues/698):
+  not measured is NULL, not 0.0, when training and when serving.
+- [limen#699](https://github.com/agent-engineering-studio/limen/issues/699):
+  `period_start` is 1 January, but the window starts on 9 December 2020; no
+  EGMS feature for a landslide outside the window.
+- [limen#700](https://github.com/agent-engineering-studio/limen/issues/700):
+  a signed vertical acceleration on the velocity's pixels instead of the
+  magnitude; `scatterer_count` counts pixels; the AUC again, in the backtest
+  with and without EGMS (limen#618), by reliability class.
+- [limen#701](https://github.com/agent-engineering-studio/limen/issues/701):
+  drop the `Archivio` class for `EgmsArchive(retries=0)`.
 
 ## 5 · The AI layer
 
