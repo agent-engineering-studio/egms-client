@@ -127,9 +127,27 @@ Python 3.12 or newer.
 
 ### 2. Get a service key (once, 2 minutes)
 
-1. Go to [land.copernicus.eu](https://land.copernicus.eu/) and sign in with **EU Login**.
-2. Open your profile → **API Tokens** → *Create new token*.
-3. Save the JSON file you get, e.g. as `clms-service-key.json`.
+EGMS is free for everyone, but the archive wants to know who downloads.
+You need two things: an **EU Login** account (the European Commission's
+login, one for all its services) and, with it, a **service key** of the
+Copernicus Land Monitoring Service (CLMS).
+
+**If you have no EU Login account yet:**
+
+1. Open the [EU Login sign-up page](https://ecas.ec.europa.eu/cas/eim/external/register.cgi).
+2. Fill in your name and e-mail, accept the privacy statement and send the form.
+3. Open the e-mail you get, follow its link and choose a password. The
+   account is personal and costs nothing.
+
+**Then create the key:**
+
+1. Go to [land.copernicus.eu](https://land.copernicus.eu/), click **Login**
+   and sign in with EU Login. The first time, the portal may ask you to
+   complete your profile and accept its terms of use.
+2. Open your profile → **API Tokens** → *Create new token*, and give it a
+   name you will recognise (e.g. `egms-client on my laptop`).
+3. Save the JSON file you get, e.g. as `~/clms-service-key.json`, and make
+   it readable only by you: `chmod 600 ~/clms-service-key.json`.
 
 It contains `client_id`, `user_id`, `private_key` and `token_uri`, and it
 **does not expire**. Treat it like a password: keep it out of git.
@@ -145,6 +163,18 @@ variables, so no code ever contains a path or a secret:
 export EGMS_SERVICE_KEY_FILE=~/clms-service-key.json   # a file on disk
 export EGMS_SERVICE_KEY="$(cat ~/clms-service-key.json)"  # or the JSON itself (CI, Docker secrets)
 ```
+
+Good to know:
+
+- **One key per place.** Create one token per machine or service (your
+  laptop, a server, CI): if one leaks, delete only that one in the token
+  list, and the others keep working.
+- **Limits are per account.** The archive serves at most 2 downloads at a
+  time per account, whatever key you use: egms-client keeps within it.
+- **Lost the JSON?** It cannot be shown again: delete the token and create
+  a new one.
+- The variable names have **one** underscore: `EGMS_SERVICE_KEY_FILE`,
+  not `EGMS__SERVICE_KEY_FILE` (that one is Limen's own setting).
 
 ### 3. Download your first tile
 

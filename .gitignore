@@ -9,3 +9,9 @@ htmlcov/
 .pytest_cache/
 .ruff_cache/
 site/
+secrets/
+
+# Local settings and secrets: never in git
+.env
+secrets/
+*service-key*.json
