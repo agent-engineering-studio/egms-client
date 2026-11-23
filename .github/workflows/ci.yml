@@ -52,3 +52,36 @@ jobs:
       - run: uv sync --locked
       - run: uv run python -m benchmarks.run --check
       - run: uv run python -m benchmarks.faithful score --check
+
+  # The notebooks that need no key run on the crops of the benchmark.
+  notebooks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --locked --group examples
+      - run: make notebooks-offline
+
+  # The images build, and the page answers in demo mode: no key in CI.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker compose build
+      - run: EGMS_UI_SOURCE=demo docker compose up -d api ui
+      - name: The page and the API answer
+        run: |
+          for i in $(seq 1 30); do curl -fs http://127.0.0.1:3003/api/health && break; sleep 2; done
+          curl -fs "http://127.0.0.1:3003/api/place?lat=40.8225&lon=14.1205" | grep -q '145,2 mm/anno'
+          curl -fsI "http://127.0.0.1:3003/?lat=40.8225&lon=14.1205" | grep -qi "frame-ancestors"
+          curl -fs "http://127.0.0.1:3003/api/map.png?west=14.08&south=40.80&east=14.16&north=40.85" | head -c 4 | grep -q PNG
+      - name: No key in the images, and the API does not run as root
+        run: |
+          ! docker run --rm --entrypoint sh egms-client:local -c 'ls /app/secrets /app/.env 2>/dev/null'
+          test "$(docker run --rm --entrypoint id egms-client:local -un)" = egms
+      - if: failure()
+        run: docker compose logs
+      - run: docker compose down

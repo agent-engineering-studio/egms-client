@@ -1,0 +1,94 @@
+# egms-client on this machine, with nothing to install but Docker.
+#
+#   docker compose up                         the page of a Comune: http://127.0.0.1:3003
+#   docker compose --profile notebook up      + the notebooks: http://127.0.0.1:8889
+#   docker compose --profile mcp up           + the MCP server: http://127.0.0.1:8768/mcp
+#   docker compose run --rm cli --help        the command line
+#
+# Every setting is in .env (copy .env.example). The ports listen on 127.0.0.1
+# only: to publish the page, put a proxy with HTTPS in front of it.
+#
+# The CLMS key: put the JSON in ./secrets (or EGMS_SECRETS_DIR), mounted
+# read-only, never copied into an image. Without a key the page runs on the
+# crops of the benchmark (demo mode).
+name: egms-client
+
+x-egms: &egms
+  image: egms-client:local
+  build: .
+  volumes:
+    - egms-data:/data
+    - ${EGMS_SECRETS_DIR:-./secrets}:/run/secrets/egms:ro
+  environment: &env
+    EGMS_SERVICE_KEY_FILE: /run/secrets/egms/${EGMS_SERVICE_KEY_NAME:-clms_service_key.json}
+    EGMS_SERVICE_KEY: ${EGMS_SERVICE_KEY:-}
+    EGMS_DATA_DIR: /data
+
+services:
+  # What the page asks: the library behind a few URLs (demo/api.py).
+  api:
+    <<: *egms
+    container_name: egms-client-api
+    environment:
+      <<: *env
+      EGMS_UI_SOURCE: ${EGMS_UI_SOURCE:-}
+      EGMS_UI_MAX_TILES: ${EGMS_UI_MAX_TILES:-4}
+    restart: unless-stopped
+
+  # The page: a map of the Comune, and a card for the place clicked (demo/web).
+  ui:
+    image: egms-client-ui:local
+    container_name: egms-client-ui
+    build: demo/web
+    environment:
+      EGMS_UI_API: http://api:8010
+      EGMS_UI_PLACE: ${EGMS_UI_PLACE:-}
+      EGMS_UI_LAT: ${EGMS_UI_LAT:-}
+      EGMS_UI_LON: ${EGMS_UI_LON:-}
+      EGMS_UI_ZOOM: ${EGMS_UI_ZOOM:-}
+      EGMS_UI_LANG: ${EGMS_UI_LANG:-}
+      EGMS_UI_FRAME_ANCESTORS: ${EGMS_UI_FRAME_ANCESTORS:-}
+      EGMS_UI_TILES: ${EGMS_UI_TILES:-}
+      EGMS_UI_TILES_CREDIT: ${EGMS_UI_TILES_CREDIT:-}
+    depends_on:
+      - api
+    ports:
+      - "127.0.0.1:${EGMS_UI_PORT:-3003}:3000"
+    restart: unless-stopped
+
+  # The notebooks, in JupyterLab. The token is EGMS_NOTEBOOK_TOKEN, or a random
+  # one printed in `docker compose logs notebook`.
+  notebook:
+    <<: *egms
+    container_name: egms-client-notebook
+    profiles: [notebook]
+    environment:
+      <<: *env
+      EGMS_NOTEBOOK_TOKEN: ${EGMS_NOTEBOOK_TOKEN:-}
+    entrypoint: ["sh", "/app/demo/notebook.sh"]
+    healthcheck:
+      disable: true
+    ports:
+      - "127.0.0.1:${EGMS_NOTEBOOK_PORT:-8889}:8889"
+
+  # EGMS as tools for AI agents, over HTTP (streamable): http://127.0.0.1:8768/mcp
+  mcp:
+    <<: *egms
+    container_name: egms-client-mcp
+    profiles: [mcp]
+    command: ["egms", "mcp", "--http", "8768", "--host", "0.0.0.0", "--data-dir", "/data"]
+    healthcheck:
+      disable: true
+    ports:
+      - "127.0.0.1:${EGMS_MCP_PORT:-8768}:8768"
+
+  cli:
+    <<: *egms
+    profiles: [tools]
+    entrypoint: ["egms"]
+    healthcheck:
+      disable: true
+
+volumes:
+  # The L3 tiles, kept between one run and the next (~60 MB each).
+  egms-data:

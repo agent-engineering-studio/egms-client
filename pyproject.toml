@@ -81,6 +81,12 @@ examples = [
     "matplotlib>=3.9",
     "nbconvert>=7.16",
     "ipykernel>=6.29",
+    "jupyterlab>=4.3",
+]
+# The API behind the page of a Comune (demo/api.py).
+demo = [
+    "starlette>=0.46",
+    "uvicorn>=0.34",
 ]
 
 [tool.ruff]
@@ -98,7 +104,7 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "ARG", "PTH", "RUF"]
 [tool.mypy]
 strict = true
 python_version = "3.12"
-files = ["src", "tests", "benchmarks"]
+files = ["src", "tests", "benchmarks", "demo"]
 warn_unused_ignores = true
 warn_redundant_casts = true
 

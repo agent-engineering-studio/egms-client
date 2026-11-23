@@ -332,9 +332,17 @@ def create_server(
     return server
 
 
-def run(**options: Any) -> None:
-    """Serve the tools over stdio, until the client disconnects."""
-    create_server(**options).run("stdio")
+def run(*, http_port: int | None = None, http_host: str = "127.0.0.1", **options: Any) -> None:
+    """Serve the tools over stdio, or over HTTP at ``http://host:port/mcp``.
+
+    HTTP is for a container (``egms mcp --http 8768 --host 0.0.0.0``); the
+    key stays in the server's environment either way.
+    """
+    server = create_server(**options)
+    if http_port is None:
+        server.run("stdio")
+    else:
+        server.run("streamable-http", host=http_host, port=http_port)
 
 
 async def _guard[T](call: Awaitable[T]) -> T:

@@ -31,6 +31,7 @@ path = await archive.fetch_tile((47, 19), "U", "2020-2025", Path("egms"))
 - [Who is it for](#who-is-it-for)
 - [Quick start](#quick-start)
 - [Example notebooks](#example-notebooks)
+- [A page for a Comune, in Docker](#a-page-for-a-comune-in-docker)
 - [Where downloads are saved](#where-downloads-are-saved)
 - [Time series as tables](#time-series-as-tables)
 - [How it works](#how-it-works)
@@ -267,17 +268,53 @@ plt.show()
 
 ## Example notebooks
 
-Three stories with real data, from download to figure, in [`notebooks/`](https://github.com/agent-engineering-studio/egms-client/tree/main/notebooks):
+Five stories with real data, from download to figure, in [`notebooks/`](https://github.com/agent-engineering-studio/egms-client/tree/main/notebooks). The last two run on the crops of the benchmark, with no key and no download (`make notebooks-offline`, and in CI):
 
 | | |
 |---|---|
 | [**Campi Flegrei**](https://github.com/agent-engineering-studio/egms-client/blob/main/notebooks/01_campi_flegrei.ipynb) | a caldera rising +79 cm in five years near Pozzuoli |
 | [**A landslide in Ancona**](https://github.com/agent-engineering-studio/egms-client/blob/main/notebooks/02_landslide_ancona.ipynb) | measurement points on a moving slope, against still ones |
 | [**Bologna sinking**](https://github.com/agent-engineering-studio/egms-client/blob/main/notebooks/03_sinking_bologna.ipynb) | how much of the plain subsides, and how fast |
+| [**How far to trust a velocity**](https://github.com/agent-engineering-studio/egms-client/blob/main/notebooks/04_how_much_to_trust.ipynb) | Rione Terra scores 1, the sea is not measured, a lone forest cell scores 0.03 |
+| [**Cells for a model**](https://github.com/agent-engineering-studio/egms-client/blob/main/notebooks/05_cells_for_a_model.ipynb) | 74 % of the forest is not measured; the sign of the acceleration, against its magnitude |
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/agent-engineering-studio/egms-client/main/docs/images/notebook-campi-flegrei.png" alt="Vertical speed around Naples and uplift near Pozzuoli, from the Campi Flegrei notebook" width="100%">
 </p>
+
+## A page for a Comune, in Docker
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/agent-engineering-studio/egms-client/main/docs/images/ui-pozzuoli.jpg" alt="The page for the Comune di Pozzuoli: the map of vertical velocity and the card of the point clicked" width="100%">
+</p>
+
+A narrow page for the site of a Comune: a map of the vertical velocity of
+the ground, and for the point clicked, how much it moves, how far to trust
+it, and until when the data go. It is in Italian and English, uses
+[Bootstrap Italia](https://italia.github.io/bootstrap-italia/) served from
+the image (no CDN), and can be embedded in an iframe. It is not an alert
+system: it shows the EGMS data and their limits, nothing more.
+
+```bash
+cp .env.example .env      # the place, the name, the language; the key in ./secrets
+make up                   # or: make demo, with no key, on the crops of the benchmark
+```
+
+| Container | Address (127.0.0.1 only) | What |
+|---|---|---|
+| `egms-client-ui` | http://127.0.0.1:3003 | the page (Next.js, Bootstrap Italia, Leaflet) |
+| `egms-client-api` | inside Docker, port 8010 | `demo/api.py`: `facts` and `words` behind a few URLs |
+| `egms-client-notebook` | http://127.0.0.1:8889 | JupyterLab on the notebooks (`--profile notebook`) |
+| `egms-client-mcp` | http://127.0.0.1:8768/mcp | the MCP server over HTTP (`--profile mcp`) |
+
+Every setting is in [`.env.example`](https://github.com/agent-engineering-studio/egms-client/blob/main/.env.example),
+and the place can also come from the address:
+`?lat=40.82&lon=14.12&place=Comune%20di%20Pozzuoli&lang=it&embed=1`. The
+CLMS key is mounted read-only from `./secrets` and never copied into an
+image. Without it the page runs on the crops of the benchmark, and outside
+them it says "no data loaded here", which is not "not measured". For a
+public body, in Italian: [riuso](https://agentengineering.it/egms-client/riuso/).
+`make down` stops it; `make logs` follows it.
 
 ## How we know it works
 

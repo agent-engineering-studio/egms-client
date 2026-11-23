@@ -159,12 +159,45 @@ numbers ("390 not reliable" for 390 reliable) is not checked.
 not measured, is the fault that matters most for a risk text, and here the
 first is caught without a model.
 
-## 6 · Docker, a page for a Comune, notebooks
+## 6 · Docker, a page for a Comune, notebooks ✅
 
-`docker compose up` with containers named `egms-client-*`; a page with
-Bootstrap Italia, in Italian and English, set up per Comune, embeddable,
-narrow: how much the ground moves there, where, and how far to trust it.
-More notebooks, `make notebooks`.
+`docker compose up` (or `make up`) starts four containers, named
+`egms-client-*`, on ports that the other libraries do not use, all on
+127.0.0.1:
+
+- `egms-client-ui` (3003): the page;
+- `egms-client-api` (internal): `demo/api.py`, `facts` and `words` behind a few URLs;
+- `egms-client-notebook` (8889): JupyterLab;
+- `egms-client-mcp` (8768): the MCP server over HTTP.
+
+Every setting is in `.env`, and `.env.example` names them all; a test
+checks it. The CLMS key is mounted read-only and never copied into an
+image; a test checks that it never reaches the logs. The page uses Bootstrap
+Italia from npm, with no CDN. It is in Italian and English, set per Comune
+from `.env` or from the address, and embeddable (`frame-ancestors`,
+`embed=1`). It shows the vertical velocity map, the card of a point (how
+much, which way, how far to trust it, until when) and the cells that move
+against their surroundings. Without a key it runs on the benchmark crops
+(demo mode). Notebooks 04 (how far to trust) and 05 (cells for a model) run
+on the crops, in CI. The reuse guide (`riuso.md`) says how to install and
+embed the page.
+
+**Check:** CI builds both images and starts them in demo mode. The page
+answers "+145,2 mm/anno" at Rione Terra, the map comes back as a PNG, the
+header allows only the configured frames, there is no key in the image and
+the API does not run as root. Locally, with the real key: Gioia del Colle
+gives -0.4 mm/year vertical and +1.8 east-west (2 tiles, 58 s the first
+time, then from the volume). MCP over HTTP lists its 6 tools. 221 tests.
+
+**What is not there.** A proxy with HTTPS (the ente's). Accessibility checked
+with a tool (the page uses the kit's components, landmarks and
+`aria-live`, but it has not been audited). The east-west map (only the card
+gives it). The notebooks that download data are still not run in CI: they
+need the key.
+
+**For Limen:** nothing to take: the page is narrow on purpose, and Limen
+has its own. The same `facts` and `words` can feed Limen's card for a cell,
+with the same checks.
 
 ## 7 · Release 0.8.0 and the fourth episode
 

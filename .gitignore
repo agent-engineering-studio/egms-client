@@ -15,3 +15,9 @@ secrets/
 .env
 secrets/
 *service-key*.json
+
+# The page (demo/web)
+node_modules/
+.next/
+next-env.d.ts
+*.tsbuildinfo

@@ -1,0 +1,17 @@
+# What never goes into an image: the key, the environment, data and builds.
+.env
+.env.*
+!.env.example
+secrets
+*service-key*.json
+.git
+.venv
+egms-data
+site
+dist
+**/__pycache__
+**/node_modules
+demo/web/.next
+.pytest_cache
+.mypy_cache
+.ruff_cache

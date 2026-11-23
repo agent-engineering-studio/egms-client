@@ -199,6 +199,8 @@ def _mcp(args: argparse.Namespace) -> int:
         directory=Path(args.data_dir) if args.data_dir else None,
         max_tiles=args.max_tiles,
         key_file=Path(args.key_file) if args.key_file else None,
+        http_port=args.http,
+        http_host=args.host,
     )
     return 0
 
@@ -281,6 +283,12 @@ def _parser() -> argparse.ArgumentParser:
     server.add_argument("--data-dir", help="tile cache (default: EGMS_DATA_DIR or user cache)")
     server.add_argument(
         "--max-tiles", type=int, default=9, help="L3 tiles area_summary downloads at most per box"
+    )
+    server.add_argument(
+        "--http", type=int, metavar="PORT", help="serve over HTTP at /mcp on this port, not stdio"
+    )
+    server.add_argument(
+        "--host", default="127.0.0.1", help="the address HTTP listens on (0.0.0.0 in a container)"
     )
     check = commands.add_parser(
         "check", help="check a text against the facts it was written from (no key needed)"

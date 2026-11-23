@@ -6,11 +6,7 @@ tutta Europa, e li rende usabili da chiunque. Questa pagina è per un ente che
 vuole usarlo: che cosa trova pronto, che cosa resta a lui, e come il progetto
 entra nel Catalogo del software di Developers Italia.
 
-!!! note "Prima versione"
-    Oggi egms-client è una libreria Python con riga di comando e un server
-    MCP. La pagina per il sito del Comune, da installare con Docker, è in
-    lavorazione ([roadmap, fase 6](https://github.com/agent-engineering-studio/egms-client/issues/22)):
-    questa pagina crescerà con lei.
+![La pagina per il Comune di Pozzuoli: la mappa della velocità verticale e la scheda del punto](images/ui-pozzuoli.jpg)
 
 ## Che cosa trova pronto
 
@@ -20,11 +16,67 @@ entra nel Catalogo del software di Developers Italia.
   GeoParquet, da aprire in QGIS.
 - Le serie che **accelerano** o **cambiano velocità**, e gli errori di
   elaborazione da non scambiare per movimento.
+- **Quanto fidarsi** di ogni numero: quante celle intorno hanno una misura,
+  quanto la serie segue il modello, e la velocità rispetto alla zona.
+- Una **pagina per il sito del Comune**, in italiano e in inglese, da
+  installare con Docker e da incorporare in un iframe (sotto).
 - Un **server MCP** perché un assistente AI risponda con i numeri dei dati,
-  citando release e file.
+  citando release, date e file.
 
 Serve una chiave di servizio gratuita del Copernicus Land Monitoring Service
 (CLMS): come ottenerla è nella [pagina iniziale](index.md#2-get-a-service-key-once-2-minutes).
+
+## La pagina per il sito del Comune
+
+Una mappa del territorio con la velocità verticale del suolo, e una scheda
+per il punto cliccato: quanto si muove, in che direzione, quanto fidarsi, e
+fino a quando arrivano i dati. In fondo, sempre: «una velocità del suolo è una
+misura, non un'allerta».
+
+È stretta di proposito. Non è un sistema di allerta e non sostituisce
+piattaforme di analisi del rischio: mostra solo il dato EGMS, con i suoi limiti.
+
+**Installarla.** Serve Docker. Dal repository:
+
+```bash
+cp .env.example .env        # e scrivere luogo, nome e lingua del Comune
+make up                     # oppure: docker compose up -d
+```
+
+La pagina risponde su `http://127.0.0.1:3003`. Le porte ascoltano solo sul
+computer stesso: per pubblicarla serve un proxy con HTTPS davanti.
+
+**Le impostazioni**, tutte nel file `.env`:
+
+| Variabile | Che cosa fa |
+|---|---|
+| `EGMS_UI_LAT`, `EGMS_UI_LON`, `EGMS_UI_ZOOM` | dove si apre la mappa |
+| `EGMS_UI_PLACE` | il nome nell'intestazione, per esempio `"Comune di Pozzuoli"` |
+| `EGMS_UI_LANG` | `it` o `en`; chi visita può cambiare |
+| `EGMS_UI_FRAME_ANCESTORS` | i siti che possono mostrarla in un iframe |
+| `EGMS_UI_TILES`, `EGMS_UI_TILES_CREDIT` | la mappa di sfondo (di base OpenStreetMap) |
+
+Gli stessi valori si possono dare nell'indirizzo:
+`?lat=40.82&lon=14.12&place=Comune%20di%20Pozzuoli&lang=it`.
+
+**Nel sito del Comune**, con `EGMS_UI_FRAME_ANCESTORS=https://www.comune.example.it`:
+
+```html
+<iframe src="https://egms.comune.example.it/?embed=1" width="100%" height="640"
+        title="Il suolo si muove?" style="border:0"></iframe>
+```
+
+Con `embed=1` la pagina toglie intestazione e piè di pagina.
+
+**La chiave CLMS** va nella cartella `secrets/` (montata in sola lettura, mai
+copiata nell'immagine). Senza chiave la pagina parte in **modalità
+dimostrativa**, sui ritagli del benchmark (Pozzuoli, Bologna, Murge, Foresta
+Umbra, Ancona): fuori da lì dice «nessun dato caricato», che non è «non
+misurato».
+
+**Che cosa scarica.** Al primo punto di una zona, le tessere L3 che la
+coprono (circa 60 MB l'una, al massimo `EGMS_UI_MAX_TILES`). Restano nel
+volume `egms-data`: le volte dopo non scarica niente.
 
 ## Che cosa resta all'ente
 
@@ -53,9 +105,15 @@ Il progetto dà il software. Queste cose sono di chi lo usa.
 ## Intelligenza artificiale
 
 I numeri della libreria sono calcolati dai dati con codice aperto e
-verificato. Il server MCP dà a un assistente AI questi numeri, e le sue
-istruzioni gli chiedono di citarli come sono, con release e file, e di non
-trasformare mai una velocità in un giudizio di sicurezza. La classe di
+verificato. Un modello linguistico non produce mai un numero: lo riceve
+come dato, con release, date, file e affidabilità. Il server MCP dà a un
+assistente AI questi dati, e le sue istruzioni gli chiedono di citarli come
+sono, di mantenere il segno, di dire quanto fidarsi e di non trasformare mai
+una velocità in un giudizio di sicurezza. Prima di rispondere, l'assistente
+può controllare il suo testo con `check_answer`, che trova i numeri inventati
+e i segni rovesciati. Le frasi della pagina del Comune non usano un modello:
+sono frasi fisse in cui la libreria inserisce i numeri dei dati, e vengono
+ricontrollate prima di uscire. La classe di
 rischio, la valutazione d'impatto e l'informativa agli utenti riguardano
 l'uso che l'ente ne fa, e sono sue.
 
@@ -74,7 +132,7 @@ lo usano vanno in `usedBy`.
 - [x] Repository pubblico, licenza Apache-2.0
 - [x] README, documentazione, `CONTRIBUTING.md`, `CHANGELOG.md`
 - [x] `publiccode.yml` valido per il validatore ufficiale, controllato a ogni modifica dalla CI
-- [ ] Installazione con Docker e pagina per il Comune con Bootstrap Italia
+- [x] Installazione con Docker e pagina per il Comune con Bootstrap Italia
 - [ ] Segnalazione su `italia/catalogo-software`
 
 ## Fonti
