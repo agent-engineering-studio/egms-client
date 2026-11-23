@@ -279,6 +279,16 @@ Three stories with real data, from download to figure, in [`notebooks/`](https:/
   <img src="https://raw.githubusercontent.com/agent-engineering-studio/egms-client/main/docs/images/notebook-campi-flegrei.png" alt="Vertical speed around Naples and uplift near Pozzuoli, from the Campi Flegrei notebook" width="100%">
 </p>
 
+## How we know it works
+
+Five places where the answer is already known, from sources outside EGMS:
+Campi Flegrei rising, Bologna sinking, the Murge still, a forest where the
+radar is blind, and the Ancona landslide. CI scores them offline on small
+crops of the real archive: **11 of 13** checks pass, and the two that fail
+are kept, because they show that a still place is not at zero east-west
+(+1.6 mm/year at the Murge). See the
+[benchmark](https://agentengineering.it/egms-client/benchmark/).
+
 ## Where downloads are saved
 
 In the directory you pass (`directory` in Python, `--out` on the command
