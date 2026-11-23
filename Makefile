@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help check lint format typecheck test build docs notebooks clean
+.PHONY: help check lint format typecheck test build docs notebooks bench clean
 
 help: ## List the targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z-]+:.*## / {printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -34,6 +34,9 @@ notebooks: ## Run every notebook (needs the CLMS key); figures go to docs/images
 		echo "== $$nb"; \
 		uv run --group examples jupyter nbconvert --to notebook --execute --stdout "$$nb" > /dev/null || exit 1; \
 	done
+
+bench: ## Score the known cases offline, against benchmarks/results.json
+	uv run python -m benchmarks.run --check
 
 clean: ## Remove what the targets build (downloaded data stays)
 	rm -rf dist site htmlcov .coverage .pytest_cache .mypy_cache .ruff_cache

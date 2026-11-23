@@ -1,0 +1,190 @@
+# Known places where we know what EGMS should say, and why.
+#
+# Each case has a box in degrees (west, south, east, north) and the data
+# fetch.py crops from the archive into benchmarks/data/<id>/: the Ortho L3
+# grids ("l3"), the L3 cell attributes ("l3_attributes") and, for "l2b", one
+# ascending and one descending burst. The checks are scored offline by run.py.
+#
+# The expected ranges come from the source of each case, not from EGMS: a
+# range tuned on the data it tests would test nothing.
+#
+# Check kinds:
+#   value   L3 velocity of the 100 m cell at a point (what velocity_at reads);
+#           min / max in mm/year, or none = true where nothing is measured.
+#   area    a statistic of mcp_server.summarize over a box (what area_summary
+#           returns): coverage, median, p5, p95, min, max, share_below, share_above.
+#   points  a statistic of the L2B line-of-sight velocity of the coherent
+#           points within radius_m of a point: count, min, median.
+#   decompose  vertical (or east-west) from L2B ascending + descending against
+#           L3 over the case box: correlation, median_abs_diff (mm/year).
+#   fit     analysis.fit on the full window against the archive's own
+#           mean_velocity: median_abs_diff (mm/year).
+
+[[case]]
+id = "campi-flegrei"
+title = "Campi Flegrei: the caldera rises at Pozzuoli"
+status = "moving"
+box = [14.00, 40.78, 14.25, 40.90]
+l3 = ["U"]
+l3_attributes = true
+source = """INGV Osservatorio Vesuviano, monthly bulletins: the GNSS station RITE \
+(Rione Terra, Pozzuoli) rose about 10 cm a year in 2020-2022, and faster after; \
+about 80 cm in all from 2020 to mid 2025."""
+
+  [[case.check]]
+  kind = "value"
+  name = "Rione Terra, Pozzuoli"
+  lon = 14.1205
+  lat = 40.8225
+  component = "U"
+  min = 50.0
+
+  [[case.check]]
+  kind = "area"
+  name = "the caldera rises"
+  box = [14.05, 40.80, 14.20, 40.86]
+  component = "U"
+  stat = "share_above"
+  min = 0.5
+
+  [[case.check]]
+  kind = "value"
+  name = "the gulf of Pozzuoli (sea)"
+  lon = 14.10
+  lat = 40.79
+  component = "U"
+  none = true
+
+[[case]]
+id = "bologna"
+title = "Bologna: the plain sinks"
+status = "moving"
+box = [11.25, 44.45, 11.55, 44.60]
+l3 = ["U"]
+l3_attributes = true
+source = """ARPAE Emilia-Romagna, subsidence maps 2016-2021: the plain north-east of \
+Bologna sinks by up to about 1-2 cm a year, from groundwater pumping; the city \
+centre and the hills to the south much less."""
+
+  [[case.check]]
+  kind = "area"
+  name = "a share of the plain sinks faster than 2 mm/year"
+  box = [11.30, 44.50, 11.55, 44.60]
+  component = "U"
+  stat = "share_below"
+  min = 0.1
+
+  [[case.check]]
+  kind = "area"
+  name = "the fastest cells sink by more than 5 mm/year"
+  box = [11.30, 44.50, 11.55, 44.60]
+  component = "U"
+  stat = "p5"
+  max = -5.0
+
+[[case]]
+id = "murge"
+title = "The Murge at Gioia del Colle: limestone that does not move"
+status = "still"
+box = [16.80, 40.72, 17.00, 40.85]
+l3 = ["U", "E"]
+l3_attributes = true
+source = """The Murge are a limestone plateau with no active landslides in IFFI around \
+Gioia del Colle and no subsidence reported by ISPRA: nothing should move beyond \
+the noise."""
+# What it taught (23/11/2026, release 2020-2025): two checks fail, and they stay
+# failing. East-west, the whole box moves east by 1.6 mm/year (median; p5 0.5,
+# p95 2.7), and Ancona by 2.0: a regional offset, not a local motion, most likely
+# the Adriatic plate moving against the reference of the L3 product. Vertical,
+# the median is -0.9 mm/year and 5.2 % of cells are below -2. "Still" in EGMS
+# means "like its region", not zero.
+
+  [[case.check]]
+  kind = "area"
+  name = "vertical: almost every cell inside ±2 mm/year"
+  box = [16.82, 40.74, 16.98, 40.83]
+  component = "U"
+  stat = "share_below"
+  max = 0.05
+
+  [[case.check]]
+  kind = "area"
+  name = "vertical: almost no cell rising"
+  box = [16.82, 40.74, 16.98, 40.83]
+  component = "U"
+  stat = "share_above"
+  max = 0.05
+
+  [[case.check]]
+  kind = "area"
+  name = "east-west: the median is about zero"
+  box = [16.82, 40.74, 16.98, 40.83]
+  component = "E"
+  stat = "median"
+  min = -1.0
+  max = 1.0
+
+[[case]]
+id = "foresta-umbra"
+title = "Foresta Umbra, Gargano: the radar sees little under the trees"
+status = "blind"
+box = [15.93, 41.78, 16.07, 41.86]
+l3 = ["U"]
+l3_attributes = true
+source = """A dense beech forest: radar echoes from leaves change from one pass to \
+the next, so InSAR finds few stable targets there (decorrelation). The answer \
+must be «not measured», not zero."""
+
+  [[case.check]]
+  kind = "area"
+  name = "most of the forest has no cell"
+  box = [15.96, 41.80, 16.04, 41.84]
+  component = "U"
+  stat = "coverage"
+  max = 0.5
+
+[[case]]
+id = "ancona"
+title = "Ancona: the Posatora slope, from points to maps"
+status = "moving"
+box = [13.40, 43.55, 13.60, 43.66]
+l3 = ["U", "E"]
+l3_attributes = true
+l2b = true
+l2b_at = [13.478, 43.607]
+series_radius_m = 1500
+source = """The Posatora landslide (IFFI, Ancona), active since 1982 and monitored \
+by the Comune: points on the slope move a few mm a year along the line of sight. \
+decompose against L3: correlation 0.93 (vertical), median difference 0.6 mm/year \
+(egms-client 0.5.0)."""
+
+  [[case.check]]
+  kind = "points"
+  name = "the slope: coherent points that move away from the satellite"
+  lon = 13.478
+  lat = 43.607
+  radius_m = 1500
+  direction = "descending"
+  stat = "min"
+  max = -3.0
+
+  [[case.check]]
+  kind = "decompose"
+  name = "vertical from L2B against L3"
+  component = "U"
+  stat = "correlation"
+  min = 0.85
+
+  [[case.check]]
+  kind = "decompose"
+  name = "vertical from L2B against L3, median difference"
+  component = "U"
+  stat = "median_abs_diff"
+  max = 1.5
+
+  [[case.check]]
+  kind = "fit"
+  name = "analysis.fit gives back the archive's mean_velocity"
+  direction = "descending"
+  stat = "median_abs_diff"
+  max = 0.1

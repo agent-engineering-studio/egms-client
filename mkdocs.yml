@@ -67,6 +67,7 @@ validation:
 nav:
   - Home: index.md
   - Notebooks: notebooks.md
+  - Benchmark: benchmark.md
   - API reference:
       - Client: api/client.md
       - Client without async: api/sync.md

@@ -1,0 +1,21 @@
+{
+  "case": "murge",
+  "release": "2020-2025",
+  "fetched": "2026-11-23",
+  "files": {
+    "U.tif": [
+      "EGMS_L3_E48N19_100km_U_2020_2025_1.tiff",
+      "EGMS_L3_E49N19_100km_U_2020_2025_1.tiff"
+    ],
+    "E.tif": [
+      "EGMS_L3_E48N19_100km_E_2020_2025_1.tiff",
+      "EGMS_L3_E49N19_100km_E_2020_2025_1.tiff"
+    ],
+    "l3.parquet": [
+      "EGMS_L3_E48N19_100km_U_2020_2025_1.parquet",
+      "EGMS_L3_E49N19_100km_U_2020_2025_1.parquet",
+      "EGMS_L3_E49N20_100km_U_2020_2025_1.parquet"
+    ]
+  },
+  "credit": "Contains modified Copernicus Land Monitoring Service information (EGMS), \u00a9 European Union."
+}
