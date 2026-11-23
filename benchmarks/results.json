@@ -1,0 +1,124 @@
+{
+  "release": [
+    "2020-2025"
+  ],
+  "rows": [
+    {
+      "case": "campi-flegrei",
+      "status": "moving",
+      "check": "Rione Terra, Pozzuoli",
+      "kind": "value",
+      "measured": 145.2,
+      "expected": "velocity ≥ 50.0",
+      "pass": true
+    },
+    {
+      "case": "campi-flegrei",
+      "status": "moving",
+      "check": "the caldera rises",
+      "kind": "area",
+      "measured": 0.987,
+      "expected": "share_above ≥ 0.5",
+      "pass": true
+    },
+    {
+      "case": "campi-flegrei",
+      "status": "moving",
+      "check": "the gulf of Pozzuoli (sea)",
+      "kind": "value",
+      "measured": null,
+      "expected": "not measured",
+      "pass": true
+    },
+    {
+      "case": "bologna",
+      "status": "moving",
+      "check": "a share of the plain sinks faster than 2 mm/year",
+      "kind": "area",
+      "measured": 0.966,
+      "expected": "share_below ≥ 0.1",
+      "pass": true
+    },
+    {
+      "case": "bologna",
+      "status": "moving",
+      "check": "the fastest cells sink by more than 5 mm/year",
+      "kind": "area",
+      "measured": -11.3,
+      "expected": "p5 ≤ -5.0",
+      "pass": true
+    },
+    {
+      "case": "murge",
+      "status": "still",
+      "check": "vertical: almost every cell inside ±2 mm/year",
+      "kind": "area",
+      "measured": 0.052,
+      "expected": "share_below ≤ 0.05",
+      "pass": false
+    },
+    {
+      "case": "murge",
+      "status": "still",
+      "check": "vertical: almost no cell rising",
+      "kind": "area",
+      "measured": 0.0,
+      "expected": "share_above ≤ 0.05",
+      "pass": true
+    },
+    {
+      "case": "murge",
+      "status": "still",
+      "check": "east-west: the median is about zero",
+      "kind": "area",
+      "measured": 1.6,
+      "expected": "-1.0 ≤ median ≤ 1.0",
+      "pass": false
+    },
+    {
+      "case": "foresta-umbra",
+      "status": "blind",
+      "check": "most of the forest has no cell",
+      "kind": "area",
+      "measured": 0.007,
+      "expected": "coverage ≤ 0.5",
+      "pass": true
+    },
+    {
+      "case": "ancona",
+      "status": "moving",
+      "check": "the slope: coherent points that move away from the satellite",
+      "kind": "points",
+      "measured": -9.4,
+      "expected": "min ≤ -3.0",
+      "pass": true
+    },
+    {
+      "case": "ancona",
+      "status": "moving",
+      "check": "vertical from L2B against L3",
+      "kind": "decompose",
+      "measured": 0.925,
+      "expected": "correlation ≥ 0.85",
+      "pass": true
+    },
+    {
+      "case": "ancona",
+      "status": "moving",
+      "check": "vertical from L2B against L3, median difference",
+      "kind": "decompose",
+      "measured": 0.603,
+      "expected": "median_abs_diff ≤ 1.5",
+      "pass": true
+    },
+    {
+      "case": "ancona",
+      "status": "moving",
+      "check": "analysis.fit gives back the archive's mean_velocity",
+      "kind": "fit",
+      "measured": 0.025,
+      "expected": "median_abs_diff ≤ 0.1",
+      "pass": true
+    }
+  ]
+}

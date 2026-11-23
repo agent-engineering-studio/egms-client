@@ -92,6 +92,12 @@ l3_attributes = true
 source = """The Murge are a limestone plateau with no active landslides in IFFI around \
 Gioia del Colle and no subsidence reported by ISPRA: nothing should move beyond \
 the noise."""
+# What it taught (23/11/2026, release 2020-2025): two checks fail, and they stay
+# failing. East-west, the whole box moves east by 1.6 mm/year (median; p5 0.5,
+# p95 2.7), and Ancona by 2.0: a regional offset, not a local motion, most likely
+# the Adriatic plate moving against the reference of the L3 product. Vertical,
+# the median is -0.9 mm/year and 5.2 % of cells are below -2. "Still" in EGMS
+# means "like its region", not zero.
 
   [[case.check]]
   kind = "area"
