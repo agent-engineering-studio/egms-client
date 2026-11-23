@@ -93,6 +93,11 @@ asyncio.run(main())
   Use `fit(table, start=...)` for a shorter window (the last year),
   `trend_change` for the date a velocity changed, and `unwrapping_jumps` on L2
   before trusting a fast point.
+- How far to trust a velocity: `from egms_client.reliability import trust`.
+  `trust(tiffs, lon, lat, attributes=l3_table)` gives `score` (0-1),
+  `reliable`, `coverage` (share of cells with a value within 500 m), the
+  `reasons`, and `regional_median` / `relative`. Report a velocity with its
+  reliability, and read it against its region, not against zero.
 - A file's real outline: `hit.covers(lon, lat)`. A burst is a tilted
   parallelogram, so its `bbox` claims points it does not contain.
 
@@ -118,7 +123,13 @@ asyncio.run(main())
 8. **Downloads are big.** One relative orbit is about 400 bursts and about
    90 GB per level. Always `find` first, report the size, and pass
    `max_bytes` (CLI: `--max-gb`, 10 by default).
-9. **Errors:** `EgmsError` means the server answered but refused. Its
+9. **No cell is not zero.** Where L3 has no value (forest, fields, snow,
+   sea) say "not measured". A velocity of 0 is a measurement; NaN is not.
+   Replacing NaN with 0 makes blind places look stable.
+10. **Still is not zero either.** Velocities carry regional offsets (+1.6
+   mm/year east-west on the Murge, a place that does not move). Compare
+   with the surroundings (`regional_median`) before calling a place moving.
+11. **Errors:** `EgmsError` means the server answered but refused. Its
    message is the archive's message, so show it rather than retrying
    blindly.
 

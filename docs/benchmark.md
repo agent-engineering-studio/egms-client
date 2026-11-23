@@ -37,20 +37,27 @@ uv run python -m benchmarks.fetch           # crop the cases again (needs the CL
 | campi-flegrei | Rione Terra, Pozzuoli | velocity ≥ 50.0 | 145.2 | ✅ |
 | campi-flegrei | the caldera rises | share_above ≥ 0.5 | 0.987 | ✅ |
 | campi-flegrei | the gulf of Pozzuoli (sea) | not measured | not measured | ✅ |
+| campi-flegrei | Rione Terra: a measured place | score ≥ 0.5 | 1 | ✅ |
+| campi-flegrei | the gulf of Pozzuoli: nothing to trust | score ≤ 0.49 | 0 | ✅ |
 | bologna | a share of the plain sinks faster than 2 mm/year | share_below ≥ 0.1 | 0.966 | ✅ |
 | bologna | the fastest cells sink by more than 5 mm/year | p5 ≤ -5.0 | -11.3 | ✅ |
+| bologna | the plain north-east of the city: a measured place | score ≥ 0.5 | 1 | ✅ |
 | murge | vertical: almost every cell inside ±2 mm/year | share_below ≤ 0.05 | 0.052 | ❌ |
 | murge | vertical: almost no cell rising | share_above ≤ 0.05 | 0 | ✅ |
 | murge | east-west: the median is about zero | -1.0 ≤ median ≤ 1.0 | 1.6 | ❌ |
+| murge | Gioia del Colle: a measured place | score ≥ 0.5 | 1 | ✅ |
 | foresta-umbra | most of the forest has no cell | coverage ≤ 0.5 | 0.007 | ✅ |
+| foresta-umbra | the forest: not measured | score ≤ 0.49 | 0 | ✅ |
+| foresta-umbra | a lone cell in the forest: a value, but not to trust | score ≤ 0.49 | 0.03 | ✅ |
 | ancona | the slope: coherent points that move away from the satellite | min ≤ -3.0 | -9.4 | ✅ |
 | ancona | vertical from L2B against L3 | correlation ≥ 0.85 | 0.925 | ✅ |
 | ancona | vertical from L2B against L3, median difference | median_abs_diff ≤ 1.5 | 0.603 | ✅ |
 | ancona | analysis.fit gives back the archive's mean_velocity | median_abs_diff ≤ 0.1 | 0.025 | ✅ |
+| ancona | the Posatora slope: a measured place | score ≥ 0.5 | 0.79 | ✅ |
 
-**11 of 13** checks pass.
+**18 of 20** checks pass.
 
-**Check:** 11 of 13. The two that fail are kept failing on purpose: they
+**Check:** 18 of 20. The two that fail are kept failing on purpose: they
 show where an expectation about EGMS was wrong.
 
 ## What it taught
@@ -65,6 +72,10 @@ show where an expectation about EGMS was wrong.
   have a value. At the Murge, open farmland, 45 % do. Where there is no
   cell, the answer is "not measured", and the benchmark checks that the
   sea at Pozzuoli gives exactly that.
+- **Blind, and a lone cell.** `reliability.trust` scores the forest 0
+  (no cell) and a lone cell inside it 0.03: it has a value, 1 % of its
+  neighbourhood has one. Every measured place of the benchmark scores 0.79
+  or more (Ancona, where 40 % of the cells around the slope have a value).
 - **The library gives back the archive.** `analysis.fit` reproduces the
   archive's own `mean_velocity` within 0.025 mm/year (median), and
   `decompose` matches L3 with correlation 0.93.

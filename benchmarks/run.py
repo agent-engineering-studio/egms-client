@@ -105,12 +105,24 @@ def _fit(case: dict[str, Any], check: dict[str, Any]) -> float | None:
     return float(np.nanmedian(diff))
 
 
+def _reliable(case: dict[str, Any], check: dict[str, Any]) -> float | None:
+    import pandas as pd
+
+    from egms_client.reliability import trust
+
+    folder = DATA / case["id"]
+    attributes = pd.read_parquet(folder / "l3.parquet")
+    tiff = folder / f"{check.get('component', 'U')}.tif"
+    return trust([tiff], check["lon"], check["lat"], attributes=attributes).score
+
+
 METHODS: dict[str, Callable[[dict[str, Any], dict[str, Any]], float | None]] = {
     "value": _value,
     "area": _area,
     "points": _points,
     "decompose": _decompose,
     "fit": _fit,
+    "reliable": _reliable,
 }
 
 
@@ -148,7 +160,7 @@ def _expected(check: dict[str, Any]) -> str:
     if check.get("none"):
         return "not measured"
     low, high = check.get("min"), check.get("max")
-    stat = check.get("stat", "velocity")
+    stat = check.get("stat", "score" if check["kind"] == "reliable" else "velocity")
     if low is not None and high is not None:
         return f"{low} ≤ {stat} ≤ {high}"
     return f"{stat} ≥ {low}" if low is not None else f"{stat} ≤ {high}"

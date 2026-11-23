@@ -1,173 +1,105 @@
 # Roadmap
 
-Where egms-client could go next. Nothing here is a promise. The point is to
-pick a direction together: open an issue before you start one of these.
+egms-client gets EGMS data well. The work now is to say **how far to trust
+it**, to prove it on places where the answer is known, and to make it usable
+by a public body and by an AI agent without inventing numbers. The plan is
+tracked in [#22](https://github.com/agent-engineering-studio/egms-client/issues/22),
+one pull request per phase.
 
-Today the library **gets** EGMS data (search, download, mosaic, tables,
-L2 → vertical / east-west). The next step is to help people **read** the
-data, both people and AI agents. That work falls into three tracks, each
-building on the one before:
+!!! warning "Ground rules"
+    The numbers come from the data, computed by code that is tested. A
+    language model never produces a velocity, a date or a place. Not
+    measured is not zero. A ground velocity is a measurement, not an alert:
+    for danger, the official word is the Civil Protection's.
 
 ```mermaid
 flowchart LR
-    A["1 · Foundations<br/>point queries, sync API,<br/>uncertainties"] --> B["2 · Analysis<br/>series that accelerate,<br/>active areas, jumps"]
-    B --> C["3 · AI<br/>MCP server, llms.txt,<br/>grounded reports"]
+    P0["0 · Repository"] --> P1["1 · Benchmark"]
+    P1 --> P2["2 · How far to trust it"]
+    P2 --> P3["3 · Freshness, contract"]
+    P3 --> P4["4 · Cells for Limen"]
+    P4 --> P5["5 · AI layer"]
+    P5 --> P6["6 · Docker, UI, notebooks"]
+    P6 --> P7["7 · Release, article"]
 ```
 
-!!! warning "Ground rule for every AI feature"
-    The numbers come from the data, computed by code that is tested. A
-    language model may choose *what* to compute and may explain it in
-    words. It never produces a velocity, a date or a point id itself. Every
-    answer says which file it came from, and none is presented as a hazard
-    warning.
+## Where it started (0.7.0)
 
----
+Search and download with the CLMS key, mosaics, tables and GeoParquet,
+L2 → vertical and east-west (`decompose`), time-series analysis, an MCP
+server, `llms.txt` and a skill. [Limen](https://github.com/agent-engineering-studio/limen)
+uses the pure functions and `mosaic` for its landslide features. Measured
+there (limen#380): the EGMS features alone separate landslide cells from
+the others with an AUC of 0.48-0.54, so they carry no weight in the rules.
 
-## 1 · Foundations
+## 0 · The repository like the other libraries ✅
 
-These features are useful as they are, and the AI track needs them.
+`publiccode.yml` checked in CI, [`riuso.md`](riuso.md) for public bodies, a
+test that the package imports neither Limen nor its other libraries, a
+Makefile with `help`.
 
-| Feature | What it is | Why | Effort |
-|---|---|---|---|
-| **Point query** ✅ | `await archive.velocity_at(lon, lat, component="U")`: the L3 value of the 100 m cell, fetching only its tile (cached) | "How fast does the ground move *here*?" is the first question every user asks. It is also the first tool an agent needs | S |
-| **Sync façade** ✅ | `egms_client.sync.Archive` wraps `EgmsArchive` with `asyncio.run`, for scripts and notebooks that do not want `await` | Removes the first stumbling block for GIS users | S |
-| **Uncertainties and north** in `decompose` | propagate `mean_velocity_std`; a third geometry for N | Error bars on every map (an idea already listed in the README) | M |
-| **Release diff** | `egms diff --bbox ... 2019-2023 2020-2025`: the change in velocity between two releases | The windows overlap, and an area that speeds up between releases is news | M |
-| **Streaming large CSVs** | `tables.iter_csv(path, chunksize=)` → GeoParquet without loading the whole file | L2 CSVs of a dense burst do not fit in memory comfortably | M |
-| **STAC items** | a STAC Item for each downloaded file | Plugs into existing EO catalogues and tools | S |
-| **Tutorials on the site** | a page per recipe, with figures | An idea already listed in the README | S |
+**Check:** CI green with the publiccode parser and the import ban.
 
----
+## 1 · A benchmark of known places ✅
 
-## 2 · Analysis of the time series
+Five places, with ranges from sources outside EGMS, scored offline in CI on
+9.5 MB of crops of the real archive. See the [benchmark](benchmark.md).
 
-EGMS L2 points come with a series of displacements, one every 6 to 12
-days. A mean velocity hides the interesting cases. The methods below are
-classic, explainable signal processing and machine learning, with no
-language model involved. They would go in a new module,
-`egms_client.analysis` (numpy, optionally scikit-learn).
+**Check:** 11 of 13 at first.
 
-| Feature | What it finds | Method | Effort |
-|---|---|---|---|
-| **Acceleration** ✅ | points whose motion speeds up (often the warning sign of a landslide) | `analysis.trend_change`: a two-slope line with its date, and `delta_bic` | M |
-| **Seasonality** ✅ | the yearly cycle (clay soils, aquifers, thermal dilation of structures) | `analysis.fit`: amplitude and the day of the peak | S |
-| **Unwrapping jumps** ✅ | steps of about ±28 mm (half the Sentinel-1 wavelength) that are processing errors, not ground motion | step detection on the differenced series | S |
-| **Active deformation areas** | clusters of moving points, rather than isolated noisy ones | DBSCAN on position + velocity, above a stability threshold (the "ADA" approach in the InSAR literature) | M |
-| **Anomalies** | points that behave unlike their neighbours | isolation forest on per-point features (velocity, acceleration, seasonal amplitude, coherence) | M |
-| **Features for models** | per-cell features (velocity, acceleration, seasonality, share of moving points) on a regular grid | aggregation, the same as `grid_los` | S |
+**What it taught.** A still place is not at zero: the Murge move +1.6
+mm/year east-west, a regional offset. Two checks stay failing to say so.
 
-!!! note "What the archive already gives"
-    Each CSV already holds `acceleration` and `seasonality`: one quadratic
-    and one annual cycle fitted over the whole release.
-    [`analysis.fit`](api/analysis.md) is that same model, checked against
-    those columns, so it can run on any window. `trend_change` and
-    `unwrapping_jumps` are what the columns cannot show.
+## 2 · How far to trust it ✅
 
-The last row is the one [Limen](https://github.com/agent-engineering-studio/limen)
-needs for its landslide-risk model. Every method should be validated on
-the three notebooks (Campi Flegrei, Ancona, Bologna), where we already know
-what to expect.
+[`reliability.trust`](api/reliability.md): coverage of the neighbourhood,
+the fit of the series, a score, the reasons, and the velocity against its
+region. An estimate made from outside, declared as such.
 
----
+**Check:** 18 of 20 on the benchmark. The forest scores 0, a lone cell in
+it 0.03, every measured place 0.79 or more.
 
-## 3 · AI
+**What is not there.** Motion too fast for InSAR, north-south motion,
+anything after the release window. The archive's formal error
+(`mean_velocity_std`) is reported, not trusted: it is at most 0.2 mm/year
+in a forest where 99 % of the cells are empty.
 
-### 3.1 An MCP server: EGMS for any agent
+**For Limen:** a cell with a value is not a measured cell. Limen counts
+pixels with a value; with `coverage_map` it can tell a lone cell from a
+measured neighbourhood, and keep both apart from "not measured".
 
-!!! success "Done: `releases`, `find_files`, `velocity_at`, `area_summary`"
-    `egms mcp`, extra `mcp`. See
-    [With an AI assistant](index.md#with-an-ai-assistant). `moving_points`
-    and `map` wait for track 2.
+## 3 · Freshness and the archive's contract
 
-**What.** An optional extra, `egms-client[mcp]`, with an
-[MCP](https://modelcontextprotocol.io/) server, `egms mcp`. It exposes the
-library as tools for Claude, Claude Code, IDE assistants or any other MCP
-client:
+Every answer carries its release and window. A check notices a new release,
+a changed sub-release or window. What Limen rewrote around the client
+(injectable transport, a new search after a 401) moves into the library.
 
-| Tool | Built on |
-|---|---|
-| `releases()` | `EgmsArchive.releases` |
-| `find(place or bbox, level, release)` | `Query`, `find`; the file list and its size, with nothing downloaded |
-| `velocity_at(lon, lat)` | point query (track 1) |
-| `area_summary(bbox)` | mosaic + statistics: share of the area sinking, percentiles, hottest cells |
-| `moving_points(bbox, min_speed)` | L2 + analysis (track 2) |
-| `map(bbox, component)` | `to_cog` plus a PNG preview |
+**For Limen:** it can drop its own client class.
 
-**Why.** Someone can ask "is the ground moving under the A14 near Ancona?"
-and get an answer computed from the data, with no Python. It is also the
-fastest way to spread the library.
+## 4 · Cells for a model
 
-**Guardrails.** Downloads stay within `max_bytes` (the tool asks before
-going above it). The 2-download limit and the token handling stay in the
-client, where they already are. The service key is read from the
-environment and never passes through the conversation. Effort: **M**.
+Per-cell statistics over any grid, NaN kept as NaN, signed acceleration on
+the same pixels as velocity, a parity test against Limen's aggregation.
 
-### 3.2 `llms.txt` and a skill for coding agents
+**For Limen** (issues to open there): not measured stays NULL instead of
+0.0; no EGMS feature for a landslide before the release window starts;
+signed acceleration; the backtest with and without EGMS (limen#618).
 
-!!! success "Done"
-    [`llms.txt`](https://agentengineering.it/egms-client/llms.txt),
-    [`llms-full.txt`](https://agentengineering.it/egms-client/llms-full.txt)
-    and the [agent skill](https://agentengineering.it/egms-client/skills/egms-client/SKILL.md)
-    are published with the site. See
-    [With an AI assistant](index.md#with-an-ai-assistant).
+## 5 · The AI layer
 
-**What.** Publish `/llms.txt` and `/llms-full.txt` on this site: the API,
-the recipes and the traps table, in plain text that AI assistants read.
-Add an agent skill (`SKILL.md`) that tells a coding agent how to use the
-library, and above all what not to do: the `_1` sub-release, the
-`"022"` orbit, the 5° box, the 2 downloads.
+`facts` (answers as data with release, window, reliability, licence), MCP
+tools on top of them, `check_text` against invented or swapped numbers, a
+fidelity set scored offline, `llms.txt` and the skill updated.
 
-**Why.** The traps table is the most valuable thing in this project, and
-it is exactly what a model gets wrong when it writes EGMS code from memory.
-Effort: **S** (generated from the docs in the `docs` workflow, so it never
-goes stale).
+## 6 · Docker, a page for a Comune, notebooks
 
-### 3.3 Questions in plain language
+`docker compose up` with containers named `egms-client-*`; a page with
+Bootstrap Italia, in Italian and English, set up per Comune, embeddable,
+narrow: how much the ground moves there, where, and how far to trust it.
+More notebooks, `make notebooks`.
 
-**What.** `egms ask "vertical speed around Bologna, latest release"`. A
-model turns the sentence into a `Query` through tool use (with a fixed
-schema and no free code), the place name is geocoded by a deterministic
-geocoder (Nominatim), the plan is shown with its size, and only then is
-anything downloaded.
+## 7 · Release 0.8.0 and the fourth episode
 
-**Why.** It saves looking up tiles, orbits and boxes. **Optional and
-pluggable**: the provider sits behind an interface, and the CLI works
-exactly as today without it. Effort: **M**.
-
-### 3.4 Area reports that cite their data
-
-**What.** `egms report --bbox ...` produces a Markdown or HTML report:
-maps, histograms, the fastest clusters (track 2), and a short text that
-describes them. The text is generated from a JSON of computed figures, and
-every number in it is checked against that JSON before the report is
-written (a sentence with a number that is not there is removed).
-
-**Why.** Municipalities and infrastructure teams need a readable summary,
-and they need it to be right. Effort: **M**, after track 2.
-
-### 3.5 Research directions
-
-These are worth a notebook first, not a module:
-
-- **Gap filling** on L3 with Gaussian processes (kriging), with an
-  uncertainty per cell.
-- **Short-term forecast** of a point's series, to flag deviations from the
-  expected trend rather than to predict events.
-- **Fusion** with rainfall (ERA5) or groundwater data, to separate seasonal
-  causes from structural ones.
-
----
-
-## Suggested order
-
-| # | Item | Track | Effort | Unlocks |
-|---|---|---|---|---|
-| 1 | ~~`llms.txt` + agent skill~~ ✅ | AI | S | better AI-written code, today |
-| 2 | ~~Point query + sync façade~~ ✅ | 1 | S | the MCP server, beginners |
-| 3 | ~~MCP server (`find`, `velocity_at`, `area_summary`)~~ ✅ | AI | M | agents over EGMS |
-| 4 | ~~`analysis`: acceleration, seasonality, jumps~~ ✅ | 2 | M | moving points, reports, Limen |
-| 5 | Active deformation areas + MCP `moving_points` | 2 · AI | M | the most useful question |
-| 6 | Uncertainties in `decompose`, release diff | 1 | M | error bars, change |
-| 7 | `egms ask`, `egms report` | AI | M | non-programmers |
-
-*Sizes: S is a few days, M a week or two, both including tests and docs.*
+The release on PyPI, Limen's pin, the fourth episode of the Open Data series
+on [agentengineering.it](https://agentengineering.it/), which closes the
+landslide chapter.

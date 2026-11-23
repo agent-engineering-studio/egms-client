@@ -284,7 +284,7 @@ Three stories with real data, from download to figure, in [`notebooks/`](https:/
 Five places where the answer is already known, from sources outside EGMS:
 Campi Flegrei rising, Bologna sinking, the Murge still, a forest where the
 radar is blind, and the Ancona landslide. CI scores them offline on small
-crops of the real archive: **11 of 13** checks pass, and the two that fail
+crops of the real archive: **18 of 20** checks pass, and the two that fail
 are kept, because they show that a still place is not at zero east-west
 (+1.6 mm/year at the Murge). See the
 [benchmark](https://agentengineering.it/egms-client/benchmark/).
@@ -448,6 +448,36 @@ print(point.file)  # the L3 GeoTIFF it was read from
 Only the point's tile is downloaded (once), so more points nearby cost
 nothing. `component="E"` gives east-west. `velocity` is `None` where EGMS
 has no measurement (sea, or a cell without data). Needs the `raster` extra.
+
+### How far to trust a velocity
+
+EGMS gives a velocity wherever the radar found something stable to
+measure, and nothing elsewhere. `reliability.trust` says how much a number
+at a point can be trusted, from what the archive gives:
+
+```python
+from egms_client.reliability import trust
+
+r = trust(tiffs, 14.1205, 40.8225)  # the L3 GeoTIFFs around Pozzuoli
+print(r.velocity, r.reliable, r.score)  # 145.2 True 1.0
+print(r.coverage)  # 0.762: 76 % of the cells within 500 m have a value
+print(r.regional_median, r.relative)  # 26.3, 118.9: against the 5 km around it
+```
+
+- `coverage` is the share of cells with a value within 500 m. In a forest
+  it falls to a few per cent: a lone cell there is not to trust, and no
+  cell is **not measured**, never zero.
+- With the L3 CSV as `attributes=`, the fit of the series (`rmse_ts`)
+  counts too.
+- `score` is the smallest known part, `reliable` is `score >= 0.5`, and
+  `reasons` says what pulled it down.
+- `regional_median` and `relative`: a still place is not at zero (+1.6
+  mm/year east-west on the Murge), so read a velocity against its region.
+
+It is an estimate made from outside: EGMS publishes no such map. It cannot
+see motion too fast for InSAR, north-south motion, or anything after the
+release window. The thresholds are checked on the
+[benchmark](https://agentengineering.it/egms-client/benchmark/).
 
 ### Without async
 
@@ -725,6 +755,7 @@ All checked against the live archive on 3 November 2026.
 | `tables.csv_to_geoparquet(csv)` / `.to_geoparquet(df, path)` | GeoParquet, points in EPSG:3035. |
 | `mosaic.to_xarray(m)` / `tables.to_xarray(df)` | A map over `(y, x)`, series over `(pid, time)`, as `xarray.DataArray` (extra `xarray`). |
 | `analysis.fit(df, start=, end=)` / `.trend_change(df)` / `.unwrapping_jumps(df)` | The archive's model on any window, with the seasonal peak; the date a velocity changes; ±27.7 mm processing steps. |
+| `reliability.trust(tiffs, lon, lat, attributes=)` / `.coverage_map(values)` | How far to trust the velocity at a point: score, coverage, reasons, regional median; the coverage of every cell of a grid. |
 | `EgmsError` | The server answered, but refused. |
 
 Lower level, for your own HTTP layer: `token_request` / `parse_token`,

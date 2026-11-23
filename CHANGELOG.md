@@ -12,10 +12,20 @@ All notable changes to this project are documented here. The format follows
   official parser, and `docs/riuso.md` for public bodies (in Italian).
 - A test that the package imports neither Limen nor any of its other
   libraries: only Limen joins them.
+- `egms_client.reliability` (extra `raster`): `trust(tiffs, lon, lat,
+  attributes=)` says how far to trust the L3 velocity at a point, as an
+  estimate declared as such (EGMS publishes no trust map): the share of
+  cells with a value within 500 m, the fit of the series (`rmse_ts`) when
+  the L3 CSV is given, a `score` (the smallest known part), `reliable`
+  from 0.5, the `reasons`, and the `regional_median` / `relative` velocity
+  within 5 km. No cell is "not measured", never zero. `coverage_map` does
+  the coverage for every cell of a grid. Seven new benchmark checks: the
+  blind places score below 0.5 (a lone cell in the Foresta Umbra 0.03),
+  the measured ones 0.79 or more.
 - A benchmark of known places (`benchmarks/`): Campi Flegrei, Bologna,
   the Murge, the Foresta Umbra and Ancona, scored offline on 9.5 MB of
   crops of the real archive, in CI with `--check` against
-  `benchmarks/results.json` (`make bench`). 11 of 13 checks pass; the two
+  `benchmarks/results.json` (`make bench`). 18 of 20 checks pass; the two
   that fail show that a still place is not at zero east-west (+1.6 mm/year
   at the Murge). `benchmarks/fetch.py` crops the cases again, in the
   `bench-data` workflow with the repository secret.
