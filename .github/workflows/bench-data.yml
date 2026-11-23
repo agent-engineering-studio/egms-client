@@ -1,0 +1,35 @@
+# Crops the data of the benchmark cases from the real archive, and uploads
+# them as an artifact to review and commit (benchmarks/data/). Run it by hand,
+# or push a branch named bench-data/<anything>. Needs the repository secret
+# EGMS_SERVICE_KEY; the key never leaves this job.
+name: bench-data
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["bench-data/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - name: Crop the cases
+        env:
+          EGMS_SERVICE_KEY: ${{ secrets.EGMS_SERVICE_KEY }}
+          EGMS_DATA_DIR: ${{ runner.temp }}/egms
+        run: uv run python -m benchmarks.fetch
+      - run: du -ah benchmarks/data
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bench-data
+          path: benchmarks/data/
