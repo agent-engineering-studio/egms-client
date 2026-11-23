@@ -77,6 +77,11 @@ docs = [
     "mkdocs-material>=9.5",
     "mkdocstrings[python]>=0.26",
 ]
+examples = [
+    "matplotlib>=3.9",
+    "nbconvert>=7.16",
+    "ipykernel>=6.29",
+]
 
 [tool.ruff]
 line-length = 100

@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `publiccode.yml` for the Developers Italia catalogue, checked in CI by the
+  official parser, and `docs/riuso.md` for public bodies (in Italian).
+- A test that the package imports neither Limen nor any of its other
+  libraries: only Limen joins them.
+- `make help`, `make notebooks` (runs them all; needs the CLMS key) and
+  `make clean`; a dependency group `examples` for the notebooks.
+
 ## [0.7.0] - 2026-11-04
 
 ### Added

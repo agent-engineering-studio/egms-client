@@ -1,0 +1,82 @@
+# The card of egms-client for the software catalogue of Developers Italia.
+# Check it with: docker run --rm -v "$PWD":/w -w /w italia/publiccode-parser-go -no-network publiccode.yml
+publiccodeYmlVersion: "0"
+name: egms-client
+url: "https://github.com/agent-engineering-studio/egms-client.git"
+landingURL: "https://agentengineering.it/egms-client/"
+releaseDate: "2026-11-04"
+softwareVersion: "0.7.0"
+platforms: [linux, mac, windows]
+categories: [geographic-information-systems, data-analytics, data-collection]
+usedBy: []
+developmentStatus: beta
+softwareType: library
+intendedAudience:
+  scope: [environment, emergency-services, local-authorities, science-and-technology]
+  countries: [IT]
+description:
+  it:
+    shortDescription: Quanto si muove il terreno, misurato dai satelliti Copernicus (EGMS), in Python
+    longDescription: >
+      egms-client legge l'archivio dell'European Ground Motion Service (EGMS), il servizio
+      Copernicus che misura dallo spazio, con i radar dei satelliti Sentinel-1, di quanti
+      millimetri all'anno si alza, si abbassa o scivola il terreno in tutta Europa. È una libreria
+      Python con riga di comando: scarica le mappe della velocità verticale ed est-ovest (una
+      cella ogni 100 metri) e i punti di misura con la loro serie temporale, li incolla su
+      un'area qualsiasi, li converte in tabelle e GeoParquet, trova le serie che accelerano o
+      cambiano velocità e gli errori di elaborazione. Ha un server MCP perché un assistente AI
+      risponda con i numeri dei dati, citando release e file. Non scarica mai due volte lo
+      stesso file e rispetta i limiti dell'archivio. Serve una chiave gratuita del Copernicus
+      Land Monitoring Service. Non usa dati personali. Una velocità del terreno non è un'allerta:
+      per il pericolo valgono le comunicazioni ufficiali della Protezione Civile.
+    features:
+      - Accesso all'archivio EGMS con la chiave di servizio CLMS
+      - Mappe della velocità verticale ed est-ovest su qualsiasi area
+      - Punti di misura e serie temporali come tabelle e GeoParquet
+      - Accelerazione, stagionalità, cambi di velocità e salti di elaborazione
+      - Velocità verticale ed est-ovest ricavata dai punti ascendenti e discendenti
+      - Riga di comando e server MCP per gli assistenti AI
+    screenshots:
+      - docs/images/naples-vertical.png
+      - docs/images/decompose-ancona.png
+  en:
+    shortDescription: How much the ground moves, measured by the Copernicus satellites (EGMS), in Python
+    longDescription: >
+      egms-client reads the archive of the European Ground Motion Service (EGMS), the Copernicus
+      service that measures from space, with the radar of the Sentinel-1 satellites, by how many
+      millimetres a year the ground rises, sinks or slides across Europe. It is a Python library
+      with a command line: it downloads the maps of vertical and east-west speed (one cell every
+      100 metres) and the measurement points with their time series, pastes them over any area,
+      turns them into tables and GeoParquet, and finds the series that accelerate or change
+      speed, and the processing errors. It has an MCP server so that an AI assistant answers with
+      the numbers of the data, citing release and file. It never downloads the same file twice
+      and keeps within the archive's limits. It needs a free key of the Copernicus Land
+      Monitoring Service. It uses no personal data. A ground velocity is not an alert: for danger,
+      the official word is the Civil Protection's.
+    features:
+      - Access to the EGMS archive with a CLMS service key
+      - Maps of vertical and east-west speed over any area
+      - Measurement points and time series as tables and GeoParquet
+      - Acceleration, seasonality, changes of speed and processing jumps
+      - Vertical and east-west speed from ascending and descending points
+      - Command line and an MCP server for AI assistants
+    screenshots:
+      - docs/images/naples-vertical.png
+      - docs/images/decompose-ancona.png
+organisation:
+  name: Agent Engineering Studio
+  uri: "https://github.com/agent-engineering-studio"
+legal:
+  license: Apache-2.0
+  mainCopyrightOwner: Agent Engineering Studio
+maintenance:
+  type: community
+  contacts:
+    - name: Giuseppe Zileni
+localisation:
+  localisationReady: false
+  availableLanguages: [en]
+IT:
+  countryExtensionVersion: "1.0"
+  riuso:
+    codiceIPA: ""   # empty until the software belongs to a public administration
