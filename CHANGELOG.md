@@ -72,6 +72,16 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Two calls for the same file at the same time, such as a map and a card
+  asking for one tile, wrote the same `.part` and left a broken ZIP: HTTP 500
+  "File is not a zip file" on the page of a Comune, on 23 November 2026.
+  `EgmsArchive` now holds one lock per file in `fetch` and `fetch_tile`, and
+  the second call finds the file already there.
+- A download that the archive closes early, cleanly, was renamed as if it
+  were whole. It is now checked as a ZIP before the rename, retried, and
+  then raised as `EgmsError`. `extract` refuses a broken ZIP with
+  `EgmsError` instead of `BadZipFile`.
+
 - A valid token answered with HTTP 200 "Please log in" (seen once in 15
   calls of the live check on 23 November 2026): the client asks for a new
   token and tries once more; a second refusal raises `EgmsError`.
