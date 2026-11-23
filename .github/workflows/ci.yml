@@ -51,3 +51,4 @@ jobs:
           enable-cache: true
       - run: uv sync --locked
       - run: uv run python -m benchmarks.run --check
+      - run: uv run python -m benchmarks.faithful score --check

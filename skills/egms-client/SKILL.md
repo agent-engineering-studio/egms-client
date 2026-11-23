@@ -102,6 +102,11 @@ asyncio.run(main())
   `per_cell(square_cells(minx, miny, maxx, maxy), up, east, acceleration=on_grid(l3_table, "acceleration", up))`
   gives medians, tails (`vertical_p10`), signed acceleration, `valid_pixels`
   and a score per cell; `None` where no pixel has a value.
+- Answers for people or agents: `from egms_client.facts import velocity, area, moving_points`.
+  Each returns a dict with the numbers and their `release`, `window`,
+  `files`, `reliability`, `licence` and `notes`. Word it with
+  `from egms_client.check import words` (`words(facts, "it")`), and check any
+  other text with `from egms_client.check import check_text, check_signs, check_claims`.
 - A file's real outline: `hit.covers(lon, lat)`. A burst is a tilted
   parallelogram, so its `bbox` claims points it does not contain.
 
@@ -142,15 +147,20 @@ asyncio.run(main())
    magnitude cannot tell a slope speeding up from one slowing down, and turns
    noise into a positive number (1.24 mm/year² at the still Murge). Compute
    every statistic of a cell on the same pixels.
-13. **Errors:** `EgmsError` means the server answered but refused. Its
+13. **Quote the facts, then check.** Every number you write comes from a
+   tool's facts, with its release, window and reliability. Before giving the
+   text to a person, run `check_answer` (MCP) or `check_text` and
+   `check_signs`, and fix what they find. "0.0" is not an answer for a
+   place that is not measured.
+14. **Errors:** `EgmsError` means the server answered but refused. Its
    message is the archive's message, so show it rather than retrying
    blindly.
 
 ## Without writing code
 
 If the user only needs answers (not code), the MCP server may already be
-connected: tools `releases`, `find_files`, `velocity_at`, `area_summary`
-from `egms mcp` (extra `mcp`). Prefer them to downloading data by hand.
+connected: tools `releases`, `find_files`, `velocity_at`, `area_summary`,
+`moving_points` and `check_answer` from `egms mcp` (extra `mcp`). Prefer them to downloading data by hand.
 
 ## When reporting results
 

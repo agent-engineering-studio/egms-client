@@ -40,6 +40,8 @@ def main(argv: Sequence[str] | None = None, *, client: httpx.AsyncClient | None 
             return _convert(args)
         if args.command == "mcp":
             return _mcp(args)
+        if args.command == "check":
+            return _check(args)
         key = ServiceKey.from_file(args.key_file) if args.key_file else ServiceKey.from_env()
         return asyncio.run(_run(args, key, client))
     except (EgmsError, LookupError, ValueError, OSError) as exc:
@@ -170,6 +172,26 @@ def _convert(args: argparse.Namespace) -> int:
     return 0
 
 
+def _check(args: argparse.Namespace) -> int:
+    """Read a text back against its facts: exit 1 on any number not in them."""
+    import json
+
+    from egms_client.check import check_claims, check_signs, check_text
+
+    text = Path(args.text).read_text(encoding="utf-8")
+    facts = json.loads(Path(args.facts).read_text(encoding="utf-8"))
+    found = [f"not in the facts: {n}" for n in check_text(text, facts, lang=args.lang)]
+    found += [f"wrong sign: {m}" for m in check_signs(text, facts, lang=args.lang)]
+    found += [f"wrong fact: {m}" for m in check_claims(text, facts, lang=args.lang)]
+    for line in found:
+        print(line)
+    print(
+        f"egms: {len(found)} problem(s)" if found else "egms: every number is in the facts",
+        file=sys.stderr,
+    )
+    return 1 if found else 0
+
+
 def _mcp(args: argparse.Namespace) -> int:
     from egms_client.mcp_server import run
 
@@ -260,6 +282,12 @@ def _parser() -> argparse.ArgumentParser:
     server.add_argument(
         "--max-tiles", type=int, default=9, help="L3 tiles area_summary downloads at most per box"
     )
+    check = commands.add_parser(
+        "check", help="check a text against the facts it was written from (no key needed)"
+    )
+    check.add_argument("text", help="the text (Markdown or plain)")
+    check.add_argument("facts", help="the facts, as JSON (an MCP answer, or egms_client.facts)")
+    check.add_argument("--lang", choices=("en", "it"), default="en")
     convert = commands.add_parser("convert", help="CSV of the archive to GeoParquet (extra tables)")
     convert.add_argument("csv", nargs="+", help="CSV files; each .parquet is written next to it")
     convert.add_argument("--no-series", action="store_true", help="attributes only, no dates")
