@@ -17,6 +17,7 @@ import dataclasses
 import json
 import os
 import time
+import zipfile
 from collections.abc import Awaitable, Callable, Iterable
 from pathlib import Path
 from types import TracebackType
@@ -106,6 +107,10 @@ class PointVelocity:
     file: Path | None
 
 
+class _CutShortError(Exception):
+    """A download that ended before its ZIP did: retried, then :class:`EgmsError`."""
+
+
 class _ExpiredError(EgmsError):
     """A download refused with 401: the search id expired."""
 
@@ -143,6 +148,9 @@ class EgmsArchive:
         self._bodies: dict[str, dict[str, Any]] = {}
         self._renewed: dict[str, str] = {}
         self._token_lock = asyncio.Lock()
+        #: One lock per archive file: two calls for the same tile at the same
+        #: time (a map and a card) must not write the same ``.part``.
+        self._file_locks: dict[str, asyncio.Lock] = {}
         # One gate for every download of this archive: fetch, fetch_tile and
         # the caller's own parallel calls all count against the account.
         self._downloads = asyncio.Semaphore(max_downloads)
@@ -283,8 +291,13 @@ class EgmsArchive:
         gate = asyncio.Semaphore(concurrency)
 
         async def one(search_id: str, hit: Hit) -> list[Path]:
-            async with gate:
-                paths = await self._fetch_hit(search_id, hit, kept, directory, on_progress)
+            async with gate, self._file_lock(hit.filename):
+                outputs = _outputs(hit, kept, directory)
+                if all(p.exists() for p in outputs):
+                    # Another call fetched it while this one waited.
+                    paths = outputs
+                else:
+                    paths = await self._fetch_hit(search_id, hit, kept, directory, on_progress)
             if on_file is not None:
                 on_file(hit, paths)
             return paths
@@ -323,15 +336,23 @@ class EgmsArchive:
             # download on every run.
             raise EgmsError(f"unexpected file name for {prefix}: {hit.filename!r}")
         _check_name(hit)
-        archive = await self._download(search.id, hit, directory)
-        if archive is None:
-            marker.touch()
-            return None
-        try:
-            (path,) = extract(archive, ["tiff"], directory)
-        finally:
-            archive.unlink()
+        async with self._file_lock(hit.filename):
+            # Another call may have fetched it while this one waited.
+            cached = sorted(directory.glob(f"{prefix}*.tiff"), key=lambda p: _sub_release(p.stem))
+            if cached:
+                return cached[-1]
+            archive = await self._download(search.id, hit, directory)
+            if archive is None:
+                marker.touch()
+                return None
+            try:
+                (path,) = extract(archive, ["tiff"], directory)
+            finally:
+                archive.unlink()
         return path
+
+    def _file_lock(self, name: str) -> asyncio.Lock:
+        return self._file_locks.setdefault(name, asyncio.Lock())
 
     async def velocity_at(
         self,
@@ -436,6 +457,13 @@ class EgmsArchive:
                                 received += len(chunk)
                                 if progress is not None:
                                     progress(hit, received, hit.filesize)
+                        if not zipfile.is_zipfile(partial):
+                            # The archive closed the stream early (seen on
+                            # 23 Nov 2026): a ZIP without its end is retried.
+                            raise _CutShortError(
+                                f"{hit.filename}: the download stopped at {received / 1e6:.1f} MB "
+                                "and is not a whole ZIP"
+                            )
                         partial.rename(path)
                         return path
                     if status not in _RETRY_STATUS or attempt == self._retries:
@@ -444,6 +472,10 @@ class EgmsArchive:
                         # Another process downloads with the same account:
                         # its files take minutes, so wait longer than for a 5xx.
                         wait = _retry_after(response) or max(wait, 30.0)
+            except _CutShortError as exc:
+                partial.unlink(missing_ok=True)
+                if attempt == self._retries:
+                    raise EgmsError(str(exc)) from None
             except httpx.TransportError:
                 partial.unlink(missing_ok=True)
                 if attempt == self._retries:

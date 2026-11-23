@@ -127,3 +127,17 @@ def test_only_the_geotiff_comes_out_of_the_zip() -> None:
     assert extract_tiff(archive, hit) == b"TIFF"
     with pytest.raises(EgmsError, match="has no"):
         extract_tiff(_zip(other=b""), hit)
+
+
+def test_extract_refuses_a_zip_cut_short(tmp_path: Path) -> None:
+    import zipfile
+
+    from egms_client.archive import extract
+    from egms_client.errors import EgmsError
+
+    whole = tmp_path / "EGMS_L3_E47N19_100km_U_2020_2025_1.zip"
+    with zipfile.ZipFile(whole, "w") as z:
+        z.writestr("EGMS_L3_E47N19_100km_U_2020_2025_1.tiff", b"TIFF" * 1000)
+    whole.write_bytes(whole.read_bytes()[:100])
+    with pytest.raises(EgmsError, match="not a whole ZIP"):
+        extract(whole, ["tiff"], tmp_path)

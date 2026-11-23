@@ -106,6 +106,35 @@ def test_a_tile_is_downloaded_once(service_key: ServiceKey, tmp_path: Path) -> N
     assert not list((tmp_path / "tiles").glob("*.part"))
 
 
+def test_the_same_tile_asked_twice_at_once_is_downloaded_once(
+    service_key: ServiceKey, tmp_path: Path
+) -> None:
+    """A map and a card ask for the same tile together (seen in the page of a Comune)."""
+    archive = Archive()
+
+    async def slow(request: httpx.Request) -> httpx.Response:
+        # A download takes time: the second call arrives while the first streams.
+        if "/download/" in request.url.path:
+            await asyncio.sleep(0.05)
+        return archive(request)
+
+    async def main() -> list[Path | None]:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(slow)) as client:
+            a = EgmsArchive(client, service_key, archive_url=ARCHIVE)
+            return list(
+                await asyncio.gather(
+                    a.fetch_tile((47, 19), "U", "2020_2025", tmp_path),
+                    a.fetch_tile((47, 19), "U", "2020_2025", tmp_path),
+                )
+            )
+
+    first, second = asyncio.run(main())
+    assert first == second == tmp_path / f"{STEM}.tiff"
+    assert first is not None and first.read_bytes() == b"TIFF"
+    assert sum("/download/" in r.url.path for r in archive.requests) == 1
+    assert not list(tmp_path.glob("*.part"))
+
+
 def test_a_tile_at_sea_is_remembered_as_absent(service_key: ServiceKey, tmp_path: Path) -> None:
     archive = Archive()
 

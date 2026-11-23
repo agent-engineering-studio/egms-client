@@ -323,10 +323,13 @@ def extract(archive: Path, suffixes: Iterable[str], directory: Path) -> list[Pat
     """The files ``<stem>.<suffix>`` of a downloaded ZIP, written to ``directory``.
 
     Each is streamed to a ``.part`` file and renamed, so a file that exists is
-    whole. :class:`EgmsError` if the ZIP lacks one of them.
+    whole. :class:`EgmsError` if the ZIP lacks one of them, or is not a
+    whole ZIP (a download cut short and kept by hand).
     """
     stem = archive.name.removesuffix(".zip")
     paths = []
+    if not zipfile.is_zipfile(archive):
+        raise EgmsError(f"{archive.name} is not a whole ZIP: delete it and fetch it again")
     with zipfile.ZipFile(archive) as z:
         for suffix in suffixes:
             name = f"{stem}.{suffix}"
