@@ -56,6 +56,10 @@ class Archive:
             step = self.downloads.pop(0) if self.downloads else 200
             if step == "drop":
                 raise httpx.ReadError("connection reset")
+            if step == "cut":
+                # The stream closes cleanly, but early: a ZIP without its end.
+                stem = path.rsplit("/", 1)[1].removesuffix(".zip")
+                return httpx.Response(200, content=_zip(stem)[:40])
             if step != 200:
                 return httpx.Response(int(step), text="Rerun your search")
             stem = path.rsplit("/", 1)[1].removesuffix(".zip")
@@ -342,3 +346,35 @@ def test_the_cli_checks_for_new_releases(
     monkeypatch.setattr("egms_client.releases.KNOWN_RELEASES", ("2020-2024",))
     assert _cli(Archive(), ["releases", "--check"], service_key, tmp_path) == 1
     assert "new release(s) 2020-2025" in capsys.readouterr().err
+
+
+def test_a_download_cut_short_is_retried(service_key: ServiceKey, tmp_path: Path) -> None:
+    archive = Archive(downloads=["cut", 200, 200, 200])
+    paths = run(archive, service_key, lambda a: a.fetch(QUERY, tmp_path, concurrency=1))
+    assert len(paths) == 3
+    assert archive.downloaded() == 4
+    assert not list(tmp_path.glob("*.part"))
+
+
+def test_a_download_always_cut_short_raises(service_key: ServiceKey, tmp_path: Path) -> None:
+    with pytest.raises(EgmsError, match="not a whole ZIP"):
+        run(
+            Archive(downloads=["cut"] * 4),
+            service_key,
+            lambda a: a.fetch(QUERY, tmp_path, concurrency=1),
+        )
+    # The whole files of the other hits may stay; a half one never does.
+    assert not list(tmp_path.glob("*.part"))
+
+
+def test_two_fetches_of_the_same_files_download_each_once(
+    service_key: ServiceKey, tmp_path: Path
+) -> None:
+    archive = Archive()
+
+    async def body(a: EgmsArchive) -> list[list[Path]]:
+        return list(await asyncio.gather(a.fetch(QUERY, tmp_path), a.fetch(QUERY, tmp_path)))
+
+    first, second = run(archive, service_key, body)
+    assert sorted(first) == sorted(second) and len(first) == 3
+    assert archive.downloaded() == 3
