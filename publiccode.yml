@@ -4,8 +4,8 @@ publiccodeYmlVersion: "0"
 name: egms-client
 url: "https://github.com/agent-engineering-studio/egms-client.git"
 landingURL: "https://agentengineering.it/egms-client/"
-releaseDate: "2026-11-04"
-softwareVersion: "0.7.0"
+releaseDate: "2026-11-23"
+softwareVersion: "0.8.0"
 platforms: [linux, mac, windows]
 categories: [geographic-information-systems, data-analytics, data-collection]
 usedBy: []
