@@ -328,8 +328,17 @@ async def _refused(_: Request, exc: Exception) -> JSONResponse:
     if isinstance(exc, OutsideDataError):
         return JSONResponse({"error": str(exc), "not_measured": False}, status_code=404)
     if isinstance(exc, EgmsError):
-        return JSONResponse({"error": f"the EGMS archive refused: {exc}"}, status_code=502)
+        return JSONResponse({"error": f"the EGMS archive: {exc}"}, status_code=502)
     return JSONResponse({"error": str(exc)}, status_code=400)
+
+
+async def _failed(_: Request, exc: Exception) -> JSONResponse:
+    """Anything else: a short message for the page; the traceback stays in the server's log."""
+    log.error("unexpected error: %s: %s", type(exc).__name__, exc)
+    return JSONResponse(
+        {"error": f"the server could not answer ({type(exc).__name__}); try again"},
+        status_code=500,
+    )
 
 
 @asynccontextmanager
@@ -355,6 +364,7 @@ app = Starlette(
         EgmsError: _refused,
         ValueError: _refused,
         LookupError: _refused,
+        Exception: _failed,
     },
     lifespan=lifespan,
 )

@@ -129,3 +129,15 @@ def test_env_example_names_every_setting_and_quotes_spaces() -> None:
         if re.match(r"^[A-Z_]+=", line):
             value = line.split("=", 1)[1]
             assert " " not in value or (value.startswith('"') and value.endswith('"')), line
+
+
+def test_an_unexpected_error_is_json_for_the_page(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def broken(*_: object) -> None:
+        raise RuntimeError("boom")
+
+    monkeypatch.setenv("EGMS_UI_SOURCE", "demo")
+    with TestClient(api.app, raise_server_exceptions=False) as c:
+        monkeypatch.setattr(c.app.state.source, "tiffs", broken)  # type: ignore[attr-defined]
+        answer = c.get("/api/place", params={"lon": 14.1205, "lat": 40.8225})
+    assert answer.status_code == 500
+    assert answer.json() == {"error": "the server could not answer (RuntimeError); try again"}
