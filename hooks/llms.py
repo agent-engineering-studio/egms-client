@@ -43,7 +43,7 @@ NOTES = """\
 DESCRIPTIONS = {
     "index.md": "the guide: what EGMS is, quick start, recipes, the traps, API at a glance",
     "notebooks.md": "three worked examples on real data (Campi Flegrei, Ancona, Bologna)",
-    "benchmark.md": "known places scored offline: Campi Flegrei, Bologna, Murge, Foresta Umbra, Ancona",
+    "benchmark.md": "known places, scored offline: Campi Flegrei, Bologna, Murge, a forest, Ancona",
     "roadmap.md": "planned work: foundations, time-series analysis, AI features",
     "riuso.md": "for public bodies (in Italian): reuse, data licence, what the library is not",
     "changelog.md": "what changed in each release",
