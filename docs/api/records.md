@@ -12,6 +12,15 @@ two EGMS points (one not measured), an EGMS map, an e-ITALICA threshold
 (rainfall-thresholds), the radar reliability at a point (dpc-radar) and a
 simulated rain gauge.
 
+The answers of `egms_client.facts` become records with
+`egms_client.facts.to_records`:
+
+```python
+from egms_client.facts import to_records, velocity
+
+records = to_records(velocity(tiffs, 14.1205, 40.8225, release="2020-2025"))
+```
+
 Check a file from the command line:
 
 ```bash

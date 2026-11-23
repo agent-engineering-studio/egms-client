@@ -209,7 +209,10 @@ Limen's job.
    the validator (`egms_client.records`, `egms records`), and real examples
    in `examples/records`: egms-client, rainfall-thresholds, dpc-radar, and a
    simulated rain gauge. ispra-idrogeo needs the network: it comes in step 5.
-2. `to_records()` in egms-client, with the conformance test (one PR).
+2. ✅ `egms_client.facts.to_records()`: a velocity is one observation; an area
+   and the moving cells are one fact, then one observation per cell listed.
+   `scripts/example_records.py` writes the egms examples, and a test checks
+   that `to_records` still gives them.
 3. The app with file input and two sources.
 4. HTTP SenML input and a simulated rain gauge.
 5. `to_records()` in the other libraries, one PR each.

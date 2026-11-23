@@ -14,6 +14,9 @@ All notable changes to this project are documented here. The format follows
   signed value says what its sign means, no alerts). `egms records FILE...`
   checks files. Real examples in `examples/records`. The design is in
   `docs/design/open-data-schema.md`.
+- `facts.to_records`: the answers of `velocity`, `area` and `moving_points`
+  as records. `scripts/example_records.py` writes the egms examples from the
+  benchmark crops; a test checks they do not drift.
 - Docker: `compose.yaml` (`name: egms-client`) with `egms-client-api`,
   `egms-client-ui` (127.0.0.1:3003), `egms-client-notebook` (8889, profile
   `notebook`) and `egms-client-mcp` (8768, profile `mcp`). The key is mounted
