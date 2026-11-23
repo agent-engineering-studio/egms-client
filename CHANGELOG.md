@@ -8,6 +8,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Records of open data (`egms_client.records`, extra `records`): one JSON
+  Schema, `opendata-record/v1`, for observations, facts and map layers from
+  any source, with checks a schema cannot make (not measured is null, a
+  signed value says what its sign means, no alerts). `egms records FILE...`
+  checks files. Real examples in `examples/records`. The design is in
+  `docs/design/open-data-schema.md`.
 - Docker: `compose.yaml` (`name: egms-client`) with `egms-client-api`,
   `egms-client-ui` (127.0.0.1:3003), `egms-client-notebook` (8889, profile
   `notebook`) and `egms-client-mcp` (8768, profile `mcp`). The key is mounted

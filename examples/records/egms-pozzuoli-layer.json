@@ -1,0 +1,62 @@
+{
+  "schema": "opendata-record/v1",
+  "kind": "layer",
+  "id": "egms-l3-u-2020-2025-campi-flegrei",
+  "source": {
+    "name": "EGMS Ortho L3 2020-2025, vertical",
+    "url": "https://egms.land.copernicus.eu/",
+    "licence": "Copernicus data policy, free and open",
+    "attribution": "Contains modified Copernicus Land Monitoring Service information (EGMS), © European Union"
+  },
+  "made_by": {
+    "name": "egms-client",
+    "version": "0.8.0"
+  },
+  "time": {
+    "first": "2020-12-09",
+    "last": "2025-11-19",
+    "exact": true
+  },
+  "where": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          13.9914,
+          40.7803
+        ],
+        [
+          14.2493,
+          40.7696
+        ],
+        [
+          14.2582,
+          40.9005
+        ],
+        [
+          13.9997,
+          40.9113
+        ],
+        [
+          13.9914,
+          40.7803
+        ]
+      ]
+    ]
+  },
+  "property": "velocity",
+  "unit": "mm/a",
+  "meaning": "vertical; positive = up, negative = down (subsidence)",
+  "href": "../../benchmarks/data/campi-flegrei/U.tif",
+  "media_type": "image/tiff; application=geotiff",
+  "no_data": "NaN: not measured (the sea, woods, fields), which is not zero",
+  "reliability": {
+    "method": "egms-client: share of measured 100 m cells within 500 m, and fit of the series; an estimate made from outside EGMS",
+    "reasons": [
+      "per cell: ask for a point"
+    ]
+  },
+  "notes": [
+    "100 m cells in EPSG:3035, the grid of EGMS."
+  ]
+}

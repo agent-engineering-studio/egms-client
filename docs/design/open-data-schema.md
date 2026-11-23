@@ -1,6 +1,6 @@
 # Design: one input schema for open data
 
-Status: **draft for review**. Nothing here is built yet.
+Status: **agreed** on 24 November 2026. Built step by step, below.
 
 ## The problem
 
@@ -63,7 +63,7 @@ All three share an **envelope**, the part that makes a number honest:
 | `kind` | `observation`, `fact` or `layer` | yes |
 | `source` | `{name, url, licence, attribution}` | yes |
 | `made_by` | the library or device that wrote it, with its version | yes |
-| `time` | an instant, or `{first, last, exact}` for a window | yes |
+| `time` | `{instant}`, or `{first, last, exact}` for a window, or `null` when the source gives no dates | yes, may be `null` |
 | `where` | GeoJSON geometry, WGS84 (EPSG:4326) | yes |
 | `reliability` | `{score, reliable, method, reasons}`, or `null` if unknown | yes, may be `null` |
 | `notes` | short sentences a reader must see | no |
@@ -95,7 +95,7 @@ message converts field by field.
   "value": 145.2,
   "unit": "mm/a",
   "meaning": "vertical; positive = up",
-  "reliability": {"score": 0.92, "reliable": true,
+  "reliability": {"score": 1.0, "reliable": true,
                   "method": "share of measured cells within 500 m, and fit",
                   "reasons": []},
   "notes": ["a velocity is a measurement, not an alert"]
@@ -108,27 +108,32 @@ The same shape carries a rain gauge reading, the radar rain at a point
 ### 2. `fact`: an answer already computed
 
 What the libraries return today, in one shape: a `question`, a set of named
-`values` (each with its unit), and the envelope. For example the ITALICA
-threshold for 24 hours in the south (rainfall-thresholds), or the landslides
-already mapped in a municipality (ispra-idrogeo).
+`values` (each with its unit), and the envelope. This one is real: the
+e-ITALICA threshold for 24 hours in southern Italy, from
+`rainfall_thresholds.facts.threshold_facts("southern", 24)`.
 
 ```json
 {
   "schema": "opendata-record/v1",
   "kind": "fact",
-  "question": "how much rain in 24 h is enough to trigger landslides here",
-  "values": {"cumulated": {"value": 61.4, "unit": "mm"},
+  "question": "How much rain in 24 hours is like the rain that triggered landslides in southern Italy?",
+  "values": {"cumulated": {"value": 27.1, "unit": "mm"},
+             "intensity": {"value": 1.13, "unit": "mm/h"},
              "duration": {"value": 24, "unit": "h"}},
-  "source": {"name": "ITALICA, ITALICA_T5 southern", "...": "..."},
+  "source": {"name": "e-ITALICA v4, threshold ITALICA_T5 (southern)",
+             "url": "https://doi.org/10.5281/zenodo.14204473",
+             "licence": "CC BY 4.0", "attribution": "Brunetti et al. 2024, e-ITALICA v4"},
   "made_by": {"name": "rainfall-thresholds", "version": "0.3.0"},
-  "time": {"first": "1996-01-01", "last": "2021-12-31", "exact": false},
-  "where": {"type": "Polygon", "coordinates": ["..."]},
-  "reliability": null,
-  "notes": ["5th percentile: 5% of the landslides came with less rain"]
+  "time": null,
+  "where": {"type": "Point", "coordinates": [16.6044, 40.6664]},
+  "reliability": {"method": "5th percentile of 1,425 rainfall events that triggered landslides in southern Italy",
+                  "reasons": []},
+  "notes": ["A threshold exceeded is not an alert. ..."]
 }
 ```
 
-(The numbers above are placeholders for the shape, not data.)
+`time` is `null` here: the library does not give the dates of the catalogue,
+and the record does not invent them.
 
 ### 3. `layer`: a map
 
@@ -139,13 +144,16 @@ A Cloud-Optimized GeoTIFF or a GeoJSON file, with the envelope, `property`,
 
 These are the rules egms-client already follows. The schema makes them checkable.
 
-- **Not measured is `null`, never 0.** The validator refuses a record with
-  `value: 0` and `reliability.reasons` containing `no data`.
+- **Not measured is `null`, never 0 or NaN.** The validator refuses a value
+  that is not `null` when `reliability.reasons` contains `not_measured`.
 - **Every number has a unit and, if signed, a meaning.**
-- **Every record has a time window.** A 2020-2025 velocity is not today's ground.
+- **Every record says its time, or says it has none.** A 2020-2025 velocity
+  is not today's ground. `null` means the source gives no dates; nobody
+  guesses them.
 - **Reliability can be unknown, but not missing.** `null` means "nobody says";
   the app shows it as such.
-- **No record is an alert.** There is no `alert` or `risk` field. Official
+- **No record is an alert.** There is no `alert` or `risk` field, and no
+  property or value may be named so (in English or Italian). Official
   warnings stay with the Civil Protection; risk scores stay with Limen.
 
 ## How data comes in
@@ -183,21 +191,24 @@ see it on the map.
 does not combine the data into a score, and it does not raise alerts. That is
 Limen's job.
 
-## Open decisions
+## Decisions (24 November 2026)
 
-1. **Where it lives.** A new repository for the schema, its validator and the
-   app (proposal), or the app here in egms-client. The current page would stay
-   here as a one-source example.
-2. **The line with Limen.** Show and explain only (proposal), or also a simple
-   combined view.
-3. **The first sensor and protocol.** A rain gauge over HTTP SenML, unsigned
-   at first (proposal), or an inclinometer or piezometer.
-4. **Schema language.** JSON Schema 2020-12 (proposal), with Pydantic models
-   generated from it for the Python side.
+1. **It lives here, in egms-client.** egms-client is a standalone
+   application with a library inside. Limen keeps using the library, and the
+   application does not compete with Limen: it shows and explains, Limen
+   scores. The application reads other sources only as records (files, HTTP),
+   never by importing their libraries.
+2. **Show and explain only.** No combined score, no alerts.
+3. **The first sensor is a rain gauge**, over HTTP SenML, unsigned at first.
+4. **JSON Schema 2020-12**, with checks in Python for the rules a schema
+   cannot say.
 
-## Steps, once agreed
+## Steps
 
-1. The schema file, a validator, and examples from four libraries.
+1. ✅ The schema file (`src/egms_client/schema/opendata-record-v1.json`),
+   the validator (`egms_client.records`, `egms records`), and real examples
+   in `examples/records`: egms-client, rainfall-thresholds, dpc-radar, and a
+   simulated rain gauge. ispra-idrogeo needs the network: it comes in step 5.
 2. `to_records()` in egms-client, with the conformance test (one PR).
 3. The app with file input and two sources.
 4. HTTP SenML input and a simulated rain gauge.
