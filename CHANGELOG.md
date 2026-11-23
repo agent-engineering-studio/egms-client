@@ -8,6 +8,27 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Docker: `compose.yaml` (`name: egms-client`) with `egms-client-api`,
+  `egms-client-ui` (127.0.0.1:3003), `egms-client-notebook` (8889, profile
+  `notebook`) and `egms-client-mcp` (8768, profile `mcp`). The key is mounted
+  read-only from `./secrets` and never copied into an image
+  (`.dockerignore`). A complete `.env.example` comes with it. New targets
+  `make up`, `demo`, `down` and `logs`.
+- A page for a Comune (`demo/web`): Next.js, Bootstrap Italia and Leaflet
+  from npm, no CDN. It is in Italian and English, set from `.env` or the
+  address, and embeddable (`EGMS_UI_FRAME_ANCESTORS`, `embed=1`). Behind it
+  is `demo/api.py`, which serves place, area, moving cells and a map PNG,
+  built with `facts` and `words`. Without a key it runs in demo mode on the
+  benchmark crops.
+- `words` says more of an empty cell with measured neighbours: the share of
+  measured cells within 500 m and the median within 5 km. "Not measured"
+  alone, on a green spot at Pianura where 47 % of the cells around have a
+  value, told too little.
+- `egms mcp --http PORT --host ADDR`: the MCP server over streamable HTTP.
+- Notebooks `04_how_much_to_trust` and `05_cells_for_a_model`, on the
+  crops: no key; `make notebooks-offline` and in CI.
+- CI jobs `notebooks` and `docker`: the images build, and the page answers in
+  demo mode, with no key in the image and no root.
 - `egms_client.facts` (extra `raster`): `velocity`, `area` and
   `moving_points` give answers as data. Each number comes with its release,
   its window, the files, its reliability, the licence and notes. A place

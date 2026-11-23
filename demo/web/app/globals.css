@@ -1,0 +1,103 @@
+/* What Bootstrap Italia does not have: the map, its card and legend. Colours, type and
+   controls are the kit's. */
+
+@font-face {
+  font-family: "Titillium Web";
+  font-weight: 400;
+  font-display: swap;
+  src: url("../node_modules/bootstrap-italia/dist/fonts/Titillium_Web/titillium-web-v10-latin-ext_latin-regular.woff2")
+    format("woff2");
+}
+
+@font-face {
+  font-family: "Titillium Web";
+  font-weight: 600;
+  font-display: swap;
+  src: url("../node_modules/bootstrap-italia/dist/fonts/Titillium_Web/titillium-web-v10-latin-ext_latin-600.woff2")
+    format("woff2");
+}
+
+body {
+  background: #f2f5f8;
+}
+
+.egms {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.egms .it-header-center-wrapper {
+  height: auto;
+  padding: 12px 0;
+}
+
+.egms .it-brand-title {
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.egms .it-brand-tagline {
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.egms-main {
+  position: relative;
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 0;
+  min-height: 520px;
+}
+
+.egms-map {
+  min-height: 520px;
+  height: 100%;
+}
+
+.egms-card {
+  border-radius: 0;
+  overflow-y: auto;
+  max-height: calc(100vh - 120px);
+}
+
+.embed .egms-card {
+  max-height: 100vh;
+}
+
+.egms-legend .egms-step {
+  display: inline-block;
+  flex: 1;
+  height: 12px;
+}
+
+.egms-legend .egms-veil {
+  flex: 0 0 24px;
+  background: rgba(90, 96, 110, 0.35);
+}
+
+.egms-footer {
+  padding: 8px 16px;
+  color: #5a6772;
+  background: #fff;
+  border-top: 1px solid #d9dadb;
+}
+
+@media (max-width: 768px) {
+  .egms-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .egms .it-brand-title {
+    font-size: 1.2rem;
+  }
+  .egms-map {
+    min-height: 60vh;
+  }
+  .egms-card {
+    max-height: none;
+  }
+}

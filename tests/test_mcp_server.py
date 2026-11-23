@@ -252,7 +252,30 @@ def test_egms_mcp_starts_the_server(monkeypatch: pytest.MonkeyPatch, tmp_path: P
         ["--key-file", str(key), "mcp", "--data-dir", str(tmp_path), "--max-tiles", "4"]
     )
     assert status == 0
-    assert seen == {"directory": tmp_path, "max_tiles": 4, "key_file": key}
+    assert seen == {
+        "directory": tmp_path,
+        "max_tiles": 4,
+        "key_file": key,
+        "http_port": None,
+        "http_host": "127.0.0.1",
+    }
+    cli.main(["mcp", "--http", "8768", "--host", "0.0.0.0"])
+    assert (seen["http_port"], seen["http_host"]) == (8768, "0.0.0.0")
+
+
+def test_run_picks_the_transport(monkeypatch: pytest.MonkeyPatch) -> None:
+    from egms_client import mcp_server
+
+    calls: list[tuple[str, dict[str, Any]]] = []
+
+    class Server:
+        def run(self, transport: str, **kwargs: Any) -> None:
+            calls.append((transport, kwargs))
+
+    monkeypatch.setattr(mcp_server, "create_server", lambda **_: Server())
+    mcp_server.run()
+    mcp_server.run(http_port=8768, http_host="0.0.0.0")
+    assert calls == [("stdio", {}), ("streamable-http", {"host": "0.0.0.0", "port": 8768})]
 
 
 def test_moving_points(service_key: ServiceKey, tmp_path: Path) -> None:

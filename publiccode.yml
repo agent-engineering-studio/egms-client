@@ -36,7 +36,10 @@ description:
       - Accelerazione, stagionalità, cambi di velocità e salti di elaborazione
       - Velocità verticale ed est-ovest ricavata dai punti ascendenti e discendenti
       - Riga di comando e server MCP per gli assistenti AI
+      - Quanto fidarsi di ogni velocità, e la finestra di date dei dati
+      - Pagina per il sito del Comune con Bootstrap Italia, in Docker, incorporabile
     screenshots:
+      - docs/images/ui-pozzuoli.jpg
       - docs/images/naples-vertical.png
       - docs/images/decompose-ancona.png
   en:
@@ -60,7 +63,10 @@ description:
       - Acceleration, seasonality, changes of speed and processing jumps
       - Vertical and east-west speed from ascending and descending points
       - Command line and an MCP server for AI assistants
+      - How far to trust each velocity, and the window of dates of the data
+      - A page for the site of a Comune with Bootstrap Italia, in Docker, embeddable
     screenshots:
+      - docs/images/ui-pozzuoli.jpg
       - docs/images/naples-vertical.png
       - docs/images/decompose-ancona.png
 organisation:
