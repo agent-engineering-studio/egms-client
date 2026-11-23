@@ -49,6 +49,15 @@
       "pass": true
     },
     {
+      "case": "campi-flegrei",
+      "status": "moving",
+      "check": "the Rione Terra kilometre: the uplift speeds up",
+      "kind": "cells",
+      "measured": 16.76,
+      "expected": "acceleration_median ≥ 0.0",
+      "pass": true
+    },
+    {
       "case": "bologna",
       "status": "moving",
       "check": "a share of the plain sinks faster than 2 mm/year",
@@ -112,6 +121,15 @@
       "pass": true
     },
     {
+      "case": "murge",
+      "status": "still",
+      "check": "a still place does not speed up either way",
+      "kind": "cells",
+      "measured": -0.015,
+      "expected": "-0.5 ≤ median of acceleration_median ≤ 0.5",
+      "pass": true
+    },
+    {
       "case": "foresta-umbra",
       "status": "blind",
       "check": "most of the forest has no cell",
@@ -136,6 +154,15 @@
       "kind": "reliable",
       "measured": 0.03,
       "expected": "score ≤ 0.49",
+      "pass": true
+    },
+    {
+      "case": "foresta-umbra",
+      "status": "blind",
+      "check": "most kilometres of the forest are not measured",
+      "kind": "cells",
+      "measured": 0.741,
+      "expected": "share_not_measured ≥ 0.5",
       "pass": true
     },
     {

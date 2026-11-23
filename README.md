@@ -284,7 +284,7 @@ Three stories with real data, from download to figure, in [`notebooks/`](https:/
 Five places where the answer is already known, from sources outside EGMS:
 Campi Flegrei rising, Bologna sinking, the Murge still, a forest where the
 radar is blind, and the Ancona landslide. CI scores them offline on small
-crops of the real archive: **18 of 20** checks pass, and the two that fail
+crops of the real archive: **21 of 23** checks pass, and the two that fail
 are kept, because they show that a still place is not at zero east-west
 (+1.6 mm/year at the Murge). See the
 [benchmark](https://agentengineering.it/egms-client/benchmark/).
@@ -631,6 +631,43 @@ vertical, median difference 0.6 mm/year.
   <img src="https://raw.githubusercontent.com/agent-engineering-studio/egms-client/main/docs/images/decompose-ancona.png" alt="Ancona vertical speed from L2B points next to the official L3, correlation 0.93" width="100%">
 </p>
 
+### Cells for a model: missing stays missing, signs stay
+
+A model works on cells (1 km squares, say), not on 100 m pixels. `cells`
+gives, for each cell, what its pixels say: the vertical median and its tails
+(`vertical_p10`: the pixels sinking most), the east-west median, the signed
+vertical acceleration, the seasonality, how many pixels have a value, and a
+score.
+
+```python
+import pandas as pd
+
+from egms_client.cells import on_grid, per_cell, square_cells, to_frame
+from egms_client.mosaic import mosaic
+
+box = dict(minx=4_450_000, miny=2_010_000, maxx=4_470_000, maxy=2_030_000)  # EPSG:3035
+# up_tiffs, east_tiffs: the L3 tiles over the box, from fetch_tile (component U, then E)
+up = mosaic(up_tiffs, **box)
+east = mosaic(east_tiffs, **box)
+attributes = pd.read_parquet("egms/EGMS_L3_E44N20_100km_U_2020_2025_1.parquet")
+stats = per_cell(
+    square_cells(**box, size_m=1_000),
+    up,
+    east,
+    acceleration=on_grid(attributes, "acceleration", up),
+    seasonality=on_grid(attributes, "seasonality", up),
+    rmse=on_grid(attributes, "rmse_ts", up),
+)
+table = to_frame(stats)  # one row per cell; NaN where not measured, never 0
+```
+
+Three rules a model breaks easily. A cell with no pixel gives `None`, not
+0.0: in the Foresta Umbra 74 % of the kilometres are not measured, and 0.0
+would call them still. The acceleration keeps its sign: on the Rione Terra
+kilometre it is +16.8 mm/year² (the uplift speeds up), at the Murge -0.02
+(still). The magnitude `sqrt(E² + U²)` gives 1.24 at the Murge: noise made
+positive. Every statistic uses the same pixels, those with a velocity.
+
 ### Always use the newest release, and know what it covers
 
 ```python
@@ -734,6 +771,7 @@ library handles all of these for you:
 | a bbox in any other shape than `[[w, s], [e, n]]` | `An error occurred processing the search` | builds the right shape |
 | a box of 7° × 7° | `Requested area is too large` (5° × 5° passes) | splits it and merges the results |
 | reading `2020-2025` as Jan 2020 – Dec 2025 | the L3 series run from **9 Dec 2020** to **19 Nov 2025** | `releases.window("2020-2025")` gives the real dates |
+| filling a cell with no pixel with 0.0 | a forest becomes "still ground" for a model | `cells.per_cell` gives `None` and `valid_pixels == 0` |
 | a valid token, now and then | HTTP **200** `Please log in` (once in 15 calls on 23 Nov 2026) | asks for a new token and tries once more |
 | a third download at the same time | HTTP **429** `At most 2 downloads may be performed simultaneously` (per account) | never more than 2 at once, whatever you ask |
 
@@ -771,6 +809,7 @@ All checked against the live archive on 3 November 2026.
 | `mosaic.to_xarray(m)` / `tables.to_xarray(df)` | A map over `(y, x)`, series over `(pid, time)`, as `xarray.DataArray` (extra `xarray`). |
 | `analysis.fit(df, start=, end=)` / `.trend_change(df)` / `.unwrapping_jumps(df)` | The archive's model on any window, with the seasonal peak; the date a velocity changes; ±27.7 mm processing steps. |
 | `reliability.trust(tiffs, lon, lat, attributes=)` / `.coverage_map(values)` | How far to trust the velocity at a point: score, coverage, reasons, regional median; the coverage of every cell of a grid. |
+| `cells.per_cell(cells, up, east, acceleration=, seasonality=, rmse=)` / `.square_cells(...)` / `.on_grid(frame, column, like)` / `.to_frame(stats)` | Per-cell statistics for a model: medians and tails with their sign, signed acceleration on the velocity's pixels, valid pixels, score; `None` where not measured. |
 | `releases.window(release, level)` / `.age_days(w, today)` / `.new_releases(published)` | The real dates a release covers; how old it is; releases this version has not seen (`egms releases --check`). |
 | `EgmsError` | The server answered, but refused. |
 

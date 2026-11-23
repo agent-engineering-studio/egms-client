@@ -8,6 +8,19 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `egms_client.cells` (extra `raster`): `per_cell(cells, up, east,
+  acceleration=, seasonality=, rmse=)` gives per-cell statistics for a
+  model. A cell with no pixel gives `None`, never 0.0. The medians and tails
+  (`vertical_p10`, `vertical_p90`) keep their sign. The vertical
+  acceleration is signed (`acceleration_median`, `acceleration_p10`) and on
+  the same pixels as the velocity. `valid_pixels` counts 100 m pixels, not
+  radar targets. There is also a score from coverage and fit.
+  `square_cells`, `on_grid` (L3 attributes on the mosaic grid) and
+  `to_frame` come with it. A test checks parity with Limen's aggregation:
+  same pixels, medians and p90. Three new benchmark checks: the Rione Terra
+  kilometre speeds up (+16.8 mm/year²), the Murge does not (-0.02), and 74 %
+  of the Foresta Umbra kilometres are not measured. The crops now keep
+  `acceleration` and `seasonality`, and the east-west attributes.
 - `publiccode.yml` for the Developers Italia catalogue, checked in CI by the
   official parser, and `docs/riuso.md` for public bodies (in Italian).
 - A test that the package imports neither Limen nor any of its other

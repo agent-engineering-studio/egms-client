@@ -91,14 +91,38 @@ in 10 local calls. The client now asks for a new token and tries once more.
   now the new token after "Please log in". With `EgmsArchive(retries=0)`
   inside Limen's own retry, the class can go.
 
-## 4 · Cells for a model
+## 4 · Cells for a model ✅
 
-Per-cell statistics over any grid, NaN kept as NaN, signed acceleration on
-the same pixels as velocity, a parity test against Limen's aggregation.
+[`cells.per_cell`](api/cells.md): per-cell statistics over any grid of
+cells. A cell with no pixel gives `None`. Medians and tails keep their sign.
+The vertical acceleration is signed and uses the velocity's pixels. Each
+cell gets `valid_pixels` and a score.
 
-**For Limen** (issues to open there): not measured stays NULL instead of
-0.0; no EGMS feature for a landslide before the release window starts;
-signed acceleration; the backtest with and without EGMS (limen#618).
+**Check:** the same pixels, medians and p90 as Limen's aggregation, on
+random grids with unaligned cells and on the Ancona and Murge crops. Three
+new benchmark checks, 21 of 23 in all. On the Rione Terra kilometre the
+acceleration is +16.8 mm/year²: the uplift speeds up, as INGV says. At the
+Murge the median cell is at -0.02. In the Foresta Umbra 74 % of the
+kilometres have no pixel.
+
+**What it taught.** At the still Murge, Limen's acceleration (the p90 of
+`sqrt(E² + U²)`) is 1.24 mm/year² in the median cell: noise, made positive.
+In the Bologna box the ground sinks by 4.0 mm/year and the acceleration is
++0.75: the sinking slows down, and a magnitude reads it as speeding up.
+
+**What is not there.** The east-west acceleration (only the vertical is
+signed and kept). Cells cut by the edge of a crop count only the pixels
+inside. A check of the Bologna slowdown against a source.
+
+**For Limen:** issues to open there.
+- Not measured is NULL, not 0.0, when training and when serving.
+- No EGMS feature for a landslide before the window starts (9 December 2020).
+- A signed vertical acceleration on the velocity's pixels instead of the
+  magnitude.
+- `scatterer_count` counts 100 m pixels, not radar targets: rename or
+  document it.
+- The backtest with and without EGMS (limen#618), with AUC by reliability
+  class.
 
 ## 5 · The AI layer
 

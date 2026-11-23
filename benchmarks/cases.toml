@@ -19,6 +19,9 @@
 #           L3 over the case box: correlation, median_abs_diff (mm/year).
 #   reliable  reliability.trust at a point: its score, 0 to 1 (reliable from
 #           0.5). Blind places must score below, measured ones above.
+#   cells   cells.per_cell on 1 km cells: the one centred on lon/lat
+#           (stat = "value" of a field), or all the cells inside the crop
+#           (stat = "median" of a field, or "share_not_measured").
 #   fit     analysis.fit on the full window against the archive's own
 #           mean_velocity: median_abs_diff (mm/year).
 
@@ -70,6 +73,15 @@ about 80 cm in all from 2020 to mid 2025."""
   lon = 14.10
   lat = 40.79
   max = 0.49
+
+  [[case.check]]
+  kind = "cells"
+  name = "the Rione Terra kilometre: the uplift speeds up"
+  lon = 14.1205
+  lat = 40.8225
+  field = "acceleration_median"
+  stat = "value"
+  min = 0.0
 
 [[case]]
 id = "bologna"
@@ -154,6 +166,14 @@ the noise."""
   lat = 40.80
   min = 0.5
 
+  [[case.check]]
+  kind = "cells"
+  name = "a still place does not speed up either way"
+  field = "acceleration_median"
+  stat = "median"
+  min = -0.5
+  max = 0.5
+
 [[case]]
 id = "foresta-umbra"
 title = "Foresta Umbra, Gargano: the radar sees little under the trees"
@@ -186,6 +206,12 @@ must be «not measured», not zero."""
   lon = 16.00776
   lat = 41.80508
   max = 0.49
+
+  [[case.check]]
+  kind = "cells"
+  name = "most kilometres of the forest are not measured"
+  stat = "share_not_measured"
+  min = 0.5
 
 [[case]]
 id = "ancona"

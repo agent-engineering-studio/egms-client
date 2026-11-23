@@ -79,6 +79,7 @@ nav:
       - Time-series analysis: api/analysis.md
       - How far to trust it: api/reliability.md
       - Releases and windows: api/releases.md
+      - Cells for a model: api/cells.md
       - Command line: api/cli.md
       - MCP server: api/mcp.md
       - Errors: api/errors.md

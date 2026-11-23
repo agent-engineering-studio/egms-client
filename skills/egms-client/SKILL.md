@@ -98,6 +98,10 @@ asyncio.run(main())
   `reliable`, `coverage` (share of cells with a value within 500 m), the
   `reasons`, and `regional_median` / `relative`. Report a velocity with its
   reliability, and read it against its region, not against zero.
+- Per-cell features for a model: `from egms_client.cells import per_cell, square_cells, on_grid, to_frame`.
+  `per_cell(square_cells(minx, miny, maxx, maxy), up, east, acceleration=on_grid(l3_table, "acceleration", up))`
+  gives medians, tails (`vertical_p10`), signed acceleration, `valid_pixels`
+  and a score per cell; `None` where no pixel has a value.
 - A file's real outline: `hit.covers(lon, lat)`. A burst is a tilted
   parallelogram, so its `bbox` claims points it does not contain.
 
@@ -133,7 +137,12 @@ asyncio.run(main())
    from 9 Dec 2020 to 19 Nov 2025 (L3). Use
    `egms_client.releases.window(release).text()` and say when the data
    stops: it does not describe the ground of today.
-12. **Errors:** `EgmsError` means the server answered but refused. Its
+12. **Keep the sign, keep the mask.** Use the signed vertical acceleration
+   (`acceleration_median`, `acceleration_p10`), not `sqrt(E² + U²)`: a
+   magnitude cannot tell a slope speeding up from one slowing down, and turns
+   noise into a positive number (1.24 mm/year² at the still Murge). Compute
+   every statistic of a cell on the same pixels.
+13. **Errors:** `EgmsError` means the server answered but refused. Its
    message is the archive's message, so show it rather than retrying
    blindly.
 
