@@ -68,13 +68,28 @@ in a forest where 99 % of the cells are empty.
 pixels with a value; with `coverage_map` it can tell a lone cell from a
 measured neighbourhood, and keep both apart from "not measured".
 
-## 3 · Freshness and the archive's contract
+## 3 · Freshness and the archive's contract ✅
 
-Every answer carries its release and window. A check notices a new release,
-a changed sub-release or window. What Limen rewrote around the client
-(injectable transport, a new search after a 401) moves into the library.
+[`releases.window`](api/releases.md) gives the real dates of a release; the
+MCP answers carry them. `egms releases --check` and three new live checks
+notice a new release, a reprocessed tile (`_2`) or a changed answer.
 
-**For Limen:** it can drop its own client class.
+**Check:** the 2020-2025 L3 window is 2020-12-09 to 2025-11-19, read from
+the files. The live check passed 14 of 15 on its first run: the archive
+answered a valid token with "Please log in" once. It did not happen again
+in 10 local calls. The client now asks for a new token and tries once more.
+
+**What is not there.** The window of 2020-2024 (not read from a file yet:
+`window` says the years only). A test of the download links over time.
+
+**For Limen:**
+- Limen stores `period_start` = 1 January of the first year. The real
+  window starts on 9 December 2020: eleven months earlier than any EGMS
+  measurement. Use `releases.window`.
+- Limen's own client class (`Archivio`) re-implements what `EgmsArchive`
+  already does: the cache, the sea marker, a new search after a 401, and
+  now the new token after "Please log in". With `EgmsArchive(retries=0)`
+  inside Limen's own retry, the class can go.
 
 ## 4 · Cells for a model
 

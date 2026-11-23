@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import json
 import os
 import time
 from collections.abc import Awaitable, Callable, Iterable
@@ -455,19 +456,33 @@ class EgmsArchive:
         raise AssertionError("unreachable")  # pragma: no cover
 
     async def _search(self, body: dict[str, Any]) -> Search | None:
-        token = await self.token()
-        response = await self._send(
-            "POST", f"{self._archive}/search", headers=token.headers(), json=body
-        )
+        response = await self._authorized("POST", f"{self._archive}/search", json=body)
         search = parse_search(response.content)
         if search is not None:
             self._bodies[search.id] = body
         return search
 
     async def _get(self, path: str) -> bytes:
-        token = await self.token()
-        response = await self._send("GET", f"{self._archive}/{path}", headers=token.headers())
+        response = await self._authorized("GET", f"{self._archive}/{path}")
         return response.content
+
+    async def _authorized(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+        """A call with the token; once more with a new token if the archive says "log in".
+
+        The archive sometimes answers a valid token with HTTP 200 and
+        ``"Please log in"`` (seen on 2026-11-23, once in 15 calls of the
+        weekly check, never again in 10 local ones). A new token is asked
+        for, once: a second refusal is a real one and raises.
+        """
+        token = await self.token()
+        response = await self._send(method, url, headers=token.headers(), **kwargs)
+        if not _asks_to_log_in(response.content):
+            return response
+        async with self._token_lock:
+            if self._token is token:
+                self._token = await self._new_token(self._clock())
+        token = await self.token()
+        return await self._send(method, url, headers=token.headers(), **kwargs)
 
     async def _send(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
         for attempt in range(self._retries + 1):
@@ -498,3 +513,18 @@ def _retry_after(response: httpx.Response) -> float | None:
     """The ``Retry-After`` header in seconds, if the server sent one."""
     value = response.headers.get("Retry-After", "")
     return float(value) if value.strip().isdigit() else None
+
+
+def _asks_to_log_in(content: bytes) -> bool:
+    """The archive's "not logged in", disguised as a 200 (``"status": false``)."""
+    if b"log in" not in content:
+        return False
+    try:
+        data = json.loads(content)
+    except ValueError:
+        return False
+    return (
+        isinstance(data, dict)
+        and data.get("status") is False
+        and "log in" in str(data.get("message"))
+    )

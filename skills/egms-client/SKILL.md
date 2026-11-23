@@ -129,7 +129,11 @@ asyncio.run(main())
 10. **Still is not zero either.** Velocities carry regional offsets (+1.6
    mm/year east-west on the Murge, a place that does not move). Compare
    with the surroundings (`regional_median`) before calling a place moving.
-11. **Errors:** `EgmsError` means the server answered but refused. Its
+11. **A release name is not its window.** `2020-2025` holds acquisitions
+   from 9 Dec 2020 to 19 Nov 2025 (L3). Use
+   `egms_client.releases.window(release).text()` and say when the data
+   stops: it does not describe the ground of today.
+12. **Errors:** `EgmsError` means the server answered but refused. Its
    message is the archive's message, so show it rather than retrying
    blindly.
 
@@ -141,8 +145,8 @@ from `egms mcp` (extra `mcp`). Prefer them to downloading data by hand.
 
 ## When reporting results
 
-State the release, the level, the component and the file(s) a number came
-from. Ground motion data is evidence, not a hazard assessment: do not
+State the release and its window, the level, the component and the file(s)
+a number came from, and how far to trust it (`reliability.trust`). Ground motion data is evidence, not a hazard assessment: do not
 present a velocity as a safety verdict on a building or slope.
 
 Data: EGMS, © European Union, Copernicus Land Monitoring Service.

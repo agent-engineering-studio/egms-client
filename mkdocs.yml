@@ -78,6 +78,7 @@ nav:
       - Maps from L2 points: api/decompose.md
       - Time-series analysis: api/analysis.md
       - How far to trust it: api/reliability.md
+      - Releases and windows: api/releases.md
       - Command line: api/cli.md
       - MCP server: api/mcp.md
       - Errors: api/errors.md

@@ -631,11 +631,24 @@ vertical, median difference 0.6 mm/year.
   <img src="https://raw.githubusercontent.com/agent-engineering-studio/egms-client/main/docs/images/decompose-ancona.png" alt="Ancona vertical speed from L2B points next to the official L3, correlation 0.93" width="100%">
 </p>
 
-### Always use the newest release
+### Always use the newest release, and know what it covers
 
 ```python
+from datetime import date
+
+from egms_client.releases import age_days, window
+
 release = (await archive.releases())[-1]  # sorted oldest first
+w = window(release)  # level L3 by default
+print(w.text())  # 2020-12-09 to 2025-11-19: not the years of the name
+print(age_days(w, date.today()))  # how old the newest measurement is
 ```
+
+A release is named by years, but its window is shorter: the 2020-2025 L3
+series start on 9 December 2020. Where the dates have not been read from a
+file yet, `window` says so (`exact` is `False`) instead of guessing.
+`egms releases --check` exits 1 when the archive lists a release this
+version has not seen: the weekly live check runs the same test.
 
 ### Handle errors
 
@@ -720,6 +733,8 @@ library handles all of these for you:
 | relative orbit `22` | `Invalid relative orbit`: it must be the string `"022"` | pads it for you |
 | a bbox in any other shape than `[[w, s], [e, n]]` | `An error occurred processing the search` | builds the right shape |
 | a box of 7° × 7° | `Requested area is too large` (5° × 5° passes) | splits it and merges the results |
+| reading `2020-2025` as Jan 2020 – Dec 2025 | the L3 series run from **9 Dec 2020** to **19 Nov 2025** | `releases.window("2020-2025")` gives the real dates |
+| a valid token, now and then | HTTP **200** `Please log in` (once in 15 calls on 23 Nov 2026) | asks for a new token and tries once more |
 | a third download at the same time | HTTP **429** `At most 2 downloads may be performed simultaneously` (per account) | never more than 2 at once, whatever you ask |
 
 All checked against the live archive on 3 November 2026.
@@ -756,6 +771,7 @@ All checked against the live archive on 3 November 2026.
 | `mosaic.to_xarray(m)` / `tables.to_xarray(df)` | A map over `(y, x)`, series over `(pid, time)`, as `xarray.DataArray` (extra `xarray`). |
 | `analysis.fit(df, start=, end=)` / `.trend_change(df)` / `.unwrapping_jumps(df)` | The archive's model on any window, with the seasonal peak; the date a velocity changes; ±27.7 mm processing steps. |
 | `reliability.trust(tiffs, lon, lat, attributes=)` / `.coverage_map(values)` | How far to trust the velocity at a point: score, coverage, reasons, regional median; the coverage of every cell of a grid. |
+| `releases.window(release, level)` / `.age_days(w, today)` / `.new_releases(published)` | The real dates a release covers; how old it is; releases this version has not seen (`egms releases --check`). |
 | `EgmsError` | The server answered, but refused. |
 
 Lower level, for your own HTTP layer: `token_request` / `parse_token`,

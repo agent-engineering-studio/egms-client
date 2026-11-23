@@ -32,6 +32,12 @@ All notable changes to this project are documented here. The format follows
 - `make help`, `make notebooks` (runs them all; needs the CLMS key) and
   `make clean`; a dependency group `examples` for the notebooks.
 
+### Fixed
+
+- A valid token answered with HTTP 200 "Please log in" (seen once in 15
+  calls of the live check on 23 November 2026): the client asks for a new
+  token and tries once more; a second refusal raises `EgmsError`.
+
 ## [0.7.0] - 2026-11-04
 
 ### Added
