@@ -809,6 +809,8 @@ All checked against the live archive on 3 November 2026.
 | `mosaic.to_xarray(m)` / `tables.to_xarray(df)` | A map over `(y, x)`, series over `(pid, time)`, as `xarray.DataArray` (extra `xarray`). |
 | `analysis.fit(df, start=, end=)` / `.trend_change(df)` / `.unwrapping_jumps(df)` | The archive's model on any window, with the seasonal peak; the date a velocity changes; ±27.7 mm processing steps. |
 | `reliability.trust(tiffs, lon, lat, attributes=)` / `.coverage_map(values)` | How far to trust the velocity at a point: score, coverage, reasons, regional median; the coverage of every cell of a grid. |
+| `facts.velocity(tiffs, lon, lat, release=)` / `.area(...)` / `.moving_points(...)` | Answers as data for people and agents: every number with release, window, files, reliability, licence, notes. |
+| `check.words(facts, lang)` / `.check_text` / `.check_signs` / `.check_claims` | A text in English or Italian that only quotes the facts; checks for invented numbers, flipped signs, swaps. |
 | `cells.per_cell(cells, up, east, acceleration=, seasonality=, rmse=)` / `.square_cells(...)` / `.on_grid(frame, column, like)` / `.to_frame(stats)` | Per-cell statistics for a model: medians and tails with their sign, signed acceleration on the velocity's pixels, valid pixels, score; `None` where not measured. |
 | `releases.window(release, level)` / `.age_days(w, today)` / `.new_releases(published)` | The real dates a release covers; how old it is; releases this version has not seen (`egms releases --check`). |
 | `EgmsError` | The server answered, but refused. |
@@ -832,15 +834,38 @@ is computed from the data:
 |---|---|
 | `releases` | the published releases |
 | `find_files(west, south, east, north, level)` | the files over a box and their size; nothing downloaded |
-| `velocity_at(lon, lat, component)` | the L3 velocity of the 100 m cell at a point |
+| `velocity_at(lon, lat, component)` | the L3 velocity of the 100 m cell at a point, how far to trust it, its surroundings |
 | `area_summary(west, south, east, north, component)` | coverage, mean, percentiles, share sinking / rising, the 5 fastest cells |
+| `moving_points(west, south, east, north, component, threshold)` | the cells that move against the median of the box, each reliable or not |
+| `check_answer(text, facts, lang)` | the numbers of a text the facts do not hold, the wrong signs, the swaps |
 
-Every answer names its release and files. The server's instructions tell
-the model to quote numbers only as returned, and never to turn a velocity
-into a safety verdict. `area_summary` downloads at most `--max-tiles` L3
-tiles per box (9 by default, about 60 MB each, kept for the next call).
-The key stays in the server's environment and never enters the
-conversation.
+Every answer is **facts** ([`egms_client.facts`](https://agentengineering.it/egms-client/api/facts/)):
+each number with its release, its window (when the satellites measured),
+the files it was read from, how far to trust it, the licence and notes. The
+server's instructions tell the model to quote numbers only as returned, to
+keep their sign, to say how far to trust them and when the data stop, never
+to turn a velocity into a safety verdict, and to pass its text to
+`check_answer` before answering. `area_summary` and `moving_points`
+download at most `--max-tiles` L3 tiles per box (9 by default, about 60 MB
+each, kept for the next call). The key stays in the server's environment
+and never enters the conversation.
+
+### Words that only quote the facts
+
+```python
+from egms_client.check import check_claims, check_signs, check_text, words
+
+text = words(facts, "it")  # a template: every number is one of the facts
+check_text(model_text, facts)  # numbers the facts do not hold
+check_signs(model_text, facts)  # "sinks by 4.5" where the facts give +4.5
+```
+
+From a shell: `egms check answer.md facts.json --lang it` (exit 1 on any
+problem). A fidelity set of 6 questions, scored offline in CI, measures
+what the checks catch: in hand-written answers with known faults, they
+catch 8 of 17 faults without a model. What they miss are swaps (a real
+number said of the wrong fact) and "0.0" for a place not measured. See
+[the AI layer](https://agentengineering.it/egms-client/ai/).
 
 In Claude Code:
 

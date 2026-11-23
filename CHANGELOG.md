@@ -8,6 +8,25 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `egms_client.facts` (extra `raster`): `velocity`, `area` and
+  `moving_points` give answers as data. Each number comes with its release,
+  its window, the files, its reliability, the licence and notes. A place
+  with no cell is `measured: false` and `null`.
+- `egms_client.check`, which needs no extra. `words(facts, lang)` writes the
+  answer from a template in English or Italian and checks it before it
+  returns. `check_text` finds numbers the facts do not hold. `check_signs`
+  finds a number said to go down that the facts hold as rising, and the
+  reverse. `check_claims` finds a number said of the wrong fact in the
+  template's sentences. New command `egms check text facts.json --lang it`.
+- The MCP server answers with the facts. `velocity_at` now carries
+  reliability, surroundings, window and licence, and it returns `files`
+  instead of `file`. There are two new tools: `moving_points` and
+  `check_answer`. The instructions ask the model to keep the sign, to say
+  how far to trust a number, and to check its text.
+- A fidelity set (`benchmarks/faithful.py`, `faithful.json`): 6 questions
+  with their facts from the crops and hand answers, scored offline in CI.
+  In answers with known faults, the checks without a model catch 8 of 17.
+  `ask` and `label` (paid) are not run yet.
 - `egms_client.cells` (extra `raster`): `per_cell(cells, up, east,
   acceleration=, seasonality=, rmse=)` gives per-cell statistics for a
   model. A cell with no pixel gives `None`, never 0.0. The medians and tails
@@ -44,6 +63,12 @@ All notable changes to this project are documented here. The format follows
   `bench-data` workflow with the repository secret.
 - `make help`, `make notebooks` (runs them all; needs the CLMS key) and
   `make clean`; a dependency group `examples` for the notebooks.
+
+### Changed
+
+- `mcp_server.summarize` moved to `egms_client.facts.summarize` (still
+  importable from `mcp_server`).
+- A velocity rounded to zero is `0.0`, never `-0.0`.
 
 ### Fixed
 

@@ -195,7 +195,8 @@ def _linear(value: float, good: float, bad: float) -> float:
 
 
 def _round(value: float | None) -> float | None:
-    return None if value is None else round(value, 2)
+    """Two decimals, and never -0.0: a velocity of zero has no direction."""
+    return None if value is None else round(value, 2) + 0.0
 
 
 __all__ = [

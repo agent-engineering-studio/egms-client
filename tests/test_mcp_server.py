@@ -131,10 +131,18 @@ def test_the_tools_and_their_instructions() -> None:
             return sorted(t.name for t in tools), velocity.input_schema, client.instructions or ""
 
     names, schema, instructions = asyncio.run(main())
-    assert names == ["area_summary", "find_files", "releases", "velocity_at"]
+    assert names == [
+        "area_summary",
+        "check_answer",
+        "find_files",
+        "moving_points",
+        "releases",
+        "velocity_at",
+    ]
     assert schema["required"] == ["lon", "lat"]
     assert schema["properties"]["component"]["enum"] == ["U", "E"]
     assert "not a safety verdict" in instructions
+    assert "check_answer" in instructions
 
 
 def test_releases(service_key: ServiceKey, tmp_path: Path) -> None:
@@ -161,14 +169,20 @@ def test_velocity_at_names_its_source(service_key: ServiceKey, tmp_path: Path) -
     point = _data(_call(service_key, tmp_path, "velocity_at", {"lon": lon, "lat": lat}))
     assert point["velocity_mm_per_year"] == -37
     assert point["release"] == "2020-2025"
-    assert (point["tile"], point["file"]) == ("E47N19", f"{STEM}.tiff")
+    assert (point["tile"], point["files"]) == ("E47N19", [f"{STEM}.tiff"])
     assert "positive up" in point["meaning"]
+    assert point["window"]["first"] == "2020-12-09"
+    assert point["reliability"]["coverage"] == 0.592  # the corner of the tile: no data beyond
+    assert point["reliability"]["reliable"]
+    assert "Copernicus" in point["licence"]
 
 
 def test_velocity_at_sea_is_null(service_key: ServiceKey, tmp_path: Path) -> None:
     lon, lat = _lonlat(4_050_000, 1_550_000)
     point = _data(_call(service_key, tmp_path, "velocity_at", {"lon": lon, "lat": lat}))
-    assert (point["velocity_mm_per_year"], point["file"]) == (None, None)
+    assert (point["velocity_mm_per_year"], point["files"], point["measured"]) == (None, [], False)
+    assert point["reliability"]["score"] == 0
+    assert "not zero" in point["notes"][0]
 
 
 def test_area_summary(service_key: ServiceKey, tmp_path: Path) -> None:
@@ -239,3 +253,32 @@ def test_egms_mcp_starts_the_server(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     )
     assert status == 0
     assert seen == {"directory": tmp_path, "max_tiles": 4, "key_file": key}
+
+
+def test_moving_points(service_key: ServiceKey, tmp_path: Path) -> None:
+    _tile(tmp_path)
+    found = _data(
+        _call(service_key, tmp_path, "moving_points", {**INNER, "threshold": 15, "limit": 3})
+    )
+    assert found["reference_median_mm_per_year"] == -0.5
+    assert found["moving"] == 4  # -17, -16, +15, +16: 15 or more from the median
+    assert [abs(c["relative_mm_per_year"]) for c in found["cells"]] == [16.5, 16.5, 15.5]
+    assert found["files"] == [f"{STEM}.tiff"] and found["tiles_without_data"] == []
+
+
+def test_check_answer(service_key: ServiceKey, tmp_path: Path) -> None:
+    facts = {"answer": "velocity", "velocity_mm_per_year": -4.2, "release": "2020-2025"}
+    good = _data(
+        _call(
+            service_key, tmp_path, "check_answer", {"text": "It sinks by 4.2 mm.", "facts": facts}
+        )
+    )
+    assert good["ok"] is True
+    bad = _data(
+        _call(
+            service_key, tmp_path, "check_answer", {"text": "It rises 4.2, not 5.", "facts": facts}
+        )
+    )
+    assert bad["ok"] is False
+    assert bad["numbers_not_in_facts"] == ["5"]
+    assert len(bad["wrong_sign"]) == 1

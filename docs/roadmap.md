@@ -127,11 +127,37 @@ inside. A check of the Bologna slowdown against a source.
 - [limen#701](https://github.com/agent-engineering-studio/limen/issues/701):
   drop the `Archivio` class for `EgmsArchive(retries=0)`.
 
-## 5 · The AI layer
+## 5 · The AI layer ✅
 
-`facts` (answers as data with release, window, reliability, licence), MCP
-tools on top of them, `check_text` against invented or swapped numbers, a
-fidelity set scored offline, `llms.txt` and the skill updated.
+[Facts first, then words](ai.md). [`facts`](api/facts.md) gives answers as
+data. Each number comes with its release, its window, its files, its
+reliability, the licence and notes. A place with no cell is `null`, never 0.
+The MCP tools return these facts. There are two new tools: `moving_points`
+and `check_answer`. [`check`](api/check.md) holds `words` (a template in
+Italian and English that is checked before it returns), `check_text`,
+`check_signs` and `check_claims`; `egms check` runs them from a shell. A
+fidelity set of 6 questions is scored offline in CI. `llms.txt` and the
+skill are updated (rule 13: quote the facts, then check).
+
+**Check:** the faithful hand answers score 57 of 57. In the answers with
+known faults, the checks without a model catch 8 of 17: every invented
+number and every flipped sign.
+
+**What it taught.** The checks miss 9 of the 17 faults, all of them swaps:
+a real number said of the wrong fact. One of them is "0,0" for the sea at
+Pozzuoli, which passes because 0.0 is in the facts (the coverage). That is
+why the scorer labels each number with its fact, and why the template has
+`check_claims`.
+
+**What is not there.** A model's answers: `ask` and `label` are written
+but not run, because they are paid calls and wait for the maintainer's
+yes. How faithful a model is, is **not measured** yet. Meaning beyond
+numbers ("390 not reliable" for 390 reliable) is not checked.
+
+**For Limen:** Limen's reviewer (`fedelta`) can reuse `check_signs` and the
+`unmeasured` rule. A sign flipped on a ground velocity, or "0" for a place
+not measured, is the fault that matters most for a risk text, and here the
+first is caught without a model.
 
 ## 6 · Docker, a page for a Comune, notebooks
 

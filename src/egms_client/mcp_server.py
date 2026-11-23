@@ -8,11 +8,17 @@ Desktop, Claude Code, IDE assistants):
   nothing downloaded;
 * ``velocity_at``: the L3 velocity of the 100 m cell at a point;
 * ``area_summary``: statistics of the L3 velocity over a box, and its
-  fastest cells.
+  fastest cells;
+* ``moving_points``: the cells of a box that move against the median of the
+  box, each with how far to trust it;
+* ``check_answer``: the numbers of a text that the facts do not hold, the
+  ones with the wrong sign, and the ones said of the wrong fact.
 
-Every answer names the release and the files it was computed from. The
-numbers come from the data, never from the model: the tools return them,
-and the client only words them. Downloads are bounded: ``area_summary``
+The answers are facts (:mod:`egms_client.facts`): every number with its
+release, its window, the files it was read from, how far to trust it, the
+licence and notes. The numbers come from the data, never from the model:
+the tools return them, the client only words them, and ``check_answer``
+reads the words back. Downloads are bounded: ``area_summary``
 refuses a box touching more than ``max_tiles`` L3 tiles (about 60 MB each,
 kept in ``directory`` for the next call). The service key is read from the
 server's environment (``EGMS_SERVICE_KEY_FILE`` or ``EGMS_SERVICE_KEY``) and
@@ -21,7 +27,6 @@ never passes through the conversation.
 
 from __future__ import annotations
 
-import math
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -34,7 +39,7 @@ from egms_client.archive import Component, Query, tile_id, tiles_for_bounds
 from egms_client.auth import ServiceKey
 from egms_client.client import EgmsArchive, default_directory
 from egms_client.errors import EgmsError
-from egms_client.releases import window
+from egms_client.facts import summarize
 
 #: L3 tiles ``area_summary`` downloads at most for one box (~60 MB each).
 MAX_TILES = 9
@@ -52,6 +57,10 @@ ground moves across Europe, measured by Sentinel-1 radar (InSAR), in mm/year.
 - Quote numbers only as the tools return them, with their release, window
   and file. The window is when the satellites measured: say that the data
   stops there, and do not describe the ground of today with it.
+- Say how far to trust a number (reliability: score, coverage, reasons).
+  null is "not measured", never zero. Keep the sign: negative "U" is down.
+- Before answering, pass your text and the facts to check_answer, and fix
+  what it finds.
   A velocity is evidence, not a safety verdict: do not tell anyone that a
   building, slope or area is safe or dangerous.
 - Boxes are west, south, east, north in degrees. Use find_files to check
@@ -79,50 +88,11 @@ class FilesFound(TypedDict):
     truncated: bool
 
 
-class Velocity(TypedDict):
-    lon: float
-    lat: float
-    component: str
-    meaning: str
-    velocity_mm_per_year: float | None
-    release: str
-    window: str
-    tile: str
-    file: str | None
-
-
-class Cell(TypedDict):
-    lon: float
-    lat: float
-    velocity_mm_per_year: float
-
-
-class AreaSummary(TypedDict):
-    component: str
-    meaning: str
-    release: str
-    window: str
-    box: list[float]
-    cells_with_data: int
-    coverage: float
-    mean: float | None
-    median: float | None
-    p5: float | None
-    p95: float | None
-    min: float | None
-    max: float | None
-    stable_band_mm_per_year: float
-    share_below: float | None
-    share_above: float | None
-    fastest: list[Cell]
-    files: list[str]
-    tiles_without_data: list[str]
-
-
-MEANING: dict[Component, str] = {
-    "U": "vertical: positive up, negative down (subsidence)",
-    "E": "east-west: positive east, negative west",
-}
+class Checked(TypedDict):
+    ok: bool
+    numbers_not_in_facts: list[str]
+    wrong_sign: list[str]
+    wrong_fact: list[str]
 
 
 def create_server(
@@ -225,26 +195,53 @@ def create_server(
         lat: float,
         component: Literal["U", "E"] = "U",
         release: str | None = None,
-    ) -> Velocity:
+    ) -> dict[str, Any]:
         """The EGMS Ortho L3 velocity (mm/year) of the 100 m cell at a point in degrees.
 
         component "U" is vertical, "E" east-west. velocity_mm_per_year is null
         where EGMS has no measurement (sea, outside coverage, a cell without
-        data). Downloads the point's tile once (~60 MB). release defaults to
-        the latest.
+        data): not measured, not zero. With it: how far to trust it
+        (reliability), the median of its surroundings within the tile, the
+        release window, the file, the licence. Downloads the point's tile once
+        (~60 MB). release defaults to the latest.
         """
+        from egms_client import facts
+
         point = await _guard(connect().velocity_at(lon, lat, component, release, folder))
-        return Velocity(
-            lon=lon,
-            lat=lat,
+        answer = facts.velocity(
+            [point.file] if point.file else [],
+            lon,
+            lat,
             component=component,
-            meaning=MEANING[component],
-            velocity_mm_per_year=_round(point.velocity),
             release=point.release,
-            window=window(point.release).text(),
-            tile=tile_id(point.tile),
-            file=point.file.name if point.file else None,
         )
+        return answer | {"tile": tile_id(point.tile)}
+
+    async def tiles_over(
+        box: tuple[float, float, float, float], component: Component, release: str
+    ) -> tuple[list[Path], list[str]]:
+        west, south, east, north = box
+        if not (west < east and south < north):
+            raise ToolError(
+                "the box is west, south, east, north, with west < east and south < north"
+            )
+        from egms_client.mosaic import lonlat_to_laea
+
+        tiles = tiles_for_bounds(*lonlat_to_laea(west, south, east, north))
+        if len(tiles) > max_tiles:
+            raise ToolError(
+                f"the box touches {len(tiles)} L3 tiles (about {len(tiles) * 60} MB); "
+                f"this server downloads at most {max_tiles}. Narrow the box."
+            )
+        tiffs: list[Path] = []
+        absent: list[str] = []
+        for tile in tiles:
+            tiff = await _guard(connect().fetch_tile(tile, component, release, folder))
+            if tiff is None:
+                absent.append(tile_id(tile))
+            else:
+                tiffs.append(tiff)
+        return tiffs, absent
 
     @server.tool()
     async def area_summary(
@@ -255,139 +252,84 @@ def create_server(
         component: Literal["U", "E"] = "U",
         release: str | None = None,
         stable_band: float = 2.0,
-    ) -> AreaSummary:
+    ) -> dict[str, Any]:
         """Statistics of the EGMS Ortho L3 velocity (mm/year) over a box in degrees.
 
         Returns coverage, mean, median, percentiles, the share of cells below
         -stable_band and above +stable_band mm/year (for "U": sinking and
-        rising), and the 5 fastest cells. Downloads the L3 tiles the box
-        touches, once; a box touching more than the server's tile limit is
-        refused (narrow it). release defaults to the latest.
+        rising), and the 5 fastest cells, with the release window, files,
+        licence and notes. Downloads the L3 tiles the box touches, once; a
+        box touching more than the server's tile limit is refused (narrow
+        it). release defaults to the latest.
         """
-        if not (west < east and south < north):
-            raise ToolError(
-                "the box is west, south, east, north, with west < east and south < north"
-            )
-        from egms_client.mosaic import lonlat_to_laea
+        from egms_client import facts
 
+        box = (west, south, east, north)
         chosen = await _guard(latest(release))
-        minx, miny, maxx, maxy = lonlat_to_laea(west, south, east, north)
-        tiles = tiles_for_bounds(minx, miny, maxx, maxy)
-        if len(tiles) > max_tiles:
-            raise ToolError(
-                f"the box touches {len(tiles)} L3 tiles (about {len(tiles) * 60} MB); "
-                f"this server downloads at most {max_tiles}. Narrow the box."
-            )
-        tiffs: list[Path] = []
-        absent: list[str] = []
-        for tile in tiles:
-            tiff = await _guard(connect().fetch_tile(tile, component, chosen, folder))
-            if tiff is None:
-                absent.append(tile_id(tile))
-            else:
-                tiffs.append(tiff)
-        summary = summarize(
-            tiffs,
-            box=(west, south, east, north),
-            stable_band=stable_band,
+        tiffs, absent = await tiles_over(box, component, chosen)
+        answer = facts.area(
+            tiffs, box, component=component, release=chosen, stable_band=stable_band
         )
-        return AreaSummary(
+        return answer | {"tiles_without_data": absent}
+
+    @server.tool()
+    async def moving_points(
+        west: float,
+        south: float,
+        east: float,
+        north: float,
+        component: Literal["U", "E"] = "U",
+        release: str | None = None,
+        threshold: float = 5.0,
+        limit: int = 10,
+    ) -> dict[str, Any]:
+        """The cells of a box that move against the box's median, fastest first.
+
+        A cell moves when its velocity differs from the median of the box by
+        threshold mm/year or more (EGMS velocities carry regional offsets, so
+        the median, not zero, is the reference). Each cell says whether its
+        neighbourhood is well measured (reliable). Same downloads and limits
+        as area_summary. release defaults to the latest.
+        """
+        from egms_client import facts
+
+        box = (west, south, east, north)
+        chosen = await _guard(latest(release))
+        tiffs, absent = await tiles_over(box, component, chosen)
+        answer = facts.moving_points(
+            tiffs,
+            box,
             component=component,
-            meaning=MEANING[component],
             release=chosen,
-            window=window(chosen).text(),
-            box=[west, south, east, north],
-            stable_band_mm_per_year=stable_band,
-            files=[t.name for t in tiffs],
-            tiles_without_data=absent,
-            **summary,
+            threshold=threshold,
+            limit=max(1, min(limit, 50)),
+        )
+        return answer | {"tiles_without_data": absent}
+
+    @server.tool()
+    async def check_answer(
+        text: str, facts: dict[str, Any], lang: Literal["en", "it"] = "en"
+    ) -> Checked:
+        """Check a text against the facts a tool returned, before giving it to a person.
+
+        Lists the numbers of the text that the facts do not hold, the ones
+        with the wrong sign ("sinks by 4" where the facts give +4), and the
+        ones said of the wrong fact. ok is true when all three are empty.
+        No download.
+        """
+        from egms_client.check import check_claims, check_signs, check_text
+
+        strangers = check_text(text, facts, lang=lang)
+        signs = [str(m) for m in check_signs(text, facts, lang=lang)]
+        claims = [str(m) for m in check_claims(text, facts, lang=lang)]
+        return Checked(
+            ok=not (strangers or signs or claims),
+            numbers_not_in_facts=strangers,
+            wrong_sign=signs,
+            wrong_fact=claims,
         )
 
     return server
-
-
-class _Stats(TypedDict):
-    cells_with_data: int
-    coverage: float
-    mean: float | None
-    median: float | None
-    p5: float | None
-    p95: float | None
-    min: float | None
-    max: float | None
-    share_below: float | None
-    share_above: float | None
-    fastest: list[Cell]
-
-
-def summarize(
-    tiffs: list[Path],
-    *,
-    box: tuple[float, float, float, float],
-    stable_band: float = 2.0,
-    fastest: int = 5,
-) -> _Stats:
-    """The statistics ``area_summary`` returns, over the cells inside a box in degrees.
-
-    Only cells whose centre falls inside the box count (the box is curved
-    in EPSG:3035, so its bounding rectangle holds more). Pure: no network.
-    """
-    import numpy as np
-    from pyproj import Transformer
-
-    from egms_client.mosaic import lonlat_to_laea, mosaic
-
-    west, south, east, north = box
-    minx, miny, maxx, maxy = lonlat_to_laea(west, south, east, north)
-    m = mosaic(tiffs, minx=minx, miny=miny, maxx=maxx, maxy=maxy)
-    rows, cols = m.values.shape
-    x = m.left + (np.arange(cols) + 0.5) * m.pixel
-    y = m.top - (np.arange(rows) + 0.5) * m.pixel
-    xx, yy = np.meshgrid(x, y)
-    to_lonlat = Transformer.from_crs("EPSG:3035", "EPSG:4326", always_xy=True)
-    lon, lat = to_lonlat.transform(xx, yy)
-    inside = (lon >= west) & (lon <= east) & (lat >= south) & (lat <= north)
-    values = m.values[inside]
-    valid = values[~np.isnan(values)]
-    n = int(valid.size)
-    if n == 0:
-        return _Stats(
-            cells_with_data=0,
-            coverage=0.0,
-            mean=None,
-            median=None,
-            p5=None,
-            p95=None,
-            min=None,
-            max=None,
-            share_below=None,
-            share_above=None,
-            fastest=[],
-        )
-    data = np.where(inside, m.values, np.nan)
-    order = np.argsort(-np.nan_to_num(np.abs(data), nan=-1.0), axis=None)[:fastest]
-    top = [
-        Cell(
-            lon=round(float(lon.flat[i]), 5),
-            lat=round(float(lat.flat[i]), 5),
-            velocity_mm_per_year=round(float(data.flat[i]), 1),
-        )
-        for i in order
-        if not math.isnan(float(data.flat[i]))
-    ]
-    return _Stats(
-        cells_with_data=n,
-        coverage=round(n / max(int(inside.sum()), 1), 3),
-        mean=_round(float(valid.mean())),
-        median=_round(float(np.median(valid))),
-        p5=_round(float(np.percentile(valid, 5))),
-        p95=_round(float(np.percentile(valid, 95))),
-        min=_round(float(valid.min())),
-        max=_round(float(valid.max())),
-        share_below=round(float((valid < -stable_band).mean()), 3),
-        share_above=round(float((valid > stable_band).mean()), 3),
-        fastest=top,
-    )
 
 
 def run(**options: Any) -> None:
@@ -403,10 +345,6 @@ async def _guard[T](call: Awaitable[T]) -> T:
         raise ToolError(str(exc)) from exc
     except ImportError as exc:
         raise ToolError(f"{exc}: pip install 'egms-client[mcp]'") from exc
-
-
-def _round(value: float | None) -> float | None:
-    return None if value is None else round(value, 2)
 
 
 __all__ = ["MAX_TILES", "create_server", "run", "summarize"]

@@ -35,8 +35,9 @@ notebooks: ## Run every notebook (needs the CLMS key); figures go to docs/images
 		uv run --group examples jupyter nbconvert --to notebook --execute --stdout "$$nb" > /dev/null || exit 1; \
 	done
 
-bench: ## Score the known cases offline, against benchmarks/results.json
+bench: ## Score the known cases and the fidelity set offline, as CI does
 	uv run python -m benchmarks.run --check
+	uv run python -m benchmarks.faithful score --check
 
 clean: ## Remove what the targets build (downloaded data stays)
 	rm -rf dist site htmlcov .coverage .pytest_cache .mypy_cache .ruff_cache
