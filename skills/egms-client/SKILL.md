@@ -93,6 +93,20 @@ asyncio.run(main())
   Use `fit(table, start=...)` for a shorter window (the last year),
   `trend_change` for the date a velocity changed, and `unwrapping_jumps` on L2
   before trusting a fast point.
+- How far to trust a velocity: `from egms_client.reliability import trust`.
+  `trust(tiffs, lon, lat, attributes=l3_table)` gives `score` (0-1),
+  `reliable`, `coverage` (share of cells with a value within 500 m), the
+  `reasons`, and `regional_median` / `relative`. Report a velocity with its
+  reliability, and read it against its region, not against zero.
+- Per-cell features for a model: `from egms_client.cells import per_cell, square_cells, on_grid, to_frame`.
+  `per_cell(square_cells(minx, miny, maxx, maxy), up, east, acceleration=on_grid(l3_table, "acceleration", up))`
+  gives medians, tails (`vertical_p10`), signed acceleration, `valid_pixels`
+  and a score per cell; `None` where no pixel has a value.
+- Answers for people or agents: `from egms_client.facts import velocity, area, moving_points`.
+  Each returns a dict with the numbers and their `release`, `window`,
+  `files`, `reliability`, `licence` and `notes`. Word it with
+  `from egms_client.check import words` (`words(facts, "it")`), and check any
+  other text with `from egms_client.check import check_text, check_signs, check_claims`.
 - A file's real outline: `hit.covers(lon, lat)`. A burst is a tilted
   parallelogram, so its `bbox` claims points it does not contain.
 
@@ -118,20 +132,40 @@ asyncio.run(main())
 8. **Downloads are big.** One relative orbit is about 400 bursts and about
    90 GB per level. Always `find` first, report the size, and pass
    `max_bytes` (CLI: `--max-gb`, 10 by default).
-9. **Errors:** `EgmsError` means the server answered but refused. Its
+9. **No cell is not zero.** Where L3 has no value (forest, fields, snow,
+   sea) say "not measured". A velocity of 0 is a measurement; NaN is not.
+   Replacing NaN with 0 makes blind places look stable.
+10. **Still is not zero either.** Velocities carry regional offsets (+1.6
+   mm/year east-west on the Murge, a place that does not move). Compare
+   with the surroundings (`regional_median`) before calling a place moving.
+11. **A release name is not its window.** `2020-2025` holds acquisitions
+   from 9 Dec 2020 to 19 Nov 2025 (L3). Use
+   `egms_client.releases.window(release).text()` and say when the data
+   stops: it does not describe the ground of today.
+12. **Keep the sign, keep the mask.** Use the signed vertical acceleration
+   (`acceleration_median`, `acceleration_p10`), not `sqrt(E² + U²)`: a
+   magnitude cannot tell a slope speeding up from one slowing down, and turns
+   noise into a positive number (1.24 mm/year² at the still Murge). Compute
+   every statistic of a cell on the same pixels.
+13. **Quote the facts, then check.** Every number you write comes from a
+   tool's facts, with its release, window and reliability. Before giving the
+   text to a person, run `check_answer` (MCP) or `check_text` and
+   `check_signs`, and fix what they find. "0.0" is not an answer for a
+   place that is not measured.
+14. **Errors:** `EgmsError` means the server answered but refused. Its
    message is the archive's message, so show it rather than retrying
    blindly.
 
 ## Without writing code
 
 If the user only needs answers (not code), the MCP server may already be
-connected: tools `releases`, `find_files`, `velocity_at`, `area_summary`
-from `egms mcp` (extra `mcp`). Prefer them to downloading data by hand.
+connected: tools `releases`, `find_files`, `velocity_at`, `area_summary`,
+`moving_points` and `check_answer` from `egms mcp` (extra `mcp`). Prefer them to downloading data by hand.
 
 ## When reporting results
 
-State the release, the level, the component and the file(s) a number came
-from. Ground motion data is evidence, not a hazard assessment: do not
+State the release and its window, the level, the component and the file(s)
+a number came from, and how far to trust it (`reliability.trust`). Ground motion data is evidence, not a hazard assessment: do not
 present a velocity as a safety verdict on a building or slope.
 
 Data: EGMS, © European Union, Copernicus Land Monitoring Service.

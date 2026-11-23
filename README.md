@@ -284,7 +284,7 @@ Three stories with real data, from download to figure, in [`notebooks/`](https:/
 Five places where the answer is already known, from sources outside EGMS:
 Campi Flegrei rising, Bologna sinking, the Murge still, a forest where the
 radar is blind, and the Ancona landslide. CI scores them offline on small
-crops of the real archive: **11 of 13** checks pass, and the two that fail
+crops of the real archive: **21 of 23** checks pass, and the two that fail
 are kept, because they show that a still place is not at zero east-west
 (+1.6 mm/year at the Murge). See the
 [benchmark](https://agentengineering.it/egms-client/benchmark/).
@@ -449,6 +449,36 @@ Only the point's tile is downloaded (once), so more points nearby cost
 nothing. `component="E"` gives east-west. `velocity` is `None` where EGMS
 has no measurement (sea, or a cell without data). Needs the `raster` extra.
 
+### How far to trust a velocity
+
+EGMS gives a velocity wherever the radar found something stable to
+measure, and nothing elsewhere. `reliability.trust` says how much a number
+at a point can be trusted, from what the archive gives:
+
+```python
+from egms_client.reliability import trust
+
+r = trust(tiffs, 14.1205, 40.8225)  # the L3 GeoTIFFs around Pozzuoli
+print(r.velocity, r.reliable, r.score)  # 145.2 True 1.0
+print(r.coverage)  # 0.762: 76 % of the cells within 500 m have a value
+print(r.regional_median, r.relative)  # 26.3, 118.9: against the 5 km around it
+```
+
+- `coverage` is the share of cells with a value within 500 m. In a forest
+  it falls to a few per cent: a lone cell there is not to trust, and no
+  cell is **not measured**, never zero.
+- With the L3 CSV as `attributes=`, the fit of the series (`rmse_ts`)
+  counts too.
+- `score` is the smallest known part, `reliable` is `score >= 0.5`, and
+  `reasons` says what pulled it down.
+- `regional_median` and `relative`: a still place is not at zero (+1.6
+  mm/year east-west on the Murge), so read a velocity against its region.
+
+It is an estimate made from outside: EGMS publishes no such map. It cannot
+see motion too fast for InSAR, north-south motion, or anything after the
+release window. The thresholds are checked on the
+[benchmark](https://agentengineering.it/egms-client/benchmark/).
+
 ### Without async
 
 Scripts and notebooks that would rather not `await` can use
@@ -601,11 +631,61 @@ vertical, median difference 0.6 mm/year.
   <img src="https://raw.githubusercontent.com/agent-engineering-studio/egms-client/main/docs/images/decompose-ancona.png" alt="Ancona vertical speed from L2B points next to the official L3, correlation 0.93" width="100%">
 </p>
 
-### Always use the newest release
+### Cells for a model: missing stays missing, signs stay
+
+A model works on cells (1 km squares, say), not on 100 m pixels. `cells`
+gives, for each cell, what its pixels say: the vertical median and its tails
+(`vertical_p10`: the pixels sinking most), the east-west median, the signed
+vertical acceleration, the seasonality, how many pixels have a value, and a
+score.
 
 ```python
-release = (await archive.releases())[-1]  # sorted oldest first
+import pandas as pd
+
+from egms_client.cells import on_grid, per_cell, square_cells, to_frame
+from egms_client.mosaic import mosaic
+
+box = dict(minx=4_450_000, miny=2_010_000, maxx=4_470_000, maxy=2_030_000)  # EPSG:3035
+# up_tiffs, east_tiffs: the L3 tiles over the box, from fetch_tile (component U, then E)
+up = mosaic(up_tiffs, **box)
+east = mosaic(east_tiffs, **box)
+attributes = pd.read_parquet("egms/EGMS_L3_E44N20_100km_U_2020_2025_1.parquet")
+stats = per_cell(
+    square_cells(**box, size_m=1_000),
+    up,
+    east,
+    acceleration=on_grid(attributes, "acceleration", up),
+    seasonality=on_grid(attributes, "seasonality", up),
+    rmse=on_grid(attributes, "rmse_ts", up),
+)
+table = to_frame(stats)  # one row per cell; NaN where not measured, never 0
 ```
+
+Three rules a model breaks easily. A cell with no pixel gives `None`, not
+0.0: in the Foresta Umbra 74 % of the kilometres are not measured, and 0.0
+would call them still. The acceleration keeps its sign: on the Rione Terra
+kilometre it is +16.8 mm/year² (the uplift speeds up), at the Murge -0.02
+(still). The magnitude `sqrt(E² + U²)` gives 1.24 at the Murge: noise made
+positive. Every statistic uses the same pixels, those with a velocity.
+
+### Always use the newest release, and know what it covers
+
+```python
+from datetime import date
+
+from egms_client.releases import age_days, window
+
+release = (await archive.releases())[-1]  # sorted oldest first
+w = window(release)  # level L3 by default
+print(w.text())  # 2020-12-09 to 2025-11-19: not the years of the name
+print(age_days(w, date.today()))  # how old the newest measurement is
+```
+
+A release is named by years, but its window is shorter: the 2020-2025 L3
+series start on 9 December 2020. Where the dates have not been read from a
+file yet, `window` says so (`exact` is `False`) instead of guessing.
+`egms releases --check` exits 1 when the archive lists a release this
+version has not seen: the weekly live check runs the same test.
 
 ### Handle errors
 
@@ -690,6 +770,9 @@ library handles all of these for you:
 | relative orbit `22` | `Invalid relative orbit`: it must be the string `"022"` | pads it for you |
 | a bbox in any other shape than `[[w, s], [e, n]]` | `An error occurred processing the search` | builds the right shape |
 | a box of 7° × 7° | `Requested area is too large` (5° × 5° passes) | splits it and merges the results |
+| reading `2020-2025` as Jan 2020 – Dec 2025 | the L3 series run from **9 Dec 2020** to **19 Nov 2025** | `releases.window("2020-2025")` gives the real dates |
+| filling a cell with no pixel with 0.0 | a forest becomes "still ground" for a model | `cells.per_cell` gives `None` and `valid_pixels == 0` |
+| a valid token, now and then | HTTP **200** `Please log in` (once in 15 calls on 23 Nov 2026) | asks for a new token and tries once more |
 | a third download at the same time | HTTP **429** `At most 2 downloads may be performed simultaneously` (per account) | never more than 2 at once, whatever you ask |
 
 All checked against the live archive on 3 November 2026.
@@ -725,6 +808,11 @@ All checked against the live archive on 3 November 2026.
 | `tables.csv_to_geoparquet(csv)` / `.to_geoparquet(df, path)` | GeoParquet, points in EPSG:3035. |
 | `mosaic.to_xarray(m)` / `tables.to_xarray(df)` | A map over `(y, x)`, series over `(pid, time)`, as `xarray.DataArray` (extra `xarray`). |
 | `analysis.fit(df, start=, end=)` / `.trend_change(df)` / `.unwrapping_jumps(df)` | The archive's model on any window, with the seasonal peak; the date a velocity changes; ±27.7 mm processing steps. |
+| `reliability.trust(tiffs, lon, lat, attributes=)` / `.coverage_map(values)` | How far to trust the velocity at a point: score, coverage, reasons, regional median; the coverage of every cell of a grid. |
+| `facts.velocity(tiffs, lon, lat, release=)` / `.area(...)` / `.moving_points(...)` | Answers as data for people and agents: every number with release, window, files, reliability, licence, notes. |
+| `check.words(facts, lang)` / `.check_text` / `.check_signs` / `.check_claims` | A text in English or Italian that only quotes the facts; checks for invented numbers, flipped signs, swaps. |
+| `cells.per_cell(cells, up, east, acceleration=, seasonality=, rmse=)` / `.square_cells(...)` / `.on_grid(frame, column, like)` / `.to_frame(stats)` | Per-cell statistics for a model: medians and tails with their sign, signed acceleration on the velocity's pixels, valid pixels, score; `None` where not measured. |
+| `releases.window(release, level)` / `.age_days(w, today)` / `.new_releases(published)` | The real dates a release covers; how old it is; releases this version has not seen (`egms releases --check`). |
 | `EgmsError` | The server answered, but refused. |
 
 Lower level, for your own HTTP layer: `token_request` / `parse_token`,
@@ -746,15 +834,38 @@ is computed from the data:
 |---|---|
 | `releases` | the published releases |
 | `find_files(west, south, east, north, level)` | the files over a box and their size; nothing downloaded |
-| `velocity_at(lon, lat, component)` | the L3 velocity of the 100 m cell at a point |
+| `velocity_at(lon, lat, component)` | the L3 velocity of the 100 m cell at a point, how far to trust it, its surroundings |
 | `area_summary(west, south, east, north, component)` | coverage, mean, percentiles, share sinking / rising, the 5 fastest cells |
+| `moving_points(west, south, east, north, component, threshold)` | the cells that move against the median of the box, each reliable or not |
+| `check_answer(text, facts, lang)` | the numbers of a text the facts do not hold, the wrong signs, the swaps |
 
-Every answer names its release and files. The server's instructions tell
-the model to quote numbers only as returned, and never to turn a velocity
-into a safety verdict. `area_summary` downloads at most `--max-tiles` L3
-tiles per box (9 by default, about 60 MB each, kept for the next call).
-The key stays in the server's environment and never enters the
-conversation.
+Every answer is **facts** ([`egms_client.facts`](https://agentengineering.it/egms-client/api/facts/)):
+each number with its release, its window (when the satellites measured),
+the files it was read from, how far to trust it, the licence and notes. The
+server's instructions tell the model to quote numbers only as returned, to
+keep their sign, to say how far to trust them and when the data stop, never
+to turn a velocity into a safety verdict, and to pass its text to
+`check_answer` before answering. `area_summary` and `moving_points`
+download at most `--max-tiles` L3 tiles per box (9 by default, about 60 MB
+each, kept for the next call). The key stays in the server's environment
+and never enters the conversation.
+
+### Words that only quote the facts
+
+```python
+from egms_client.check import check_claims, check_signs, check_text, words
+
+text = words(facts, "it")  # a template: every number is one of the facts
+check_text(model_text, facts)  # numbers the facts do not hold
+check_signs(model_text, facts)  # "sinks by 4.5" where the facts give +4.5
+```
+
+From a shell: `egms check answer.md facts.json --lang it` (exit 1 on any
+problem). A fidelity set of 6 questions, scored offline in CI, measures
+what the checks catch: in hand-written answers with known faults, they
+catch 8 of 17 faults without a model. What they miss are swaps (a real
+number said of the wrong fact) and "0.0" for a place not measured. See
+[the AI layer](https://agentengineering.it/egms-client/ai/).
 
 In Claude Code:
 

@@ -105,12 +105,59 @@ def _fit(case: dict[str, Any], check: dict[str, Any]) -> float | None:
     return float(np.nanmedian(diff))
 
 
+def _reliable(case: dict[str, Any], check: dict[str, Any]) -> float | None:
+    import pandas as pd
+
+    from egms_client.reliability import trust
+
+    folder = DATA / case["id"]
+    attributes = pd.read_parquet(folder / "l3.parquet")
+    tiff = folder / f"{check.get('component', 'U')}.tif"
+    return trust([tiff], check["lon"], check["lat"], attributes=attributes).score
+
+
+def _cells(case: dict[str, Any], check: dict[str, Any]) -> float | None:
+    """cells.per_cell on 1 km cells: one around a point, or all inside the crop."""
+    import numpy as np
+    import pandas as pd
+    import rasterio
+
+    from egms_client.cells import Cell, on_grid, per_cell, square_cells
+    from egms_client.mosaic import lonlat_to_xy, mosaic
+
+    folder = DATA / case["id"]
+    tiff = folder / "U.tif"
+    with rasterio.open(tiff) as src:
+        left, bottom, right, top = src.bounds
+    up = mosaic([tiff], minx=left, miny=bottom, maxx=right, maxy=top)
+    attributes = pd.read_parquet(folder / "l3.parquet")
+    if "lon" in check:
+        x, y = lonlat_to_xy(check["lon"], check["lat"])
+        cells = [Cell("here", x - 500, y - 500, x + 500, y + 500)]
+    else:
+        cells = [
+            c
+            for c in square_cells(left, bottom, right, top)
+            if c.minx >= left and c.maxx <= right and c.miny >= bottom and c.maxy <= top
+        ]
+    stats = per_cell(cells, up, acceleration=on_grid(attributes, "acceleration", up))
+    if check["stat"] == "share_not_measured":
+        return sum(s.valid_pixels == 0 for s in stats) / len(stats)
+    values = [getattr(s, check["field"]) for s in stats]
+    known = [v for v in values if v is not None]
+    if not known:
+        return None
+    return float(np.median(known)) if check["stat"] == "median" else float(known[0])
+
+
 METHODS: dict[str, Callable[[dict[str, Any], dict[str, Any]], float | None]] = {
     "value": _value,
     "area": _area,
     "points": _points,
     "decompose": _decompose,
     "fit": _fit,
+    "reliable": _reliable,
+    "cells": _cells,
 }
 
 
@@ -148,7 +195,9 @@ def _expected(check: dict[str, Any]) -> str:
     if check.get("none"):
         return "not measured"
     low, high = check.get("min"), check.get("max")
-    stat = check.get("stat", "velocity")
+    stat = check.get("stat", "score" if check["kind"] == "reliable" else "velocity")
+    if check["kind"] == "cells" and "field" in check:
+        stat = check["field"] if stat == "value" else f"{stat} of {check['field']}"
     if low is not None and high is not None:
         return f"{low} ≤ {stat} ≤ {high}"
     return f"{stat} ≥ {low}" if low is not None else f"{stat} ≤ {high}"

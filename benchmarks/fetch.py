@@ -7,7 +7,8 @@ Needs the CLMS key (EGMS_SERVICE_KEY or EGMS_SERVICE_KEY_FILE) and about
 What it writes, per case, all small:
 
 * ``U.tif`` / ``E.tif``: the Ortho L3 velocity over the case box (COG);
-* ``l3.parquet``: the L3 cell attributes in the box (no series);
+* ``l3.parquet`` / ``l3-E.parquet``: the L3 cell attributes in the box, of
+  the vertical and (where the case has it) east-west grid; no series;
 * ``ascending.parquet`` / ``descending.parquet``: the L2B points of one
   burst per direction in the box, attributes only;
 * ``ascending-series.parquet`` / ...: the same points within
@@ -35,8 +36,17 @@ HERE = Path(__file__).parent
 CASES = HERE / "cases.toml"
 DATA = HERE / "data"
 
-#: L3 attributes kept per cell: what reliability needs, not the series.
-L3_COLUMNS = ["pid", "easting", "northing", "mean_velocity", "mean_velocity_std", "rmse_ts"]
+#: L3 attributes kept per cell: what reliability and cells need, not the series.
+L3_COLUMNS = [
+    "pid",
+    "easting",
+    "northing",
+    "mean_velocity",
+    "mean_velocity_std",
+    "rmse_ts",
+    "acceleration",
+    "seasonality",
+]
 
 #: L2 attributes kept per point.
 L2_COLUMNS = [
@@ -82,23 +92,23 @@ async def fetch_case(archive: EgmsArchive, case: dict[str, Any], release: str, c
         files[f"{component}.tif"] = [t.name for t in tiffs]
 
     if case.get("l3_attributes"):
-        component = case["l3"][0]
-        query = Query(
-            levels=("L3",),
-            release=release,
-            bbox=(west, south, east, north),
-            product_type="ORTHO-UP" if component == "U" else "ORTHO-EAST",
-        )
-        kept = await archive.fetch(query, cache, keep=["parquet"])
-        frames = []
-        for path in kept:
-            if f"_{component}_" not in path.name:
-                continue
-            p = pd.read_parquet(path, columns=L3_COLUMNS)
-            inside = p.easting.between(minx, maxx) & p.northing.between(miny, maxy)
-            frames.append(p[inside])
-        pd.concat(frames).to_parquet(out / "l3.parquet", index=False, compression="zstd")
-        files["l3.parquet"] = sorted(p.name for p in kept if f"_{component}_" in p.name)
+        for component in case["l3"]:
+            query = Query(
+                levels=("L3",),
+                release=release,
+                bbox=(west, south, east, north),
+                product_type="ORTHO-UP" if component == "U" else "ORTHO-EAST",
+            )
+            kept = await archive.fetch(query, cache, keep=["parquet"])
+            mine = [path for path in kept if f"_{component}_" in path.name]
+            frames = []
+            for path in mine:
+                p = pd.read_parquet(path, columns=L3_COLUMNS)
+                inside = p.easting.between(minx, maxx) & p.northing.between(miny, maxy)
+                frames.append(p[inside])
+            name = "l3.parquet" if component == "U" else f"l3-{component}.parquet"
+            pd.concat(frames).to_parquet(out / name, index=False, compression="zstd")
+            files[name] = sorted(path.name for path in mine)
 
     if case.get("l2b"):
         lon, lat = case["l2b_at"]

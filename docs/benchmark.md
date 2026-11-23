@@ -8,7 +8,7 @@ the data under test.
 Every check runs the library the way a user or the MCP server would, on
 small crops of the real archive committed in
 [`benchmarks/data/`](https://github.com/agent-engineering-studio/egms-client/tree/main/benchmarks/data)
-(9.5 MB, release 2020-2025, fetched on 23 November 2026). CI scores them
+(9.7 MB, release 2020-2025, fetched on 23 November 2026). CI scores them
 offline on every pull request: no key, no network.
 
 ```bash
@@ -37,20 +37,30 @@ uv run python -m benchmarks.fetch           # crop the cases again (needs the CL
 | campi-flegrei | Rione Terra, Pozzuoli | velocity ≥ 50.0 | 145.2 | ✅ |
 | campi-flegrei | the caldera rises | share_above ≥ 0.5 | 0.987 | ✅ |
 | campi-flegrei | the gulf of Pozzuoli (sea) | not measured | not measured | ✅ |
+| campi-flegrei | Rione Terra: a measured place | score ≥ 0.5 | 1 | ✅ |
+| campi-flegrei | the gulf of Pozzuoli: nothing to trust | score ≤ 0.49 | 0 | ✅ |
+| campi-flegrei | the Rione Terra kilometre: the uplift speeds up | acceleration_median ≥ 0.0 | 16.76 | ✅ |
 | bologna | a share of the plain sinks faster than 2 mm/year | share_below ≥ 0.1 | 0.966 | ✅ |
 | bologna | the fastest cells sink by more than 5 mm/year | p5 ≤ -5.0 | -11.3 | ✅ |
+| bologna | the plain north-east of the city: a measured place | score ≥ 0.5 | 1 | ✅ |
 | murge | vertical: almost every cell inside ±2 mm/year | share_below ≤ 0.05 | 0.052 | ❌ |
 | murge | vertical: almost no cell rising | share_above ≤ 0.05 | 0 | ✅ |
 | murge | east-west: the median is about zero | -1.0 ≤ median ≤ 1.0 | 1.6 | ❌ |
+| murge | Gioia del Colle: a measured place | score ≥ 0.5 | 1 | ✅ |
+| murge | a still place does not speed up either way | -0.5 ≤ median of acceleration_median ≤ 0.5 | -0.015 | ✅ |
 | foresta-umbra | most of the forest has no cell | coverage ≤ 0.5 | 0.007 | ✅ |
+| foresta-umbra | the forest: not measured | score ≤ 0.49 | 0 | ✅ |
+| foresta-umbra | a lone cell in the forest: a value, but not to trust | score ≤ 0.49 | 0.03 | ✅ |
+| foresta-umbra | most kilometres of the forest are not measured | share_not_measured ≥ 0.5 | 0.741 | ✅ |
 | ancona | the slope: coherent points that move away from the satellite | min ≤ -3.0 | -9.4 | ✅ |
 | ancona | vertical from L2B against L3 | correlation ≥ 0.85 | 0.925 | ✅ |
 | ancona | vertical from L2B against L3, median difference | median_abs_diff ≤ 1.5 | 0.603 | ✅ |
 | ancona | analysis.fit gives back the archive's mean_velocity | median_abs_diff ≤ 0.1 | 0.025 | ✅ |
+| ancona | the Posatora slope: a measured place | score ≥ 0.5 | 0.79 | ✅ |
 
-**11 of 13** checks pass.
+**21 of 23** checks pass.
 
-**Check:** 11 of 13. The two that fail are kept failing on purpose: they
+**Check:** 21 of 23. The two that fail are kept failing on purpose: they
 show where an expectation about EGMS was wrong.
 
 ## What it taught
@@ -65,9 +75,24 @@ show where an expectation about EGMS was wrong.
   have a value. At the Murge, open farmland, 45 % do. Where there is no
   cell, the answer is "not measured", and the benchmark checks that the
   sea at Pozzuoli gives exactly that.
+- **Blind, and a lone cell.** `reliability.trust` scores the forest 0
+  (no cell) and a lone cell inside it 0.03: it has a value, 1 % of its
+  neighbourhood has one. Every measured place of the benchmark scores 0.79
+  or more (Ancona, where 40 % of the cells around the slope have a value).
 - **The library gives back the archive.** `analysis.fit` reproduces the
   archive's own `mean_velocity` within 0.025 mm/year (median), and
   `decompose` matches L3 with correlation 0.93.
+- **An acceleration has a sign.** On the 1 km cell of Rione Terra the
+  vertical acceleration is +16.8 mm/year² (median of 67 pixels): the uplift
+  speeds up, as INGV says. At the Murge the median over 255 cells is -0.02:
+  still, as expected. There, 132 cells have a negative median and 119 a
+  positive one. The p90 of the magnitude `sqrt(E² + U²)`, as Limen computes
+  it, is 1.24 mm/year² in the median cell. A magnitude makes noise look like
+  a signal and cannot tell speeding up from slowing down.
+- **Sinking, but slower.** In the Bologna box the median cell sinks by 4.0
+  mm/year and its acceleration is +0.75 mm/year²: in 2020-2025 the sinking
+  slows down. A magnitude would read it as speeding up. This is what the data
+  say, not checked against a source yet.
 
 ## What is not there
 

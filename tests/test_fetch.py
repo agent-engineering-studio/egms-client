@@ -330,3 +330,15 @@ def test_a_download_stopped_midway_leaves_no_part(service_key: ServiceKey, tmp_p
     with pytest.raises(KeyboardInterrupt):
         asyncio.run(main())
     assert not list(tmp_path.glob("*.part"))
+
+
+def test_the_cli_checks_for_new_releases(
+    service_key: ServiceKey,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert _cli(Archive(), ["releases", "--check"], service_key, tmp_path) == 0
+    monkeypatch.setattr("egms_client.releases.KNOWN_RELEASES", ("2020-2024",))
+    assert _cli(Archive(), ["releases", "--check"], service_key, tmp_path) == 1
+    assert "new release(s) 2020-2025" in capsys.readouterr().err

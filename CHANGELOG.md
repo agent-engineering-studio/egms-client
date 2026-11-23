@@ -8,19 +8,73 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `egms_client.facts` (extra `raster`): `velocity`, `area` and
+  `moving_points` give answers as data. Each number comes with its release,
+  its window, the files, its reliability, the licence and notes. A place
+  with no cell is `measured: false` and `null`.
+- `egms_client.check`, which needs no extra. `words(facts, lang)` writes the
+  answer from a template in English or Italian and checks it before it
+  returns. `check_text` finds numbers the facts do not hold. `check_signs`
+  finds a number said to go down that the facts hold as rising, and the
+  reverse. `check_claims` finds a number said of the wrong fact in the
+  template's sentences. New command `egms check text facts.json --lang it`.
+- The MCP server answers with the facts. `velocity_at` now carries
+  reliability, surroundings, window and licence, and it returns `files`
+  instead of `file`. There are two new tools: `moving_points` and
+  `check_answer`. The instructions ask the model to keep the sign, to say
+  how far to trust a number, and to check its text.
+- A fidelity set (`benchmarks/faithful.py`, `faithful.json`): 6 questions
+  with their facts from the crops and hand answers, scored offline in CI.
+  In answers with known faults, the checks without a model catch 8 of 17.
+  `ask` and `label` (paid) are not run yet.
+- `egms_client.cells` (extra `raster`): `per_cell(cells, up, east,
+  acceleration=, seasonality=, rmse=)` gives per-cell statistics for a
+  model. A cell with no pixel gives `None`, never 0.0. The medians and tails
+  (`vertical_p10`, `vertical_p90`) keep their sign. The vertical
+  acceleration is signed (`acceleration_median`, `acceleration_p10`) and on
+  the same pixels as the velocity. `valid_pixels` counts 100 m pixels, not
+  radar targets. There is also a score from coverage and fit.
+  `square_cells`, `on_grid` (L3 attributes on the mosaic grid) and
+  `to_frame` come with it. A test checks parity with Limen's aggregation:
+  same pixels, medians and p90. Three new benchmark checks: the Rione Terra
+  kilometre speeds up (+16.8 mm/year²), the Murge does not (-0.02), and 74 %
+  of the Foresta Umbra kilometres are not measured. The crops now keep
+  `acceleration` and `seasonality`, and the east-west attributes.
 - `publiccode.yml` for the Developers Italia catalogue, checked in CI by the
   official parser, and `docs/riuso.md` for public bodies (in Italian).
 - A test that the package imports neither Limen nor any of its other
   libraries: only Limen joins them.
+- `egms_client.reliability` (extra `raster`): `trust(tiffs, lon, lat,
+  attributes=)` says how far to trust the L3 velocity at a point, as an
+  estimate declared as such (EGMS publishes no trust map): the share of
+  cells with a value within 500 m, the fit of the series (`rmse_ts`) when
+  the L3 CSV is given, a `score` (the smallest known part), `reliable`
+  from 0.5, the `reasons`, and the `regional_median` / `relative` velocity
+  within 5 km. No cell is "not measured", never zero. `coverage_map` does
+  the coverage for every cell of a grid. Seven new benchmark checks: the
+  blind places score below 0.5 (a lone cell in the Foresta Umbra 0.03),
+  the measured ones 0.79 or more.
 - A benchmark of known places (`benchmarks/`): Campi Flegrei, Bologna,
   the Murge, the Foresta Umbra and Ancona, scored offline on 9.5 MB of
   crops of the real archive, in CI with `--check` against
-  `benchmarks/results.json` (`make bench`). 11 of 13 checks pass; the two
+  `benchmarks/results.json` (`make bench`). 18 of 20 checks pass; the two
   that fail show that a still place is not at zero east-west (+1.6 mm/year
   at the Murge). `benchmarks/fetch.py` crops the cases again, in the
   `bench-data` workflow with the repository secret.
 - `make help`, `make notebooks` (runs them all; needs the CLMS key) and
   `make clean`; a dependency group `examples` for the notebooks.
+
+### Changed
+
+- `mcp_server.summarize` moved to `egms_client.facts.summarize` (still
+  importable from `mcp_server`).
+- A velocity rounded to zero is `0.0`, never `-0.0`.
+
+### Fixed
+
+- A valid token answered with HTTP 200 "Please log in" (seen once in 15
+  calls of the live check on 23 November 2026): the client asks for a new
+  token and tries once more; a second refusal raises `EgmsError`.
 
 ## [0.7.0] - 2026-11-04
 

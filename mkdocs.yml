@@ -68,6 +68,7 @@ nav:
   - Home: index.md
   - Notebooks: notebooks.md
   - Benchmark: benchmark.md
+  - The AI layer: ai.md
   - API reference:
       - Client: api/client.md
       - Client without async: api/sync.md
@@ -77,6 +78,11 @@ nav:
       - Tables and GeoParquet: api/tables.md
       - Maps from L2 points: api/decompose.md
       - Time-series analysis: api/analysis.md
+      - How far to trust it: api/reliability.md
+      - Releases and windows: api/releases.md
+      - Cells for a model: api/cells.md
+      - Facts for agents: api/facts.md
+      - Checking a text: api/check.md
       - Command line: api/cli.md
       - MCP server: api/mcp.md
       - Errors: api/errors.md

@@ -26,6 +26,7 @@ from egms_client.archive import LEVELS, PRODUCT_TYPES, Hit, Level, Query, parse_
 from egms_client.auth import ServiceKey
 from egms_client.client import EgmsArchive, Keep, default_directory
 from egms_client.errors import EgmsError
+from egms_client.releases import new_releases
 
 if TYPE_CHECKING:
     import httpx
@@ -39,6 +40,8 @@ def main(argv: Sequence[str] | None = None, *, client: httpx.AsyncClient | None 
             return _convert(args)
         if args.command == "mcp":
             return _mcp(args)
+        if args.command == "check":
+            return _check(args)
         key = ServiceKey.from_file(args.key_file) if args.key_file else ServiceKey.from_env()
         return asyncio.run(_run(args, key, client))
     except (EgmsError, LookupError, ValueError, OSError) as exc:
@@ -53,7 +56,15 @@ def main(argv: Sequence[str] | None = None, *, client: httpx.AsyncClient | None 
 async def _run(args: argparse.Namespace, key: ServiceKey, client: httpx.AsyncClient | None) -> int:
     async with EgmsArchive(client, key) as archive:
         if args.command == "releases":
-            print("\n".join(await archive.releases()))
+            published = await archive.releases()
+            print("\n".join(published))
+            if args.check and (new := new_releases(published)):
+                print(
+                    f"egms: new release(s) {', '.join(new)}: check the windows and the "
+                    "benchmark, then update egms_client.releases",
+                    file=sys.stderr,
+                )
+                return 1
             return 0
         if args.command == "levels":
             print("\n".join(await archive.levels()))
@@ -161,6 +172,26 @@ def _convert(args: argparse.Namespace) -> int:
     return 0
 
 
+def _check(args: argparse.Namespace) -> int:
+    """Read a text back against its facts: exit 1 on any number not in them."""
+    import json
+
+    from egms_client.check import check_claims, check_signs, check_text
+
+    text = Path(args.text).read_text(encoding="utf-8")
+    facts = json.loads(Path(args.facts).read_text(encoding="utf-8"))
+    found = [f"not in the facts: {n}" for n in check_text(text, facts, lang=args.lang)]
+    found += [f"wrong sign: {m}" for m in check_signs(text, facts, lang=args.lang)]
+    found += [f"wrong fact: {m}" for m in check_claims(text, facts, lang=args.lang)]
+    for line in found:
+        print(line)
+    print(
+        f"egms: {len(found)} problem(s)" if found else "egms: every number is in the facts",
+        file=sys.stderr,
+    )
+    return 1 if found else 0
+
+
 def _mcp(args: argparse.Namespace) -> int:
     from egms_client.mcp_server import run
 
@@ -196,7 +227,12 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="egms", description="The EGMS archive (Copernicus).")
     parser.add_argument("--key-file", help="CLMS service key JSON (default: from environment)")
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("releases", help="list the published releases")
+    releases = commands.add_parser("releases", help="list the published releases")
+    releases.add_argument(
+        "--check",
+        action="store_true",
+        help="exit 1 if the archive lists a release this version has not seen",
+    )
     commands.add_parser("levels", help="list the product levels")
     for name, text in (
         ("search", "list the files a query matches"),
@@ -246,6 +282,12 @@ def _parser() -> argparse.ArgumentParser:
     server.add_argument(
         "--max-tiles", type=int, default=9, help="L3 tiles area_summary downloads at most per box"
     )
+    check = commands.add_parser(
+        "check", help="check a text against the facts it was written from (no key needed)"
+    )
+    check.add_argument("text", help="the text (Markdown or plain)")
+    check.add_argument("facts", help="the facts, as JSON (an MCP answer, or egms_client.facts)")
+    check.add_argument("--lang", choices=("en", "it"), default="en")
     convert = commands.add_parser("convert", help="CSV of the archive to GeoParquet (extra tables)")
     convert.add_argument("csv", nargs="+", help="CSV files; each .parquet is written next to it")
     convert.add_argument("--no-series", action="store_true", help="attributes only, no dates")

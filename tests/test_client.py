@@ -173,3 +173,47 @@ def test_the_highest_cached_sub_release_wins(service_key: ServiceKey, tmp_path: 
         Archive(), service_key, lambda a: a.fetch_tile((47, 19), "U", "2020_2025", tmp_path)
     )
     assert found == tmp_path / "EGMS_L3_E47N19_100km_U_2020_2025_10.tiff"
+
+
+class Forgetful(Archive):
+    """An archive that answers "Please log in" to the first ``refusals`` calls."""
+
+    def __init__(self, refusals: int) -> None:
+        super().__init__()
+        self.refusals = refusals
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        if not request.url.path.endswith("oauth2-token") and self.refusals:
+            self.refusals -= 1
+            self.requests.append(request)
+            return httpx.Response(200, content=(FIXTURES / "not_logged_in.json").read_bytes())
+        return super().__call__(request)
+
+
+def test_a_valid_token_refused_once_is_renewed(service_key: ServiceKey) -> None:
+    archive = Forgetful(refusals=1)
+    assert run(archive, service_key, lambda a: a.releases()) == ["2020-2024", "2020-2025"]
+    assert archive.tokens == 2
+    assert archive.requests[-1].headers["Authorization"] == "Bearer t2"
+
+
+def test_a_search_refused_once_is_sent_again(service_key: ServiceKey) -> None:
+    archive = Forgetful(refusals=1)
+    search = run(archive, service_key, lambda a: a.search((47, 19), "U", "2020-2025"))
+    assert search is not None and archive.tokens == 2
+
+
+def test_a_second_refusal_is_a_real_one(service_key: ServiceKey) -> None:
+    archive = Forgetful(refusals=2)
+    with pytest.raises(EgmsError, match="log in"):
+        run(archive, service_key, lambda a: a.releases())
+    assert archive.tokens == 2
+
+
+def test_only_the_archive_refusal_counts_as_log_in() -> None:
+    from egms_client.client import _asks_to_log_in
+
+    assert _asks_to_log_in((FIXTURES / "not_logged_in.json").read_bytes())
+    assert not _asks_to_log_in(b"<html>please log in</html>")
+    assert not _asks_to_log_in(b'["log in"]')
+    assert not _asks_to_log_in((FIXTURES / "releases.json").read_bytes())
