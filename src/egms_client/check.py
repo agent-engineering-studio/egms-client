@@ -229,6 +229,19 @@ _VELOCITY = (
         lambda f: f.get("measured") is False,
     ),
     Sentence(
+        "Around it, {reliability.coverage|pct} of the cells within {reliability.radius_m|int} m "
+        "have a value, and the median within {regional.radius_m|int} m is "
+        "{regional.median_mm_per_year|signed} mm/year: a measured cell nearby has its own.",
+        "Intorno, ha un valore il {reliability.coverage|pct} delle celle entro "
+        "{reliability.radius_m|int} m, e la mediana entro {regional.radius_m|int} m è "
+        "{regional.median_mm_per_year|signed} mm/anno: una cella misurata vicina ha il suo valore.",
+        lambda f: (
+            f.get("measured") is False
+            and bool(f["reliability"]["coverage"])
+            and f["regional"]["median_mm_per_year"] is not None
+        ),
+    ),
+    Sentence(
         "The median within {regional.radius_m|int} m is {regional.median_mm_per_year|signed} "
         "mm/year: against its surroundings the cell moves {regional.relative_mm_per_year|signed}"
         " mm/year.",

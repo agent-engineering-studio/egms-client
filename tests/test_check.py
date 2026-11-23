@@ -151,3 +151,19 @@ def test_the_cli_checks_a_text(tmp_path: Path, capsys: pytest.CaptureFixture[str
     )
     out = capsys.readouterr().out
     assert "not in the facts: 900" in out and "wrong sign" in out
+
+
+def test_an_empty_cell_with_measured_neighbours_says_so() -> None:
+    facts = {
+        **FACTS,
+        "measured": False,
+        "velocity_mm_per_year": None,
+        "reliability": {**FACTS["reliability"], "coverage": 0.474, "score": 0.0},
+        "regional": {"radius_m": 5000.0, "median_mm_per_year": 2.05, "relative_mm_per_year": None},
+    }
+    for lang, words_ in (("en", "47% of the cells"), ("it", "il 47 % delle celle")):
+        text = words(facts, lang)  # type: ignore[arg-type]
+        assert words_ in text and "+2.0" in text.replace(",", ".")
+        assert check_claims(text, facts, lang=lang) == []  # type: ignore[arg-type]
+    sea = {**facts, "reliability": {**facts["reliability"], "coverage": 0.0}}
+    assert "Around it" not in words(sea)

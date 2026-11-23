@@ -20,6 +20,10 @@ All notable changes to this project are documented here. The format follows
   is `demo/api.py`, which serves place, area, moving cells and a map PNG,
   built with `facts` and `words`. Without a key it runs in demo mode on the
   benchmark crops.
+- `words` says more of an empty cell with measured neighbours: the share of
+  measured cells within 500 m and the median within 5 km. "Not measured"
+  alone, on a green spot at Pianura where 47 % of the cells around have a
+  value, told too little.
 - `egms mcp --http PORT --host ADDR`: the MCP server over streamable HTTP.
 - Notebooks `04_how_much_to_trust` and `05_cells_for_a_model`, on the
   crops: no key; `make notebooks-offline` and in CI.
