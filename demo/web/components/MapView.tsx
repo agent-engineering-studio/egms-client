@@ -3,32 +3,31 @@
 import L from "leaflet";
 import { useEffect, useRef } from "react";
 import type { Text } from "@/lib/i18n";
-import { MAX_ZOOM, MIN_ZOOM, type Start, type Tiles } from "@/lib/start";
 import { centre } from "@/lib/records";
-import type { Box, Filed, MovingCell, OpenRecord } from "@/lib/types";
-
-/** The velocity map is asked for only on views at most this wide, in degrees. */
-export const MAX_SPAN = 0.3;
+import { MAX_ZOOM, type Start, type Tiles } from "@/lib/start";
+import type { Area, Box, Filed, MovingCell, OpenRecord } from "@/lib/types";
 
 type Props = {
   start: Start;
   tiles: Tiles;
   text: Text;
+  /** The area of the page, from the API: the map stays inside it. Null until it is known. */
+  area: Area | null;
   /** The point of the card, if any. */
   point: { lat: number; lon: number } | null;
   /** The EGMS ground map, on or off. */
   showGround: boolean;
   moving: MovingCell[];
-  onPoint: (lat: number, lon: number) => void;
-  /** The view changed: its box, or null when it is too wide for the velocity map. */
-  onView: (box: Box | null) => void;
-  /** The view changed, at any size: for the records. */
-  onBounds: (box: Box) => void;
-  /** The ground map: being loaded, shown, failed, or not asked (too wide, or off). */
-  onGround: (state: "loading" | "ready" | "failed" | "none") => void;
   /** The records in view, from every source but EGMS (which is the map). */
   records: Filed[];
   colour: (r: OpenRecord) => string;
+  onPoint: (lat: number, lon: number) => void;
+  /** A click outside the area: the page reads nothing there. */
+  onOutside: () => void;
+  /** The view changed: for the records. */
+  onBounds: (box: Box) => void;
+  /** The ground map: being loaded, shown, failed, or off. */
+  onGround: (state: "loading" | "ready" | "failed" | "none") => void;
 };
 
 const dot = (cell: MovingCell): L.CircleMarkerOptions => ({
@@ -40,77 +39,53 @@ const dot = (cell: MovingCell): L.CircleMarkerOptions => ({
   fillOpacity: 0.85,
 });
 
+const boundsOf = (a: Area) => L.latLngBounds([a.south, a.west], [a.north, a.east]);
+
 export default function MapView(props: Props) {
   const box = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const overlay = useRef<L.ImageOverlay | null>(null);
-  const reportRef = useRef<() => void>(() => undefined);
+  const frame = useRef<L.LayerGroup | null>(null);
   const marker = useRef<L.CircleMarker | null>(null);
   const cells = useRef<L.LayerGroup | null>(null);
   const others = useRef<L.LayerGroup | null>(null);
-  const handlers = useRef({
-    onPoint: props.onPoint,
-    onView: props.onView,
-    onBounds: props.onBounds,
-    onGround: props.onGround,
-  });
-  const ground = useRef(props.showGround);
+  const area = useRef<Area | null>(null);
+  const handlers = useRef(props);
   useEffect(() => {
-    handlers.current = {
-      onPoint: props.onPoint,
-      onView: props.onView,
-      onBounds: props.onBounds,
-      onGround: props.onGround,
-    };
+    handlers.current = props;
   });
 
   useEffect(() => {
     const m = L.map(box.current!, {
       center: [props.start.lat, props.start.lon],
       zoom: props.start.zoom,
-      minZoom: MIN_ZOOM,
       maxZoom: MAX_ZOOM,
       // The map fills the page: the wheel zooms it.
       scrollWheelZoom: true,
+      // Inside the area of the page: it cannot be dragged out of it.
+      maxBoundsViscosity: 1,
     });
     L.tileLayer(props.tiles.url, { attribution: props.tiles.attribution, maxZoom: MAX_ZOOM }).addTo(m);
+    frame.current = L.layerGroup().addTo(m);
     cells.current = L.layerGroup().addTo(m);
     others.current = L.layerGroup().addTo(m);
     const report = () => {
       const b = m.getBounds();
-      const view = { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() };
-      const small = view.east - view.west <= MAX_SPAN && view.north - view.south <= MAX_SPAN;
-      handlers.current.onView(small ? view : null);
-      handlers.current.onBounds(view);
-      if ((!small || !ground.current) && overlay.current) {
-        overlay.current.remove();
-        overlay.current = null;
-      }
-      if (!small || !ground.current) handlers.current.onGround("none");
-      if (small && ground.current) {
-        const url = `/api/map.png?${new URLSearchParams(Object.entries(view).map(([k, v]) => [k, v.toFixed(5)]))}`;
-        const bounds: L.LatLngBoundsExpression = [
-          [view.south, view.west],
-          [view.north, view.east],
-        ];
-        handlers.current.onGround("loading");
-        if (overlay.current) {
-          overlay.current.setUrl(url).setBounds(L.latLngBounds(bounds));
-        } else {
-          overlay.current = L.imageOverlay(url, bounds, { opacity: 0.75, interactive: false })
-            .on("load", () => handlers.current.onGround("ready"))
-            .on("error", () => handlers.current.onGround("failed"))
-            .addTo(m);
-        }
-      }
+      handlers.current.onBounds({ west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() });
     };
     m.on("moveend", report);
-    m.on("click", (e: L.LeafletMouseEvent) => handlers.current.onPoint(e.latlng.lat, e.latlng.lng));
+    m.on("click", (e: L.LeafletMouseEvent) => {
+      const a = area.current;
+      if (a && !boundsOf(a).contains(e.latlng)) handlers.current.onOutside();
+      else handlers.current.onPoint(e.latlng.lat, e.latlng.lng);
+    });
     map.current = m;
-    reportRef.current = report;
     report();
-    // The panel or the sheet changes the size of the map.
-    const resized = new ResizeObserver(() => m.invalidateSize());
+    // The panel or the sheet changes the size of the map, and so the zoom that shows the area.
+    const resized = new ResizeObserver(() => {
+      m.invalidateSize();
+      if (area.current) m.setMinZoom(m.getBoundsZoom(boundsOf(area.current)));
+    });
     resized.observe(box.current!);
     return () => {
       resized.disconnect();
@@ -121,10 +96,69 @@ export default function MapView(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // The area: lock the map on it, veil what is outside, and draw its edge.
   useEffect(() => {
-    ground.current = props.showGround;
-    reportRef.current();
-  }, [props.showGround]);
+    const m = map.current;
+    const a = props.area;
+    if (!m || !a || !frame.current) return;
+    area.current = a;
+    const bounds = boundsOf(a);
+    const fit = m.getBoundsZoom(bounds);
+    m.setMaxBounds(bounds.pad(0.05));
+    m.setMinZoom(fit);
+    if (props.start.given && bounds.contains([props.start.lat, props.start.lon])) {
+      m.setView([props.start.lat, props.start.lon], Math.max(props.start.zoom, fit));
+    } else {
+      // On a phone the sheet covers the bottom third of the map: frame the area above it.
+      const sheet = window.matchMedia("(max-width: 768px)").matches ? m.getSize().y * 0.34 : 0;
+      m.fitBounds(bounds, { paddingBottomRight: [0, sheet] });
+    }
+    frame.current.clearLayers();
+    const world: L.LatLngExpression[] = [
+      [-89, -179],
+      [-89, 179],
+      [89, 179],
+      [89, -179],
+    ];
+    const hole: L.LatLngExpression[] = [
+      [a.south, a.west],
+      [a.north, a.west],
+      [a.north, a.east],
+      [a.south, a.east],
+    ];
+    L.polygon([world, hole], { stroke: false, fillColor: "#17324d", fillOpacity: 0.28, interactive: false }).addTo(
+      frame.current,
+    );
+    L.rectangle(bounds, { color: "#17324d", weight: 2, dashArray: "6 4", fill: false, interactive: false }).addTo(
+      frame.current,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.area]);
+
+  // The ground map: one picture of the whole area, asked once.
+  useEffect(() => {
+    const m = map.current;
+    const a = props.area;
+    if (!m || !a) return;
+    if (!props.showGround) {
+      overlay.current?.remove();
+      overlay.current = null;
+      handlers.current.onGround("none");
+      return;
+    }
+    if (overlay.current) return;
+    const query = new URLSearchParams({
+      west: String(a.west),
+      south: String(a.south),
+      east: String(a.east),
+      north: String(a.north),
+    });
+    handlers.current.onGround("loading");
+    overlay.current = L.imageOverlay(`/api/map.png?${query}`, boundsOf(a), { opacity: 0.75, interactive: false })
+      .on("load", () => handlers.current.onGround("ready"))
+      .on("error", () => handlers.current.onGround("failed"))
+      .addTo(m);
+  }, [props.area, props.showGround]);
 
   useEffect(() => {
     const m = map.current;

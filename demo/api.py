@@ -20,12 +20,17 @@ Where the data come from (``EGMS_UI_SOURCE``):
   archive, with the CLMS key of ``EGMS_SERVICE_KEY_FILE`` or
   ``EGMS_SERVICE_KEY``, kept in ``EGMS_DATA_DIR`` after the first download
   (~60 MB a tile). The key is read here and never written anywhere.
+The page reads one **area**: ``EGMS_UI_RADIUS_KM`` (10 by default, 1 to 20)
+around ``EGMS_UI_LON``, ``EGMS_UI_LAT`` (Rione Terra when unset). In archive
+mode its tiles are downloaded at startup; outside it every answer is 404,
+"outside the area", so no click starts a download elsewhere.
+
 * ``demo`` (the default with no key): the crops of the benchmark
   (``benchmarks/data``): Pozzuoli, Bologna, the Murge, the Foresta Umbra,
   Ancona. Outside them the answer is "no data loaded here", HTTP 404, which
   is not "not measured".
 
-    /api/health                       is it up, and where the data come from
+    /api/health                       is it up, where the data come from, and its area
     /api/place?lon=&lat=&lang=        the velocity at a point, vertical and east-west
     /api/area?west=&south=&east=&north=&lang=&component=
     /api/moving?west=&south=&east=&north=&lang=&component=&threshold=
@@ -46,9 +51,11 @@ import logging
 import math
 import os
 import sys
+import time
 import warnings
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -66,6 +73,7 @@ from egms_client.client import default_directory
 from egms_client.facts import area, moving_points, to_records, velocity
 from egms_client.mosaic import lonlat_to_laea, mosaic
 from egms_client.records import RecordError, read
+from egms_client.releases import KNOWN_RELEASES
 
 sys.path.insert(0, str(Path(__file__).parent))
 import sensors
@@ -90,10 +98,14 @@ INCOMING = Path(os.environ["EGMS_UI_INCOMING"]) if os.environ.get("EGMS_UI_INCOM
 SENSORS = Path(os.environ.get("EGMS_UI_STATE") or "/srv/state") / "sensors.json"
 #: Records one answer gives at most.
 MAX_RECORDS = 1000
+#: How long to wait for the archive's list of releases, and when to ask again, in seconds.
+ARCHIVE_WAIT_S, RETRY_S = 15.0, 600.0
 #: Tiles one answer may download at most (about 60 MB each).
 MAX_TILES = int(os.environ.get("EGMS_UI_MAX_TILES") or 4)
 #: A box at most this wide, in degrees, on either side.
-MAX_DEGREES = 0.5
+MAX_DEGREES = 0.8
+#: The radius of the area of the page around its Comune, in km: default and limits.
+RADIUS_KM, MIN_RADIUS_KM, MAX_RADIUS_KM = 10.0, 1.0, 20.0
 #: Colours of the map, mm/year, from down (red) to up (blue); in between, no motion.
 STEPS = [-20.0, -10.0, -5.0, -2.0, 2.0, 5.0, 10.0, 20.0]
 COLOURS = [
@@ -109,6 +121,67 @@ COLOURS = [
 ]
 #: Where there is no measurement: a light veil, because not measured is not still.
 VEIL = (90, 96, 110, 70)
+
+
+@dataclass(frozen=True)
+class Area:
+    """The area of the page: its Comune and a radius around it. Nothing outside is read.
+
+    Every new area means a download from the archive (one L3 tile is about 60 MB
+    and a minute), so the page works on one area, fetched at startup, and the
+    map and the API stay inside it.
+    """
+
+    lon: float
+    lat: float
+    radius_km: float
+
+    @property
+    def box(self) -> tuple[float, float, float, float]:
+        """West, south, east, north in degrees."""
+        dlat = self.radius_km / 111.32
+        dlon = self.radius_km / (111.32 * math.cos(math.radians(self.lat)))
+        return (
+            round(self.lon - dlon, 5),
+            round(self.lat - dlat, 5),
+            round(self.lon + dlon, 5),
+            round(self.lat + dlat, 5),
+        )
+
+    def contains(self, lon: float, lat: float) -> bool:
+        west, south, east, north = self.box
+        return west <= lon <= east and south <= lat <= north
+
+    def clip(self, box: tuple[float, float, float, float]) -> tuple[float, float, float, float]:
+        """The part of a box inside the area; OutsideAreaError if there is none."""
+        west, south, east, north = self.box
+        out = (max(box[0], west), max(box[1], south), min(box[2], east), min(box[3], north))
+        if out[0] >= out[2] or out[1] >= out[3]:
+            raise OutsideAreaError(self)
+        return out
+
+    def as_json(self) -> dict[str, Any]:
+        west, south, east, north = self.box
+        return {
+            "lon": self.lon,
+            "lat": self.lat,
+            "radius_km": self.radius_km,
+            "west": west,
+            "south": south,
+            "east": east,
+            "north": north,
+        }
+
+
+class OutsideAreaError(LookupError):
+    """Outside the area of the page: not read, so not downloaded. Not "not measured"."""
+
+    def __init__(self, area: Area) -> None:
+        super().__init__(
+            f"outside the area of this page ({area.radius_km:g} km around "
+            f"{area.lon:.4f}, {area.lat:.4f}): it reads its own area only. "
+            "This is not 'not measured'."
+        )
 
 
 class OutsideDataError(LookupError):
@@ -168,25 +241,48 @@ class Archive:
         self.archive = EgmsArchive(key=key)
         self.folder = folder
         self.release: str | None = None
+        self.confirmed = False
+        self.retry_at = 0.0
         self.lock = asyncio.Lock()
 
     async def tiffs(
         self, box: tuple[float, ...], component: str
     ) -> tuple[list[Path], str, list[str]]:
-        async with self.lock:
-            if self.release is None:
-                self.release = (await self.archive.releases())[-1]
+        release = await self.latest()
         tiles = tiles_for_bounds(*box)
         if len(tiles) > MAX_TILES:
             raise ValueError(f"the box touches {len(tiles)} tiles; at most {MAX_TILES}")
         tiffs, absent = [], []
         for tile in tiles:
-            tiff = await self.archive.fetch_tile(tile, component, self.release, self.folder)  # type: ignore[arg-type]
+            tiff = await self.archive.fetch_tile(tile, component, release, self.folder)  # type: ignore[arg-type]
             if tiff is None:
                 absent.append(tile_id(tile))
             else:
                 tiffs.append(tiff)
-        return tiffs, self.release, absent
+        return tiffs, release, absent
+
+    async def latest(self) -> str:
+        """The latest release: asked to the archive, or the latest known if it does not answer.
+
+        The tiles on disk are enough to answer: an archive that is slow or down
+        must not stop the page. It is asked again after RETRY_S.
+        """
+        async with self.lock:
+            if self.release is not None and (self.confirmed or time.monotonic() < self.retry_at):
+                return self.release
+            try:
+                self.release = (await asyncio.wait_for(self.archive.releases(), ARCHIVE_WAIT_S))[-1]
+                self.confirmed = True
+            except Exception as exc:
+                self.release = self.release or KNOWN_RELEASES[-1]
+                self.retry_at = time.monotonic() + RETRY_S
+                log.warning(
+                    "the archive did not list its releases (%s: %s): using %s, the latest known",
+                    type(exc).__name__,
+                    exc,
+                    self.release,
+                )
+            return self.release
 
     async def aclose(self) -> None:
         await self.archive.aclose()
@@ -336,20 +432,34 @@ def _around(lon: float, lat: float, metres: float = 5_100.0) -> tuple[float, flo
     return x - metres, y - metres, x + metres, y + metres
 
 
+def _inside(
+    laea: tuple[float, float, float, float], area: Area
+) -> tuple[float, float, float, float]:
+    """A box in EPSG:3035 cut to the area: near its edge, no tile beyond it is fetched."""
+    a = lonlat_to_laea(*area.box)
+    return max(laea[0], a[0]), max(laea[1], a[1]), min(laea[2], a[2]), min(laea[3], a[3])
+
+
 async def health(request: Request) -> JSONResponse:
     source = request.app.state.source
-    return JSONResponse({"ok": True, "source": source.name})
+    return JSONResponse(
+        {"ok": True, "source": source.name, "area": request.app.state.area.as_json()}
+    )
 
 
 async def place(request: Request) -> JSONResponse:
     lon = _number(request, "lon", -32, 45)
     lat = _number(request, "lat", 27, 72)
+    if not request.app.state.area.contains(lon, lat):
+        raise OutsideAreaError(request.app.state.area)
     lang = _lang(request)
     source = request.app.state.source
     out: dict[str, Any] = {"source": source.name}
     for component, name in (("U", "vertical"), ("E", "east")):
         try:
-            tiffs, release, _ = await source.tiffs(_around(lon, lat), component)
+            tiffs, release, _ = await source.tiffs(
+                _inside(_around(lon, lat), request.app.state.area), component
+            )
         except OutsideDataError:
             if component == "U":
                 raise
@@ -367,7 +477,7 @@ async def place(request: Request) -> JSONResponse:
 
 
 async def summary(request: Request) -> JSONResponse:
-    box = _box(request)
+    box = request.app.state.area.clip(_box(request))
     lang, component = _lang(request), _component(request)
     source = request.app.state.source
     tiffs, release, absent = await source.tiffs(lonlat_to_laea(*box), component)
@@ -377,7 +487,7 @@ async def summary(request: Request) -> JSONResponse:
 
 
 async def moving(request: Request) -> JSONResponse:
-    box = _box(request)
+    box = request.app.state.area.clip(_box(request))
     lang, component = _lang(request), _component(request)
     threshold = _number(request, "threshold", 1, 50) if "threshold" in request.query_params else 5.0
     source = request.app.state.source
@@ -444,7 +554,7 @@ def _png(box: tuple[float, float, float, float], tiffs: list[Path]) -> bytes:
 
 
 async def map_png(request: Request) -> Response:
-    box = _box(request)
+    box = request.app.state.area.clip(_box(request))
     source = request.app.state.source
     tiffs, _, _ = await source.tiffs(lonlat_to_laea(*box), _component(request))
     body = await asyncio.to_thread(_png, box, tiffs)
@@ -505,7 +615,7 @@ async def ingest(request: Request) -> JSONResponse:
 
 
 async def _refused(_: Request, exc: Exception) -> JSONResponse:
-    if isinstance(exc, OutsideDataError):
+    if isinstance(exc, OutsideDataError | OutsideAreaError):
         return JSONResponse({"error": str(exc), "not_measured": False}, status_code=404)
     if isinstance(exc, EgmsError):
         return JSONResponse({"error": f"the EGMS archive: {exc}"}, status_code=502)
@@ -521,23 +631,36 @@ async def _failed(_: Request, exc: Exception) -> JSONResponse:
     )
 
 
-async def prefetch(source: Archive, lon: float, lat: float) -> None:
-    """The tiles around the place of the page, at startup: the first visitor does not wait.
+async def prefetch(source: Archive, area: Area) -> None:
+    """The tiles of the area of the page, at startup: no visitor waits for a download.
 
     One L3 tile is about 60 MB, and the archive takes about a minute for it.
-    In the background, and only in archive mode; a failure is logged, not raised.
+    In the background, and only in archive mode; a failure is logged, not raised:
+    the page then downloads on the first click.
     """
     for component in ("U", "E"):
         try:
-            await source.tiffs(_around(lon, lat), component)
-        except Exception as exc:  # the page still works: it downloads on the first click
-            log.warning("prefetch %s at %.4f, %.4f: %s", component, lon, lat, exc)
+            await source.tiffs(lonlat_to_laea(*area.box), component)
+        except Exception as exc:
+            log.warning("prefetch %s of the area: %s: %s", component, type(exc).__name__, exc)
             return
-    log.info("prefetch: the tiles around %.4f, %.4f are ready", lon, lat)
+    log.info("prefetch: the tiles of the area %s are ready", area.box)
 
 
 #: Where the page opens when no place is set: Rione Terra, Pozzuoli (demo/web/lib/start.ts).
 DEFAULT_PLACE = (14.1205, 40.8225)
+
+
+def area_from_env() -> Area:
+    """The area of the page: EGMS_UI_LON, EGMS_UI_LAT and EGMS_UI_RADIUS_KM (10 by default)."""
+    place = _place_from_env()
+    if place is None:
+        raise ValueError("EGMS_UI_LON and EGMS_UI_LAT: both, as degrees inside Europe")
+    raw = (os.environ.get("EGMS_UI_RADIUS_KM") or "").replace(",", ".").strip()
+    radius = float(raw) if raw else RADIUS_KM
+    if not MIN_RADIUS_KM <= radius <= MAX_RADIUS_KM:
+        raise ValueError(f"EGMS_UI_RADIUS_KM is between {MIN_RADIUS_KM:g} and {MAX_RADIUS_KM:g}")
+    return Area(*place, radius)
 
 
 def _place_from_env() -> tuple[float, float] | None:
@@ -559,11 +682,12 @@ async def lifespan(app: Starlette) -> AsyncIterator[None]:
         handler.setFormatter(logging.Formatter("%(levelname)s:     %(message)s"))
         log.addHandler(handler)
         log.setLevel(logging.INFO)
+    app.state.area = area_from_env()
+    log.info("the area of the page: %s", app.state.area.as_json())
     app.state.source = source_from_env()
-    place = _place_from_env()
     warm = None
-    if isinstance(app.state.source, Archive) and place is not None:
-        warm = asyncio.create_task(prefetch(app.state.source, *place))
+    if isinstance(app.state.source, Archive):
+        warm = asyncio.create_task(prefetch(app.state.source, app.state.area))
     incoming = [INCOMING / "uploads", INCOMING / "sensors"] if INCOMING else []
     app.state.shelf = Shelf([*RECORDS, *incoming])
     app.state.registry = sensors.Registry(SENSORS)
@@ -590,6 +714,7 @@ app = Starlette(
     middleware=[Middleware(GZipMiddleware, minimum_size=1000)],
     exception_handlers={
         OutsideDataError: _refused,
+        OutsideAreaError: _refused,
         EgmsError: _refused,
         ValueError: _refused,
         LookupError: _refused,

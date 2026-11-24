@@ -8,6 +8,17 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- The page works on one area: the Comune (`EGMS_UI_LON`, `EGMS_UI_LAT`) and
+  a radius around it (`EGMS_UI_RADIUS_KM`, 1 to 20, 10 by default). At
+  startup the API downloads all the tiles of the area, both components; the
+  map is locked on it (it cannot be dragged out, nor zoomed out beyond it),
+  veils what is outside and draws its edge; the ground map is one picture of
+  the whole area, asked once. Outside the area the API answers 404,
+  "outside the area of this page", so no click starts a download elsewhere.
+  `/api/health` gives the area.
+- An archive that does not list its releases within 15 seconds no longer
+  stops the page: the API uses the latest known release with the tiles on
+  disk, logs it, and asks again after 10 minutes.
 - The first click in an area no longer looks broken. Its EGMS tile (about
   60 MB) takes about a minute to come from the archive: after 2 seconds the
   panel says so, and a badge on the map says the ground map is loading,

@@ -71,7 +71,9 @@ computer stesso: per pubblicarla serve un proxy con HTTPS davanti.
 
 | Variabile | Che cosa fa |
 |---|---|
-| `EGMS_UI_LAT`, `EGMS_UI_LON`, `EGMS_UI_ZOOM` | dove si apre la mappa |
+| `EGMS_UI_LAT`, `EGMS_UI_LON` | il Comune: il centro dell'area della pagina |
+| `EGMS_UI_RADIUS_KM` | il raggio dell'area, da 1 a 20 km (di base 10) |
+| `EGMS_UI_ZOOM` | lo zoom con cui si apre su un punto dato nell'indirizzo |
 | `EGMS_UI_PLACE` | il nome nell'intestazione, per esempio `"Comune di Pozzuoli"` |
 | `EGMS_UI_LANG` | `it` o `en`; chi visita può cambiare |
 | `EGMS_UI_FRAME_ANCESTORS` | i siti che possono mostrarla in un iframe |
@@ -132,9 +134,16 @@ dimostrativa**, sui ritagli del benchmark (Pozzuoli, Bologna, Murge, Foresta
 Umbra, Ancona): fuori da lì dice «nessun dato caricato», che non è «non
 misurato».
 
-**Che cosa scarica.** Al primo punto di una zona, le tessere L3 che la
-coprono (circa 60 MB l'una, al massimo `EGMS_UI_MAX_TILES`). Restano nel
-volume `egms-data`: le volte dopo non scarica niente.
+**Un'area sola.** La pagina lavora su un'area: il Comune e un raggio intorno
+(`EGMS_UI_RADIUS_KM`, di base 10 km). La mappa resta lì: non si sposta e non
+si allontana oltre, e fuori è velata. Fuori dall'area la pagina non legge
+dati: ogni zona nuova vorrebbe dire scaricare dall'archivio.
+
+**Che cosa scarica.** All'avvio, le tessere L3 che coprono l'area (circa 60
+MB l'una, verticale ed est-ovest), in background. Restano nel volume
+`egms-data`: le volte dopo non scarica niente. Se l'archivio Copernicus non
+risponde, la pagina usa i file già scaricati e l'ultima release nota, e
+riprova dopo dieci minuti.
 
 ## Che cosa resta all'ente
 

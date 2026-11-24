@@ -136,3 +136,16 @@ export type SourcesAnswer = {
   sources: Source[];
   refused: { file: string; problems: string[] }[];
 };
+
+/** The area of the page (demo/api.py, /api/health): its Comune and a radius around it. */
+export type Area = {
+  lon: number;
+  lat: number;
+  radius_km: number;
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+};
+
+export type Health = { ok: boolean; source: "archive" | "demo"; area: Area };
