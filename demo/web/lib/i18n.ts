@@ -8,6 +8,26 @@ const it = {
   locale: "it-IT",
   title: "Il territorio nei dati aperti",
   tagline: "Che cosa dicono i dati aperti del territorio, quanto fidarsi, e dove mancano",
+  loadingTitle: (place: string) => `${place}: preparo i dati`,
+  loadingWhy:
+    "Prima di aprire la mappa la pagina scarica dall'archivio Copernicus i dati EGMS dell'area (circa 60 MB per tessera). Succede solo al primo avvio: poi restano sul server e la pagina risponde subito.",
+  loadingArea: "La mappa",
+  loadingMb: (got: string, all: string) => `${got} di ${all} MB`,
+  loadingStates: {
+    waiting: "in attesa",
+    checking: "controllo",
+    downloading: "scarico",
+    ready: "pronta",
+    absent: "non c'è nell'archivio",
+    failed: "non riuscita",
+  },
+  loadingComponent: { U: "verticale", E: "est-ovest" },
+  loadingRetry: (s: number, error: string) =>
+    `L'archivio Copernicus non risponde (${error}). Riprovo tra ${s} secondi.`,
+  loadingNoApi: "Il server dei dati non risponde ancora: riprovo.",
+  loadingSlow:
+    "L'archivio Copernicus non risponde da più di un minuto e mezzo. La pagina continua a provare da sola; intanto puoi entrare con i dati già scaricati.",
+  loadingEnter: "Entra con i dati già scaricati",
   purposeTitle: "A cosa serve questa mappa",
   purpose:
     "Mette una accanto all'altra le fonti aperte su questo territorio: il movimento del suolo misurato dai satelliti (EGMS, Copernicus) e le altre fonti pubblicate. Per ogni punto dice che cosa sanno, e quanto fidarsi.",
@@ -97,6 +117,26 @@ const en: typeof it = {
   locale: "en-GB",
   title: "Your area in open data",
   tagline: "What the open data of the area say, how far to trust them, and where they are missing",
+  loadingTitle: (place: string) => `${place}: getting the data ready`,
+  loadingWhy:
+    "Before the map opens, the page downloads the EGMS data of the area from the Copernicus archive (about 60 MB per tile). This happens only at the first start: then they stay on the server and the page answers at once.",
+  loadingArea: "The map",
+  loadingMb: (got: string, all: string) => `${got} of ${all} MB`,
+  loadingStates: {
+    waiting: "waiting",
+    checking: "checking",
+    downloading: "downloading",
+    ready: "ready",
+    absent: "not in the archive",
+    failed: "failed",
+  },
+  loadingComponent: { U: "vertical", E: "east-west" },
+  loadingRetry: (s: number, error: string) =>
+    `The Copernicus archive does not answer (${error}). Trying again in ${s} seconds.`,
+  loadingNoApi: "The data server does not answer yet: trying again.",
+  loadingSlow:
+    "The Copernicus archive has not answered for more than a minute and a half. The page keeps trying by itself; meanwhile you can enter with the data already downloaded.",
+  loadingEnter: "Enter with the data already downloaded",
   purposeTitle: "What this map is for",
   purpose:
     "It puts the open sources on this area side by side: the ground motion measured by satellites (EGMS, Copernicus) and the other published sources. For each point it says what they know, and how far to trust them.",

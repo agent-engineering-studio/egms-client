@@ -12,6 +12,7 @@ import httpx
 import pytest
 
 from egms_client import EgmsArchive, EgmsError, ServiceKey
+from egms_client.archive import Hit
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -109,6 +110,26 @@ def test_a_tile_is_downloaded_once(service_key: ServiceKey, tmp_path: Path) -> N
     assert first is not None and first.read_bytes() == b"TIFF"
     assert sum("/download/" in r.url.path for r in archive.requests) == 1
     assert not list((tmp_path / "tiles").glob("*.part"))
+
+
+def test_fetch_tile_reports_the_bytes_of_a_download(
+    service_key: ServiceKey, tmp_path: Path
+) -> None:
+    archive = Archive()
+    seen: list[tuple[str, int, int]] = []
+
+    def progress(hit: Hit, received: int, total: int) -> None:
+        seen.append((hit.tile_id, received, total))
+
+    async def body(a: EgmsArchive) -> int:
+        await a.fetch_tile((47, 19), "U", "2020_2025", tmp_path, on_progress=progress)
+        first = len(seen)
+        await a.fetch_tile((47, 19), "U", "2020_2025", tmp_path, on_progress=progress)
+        return first
+
+    first = run(archive, service_key, body)
+    assert first > 0 and seen[-1][0] == "E47N19" and seen[-1][1] > 0
+    assert len(seen) == first  # the second call finds it on the disk: no bytes
 
 
 def test_the_same_tile_asked_twice_at_once_is_downloaded_once(

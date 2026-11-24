@@ -71,7 +71,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: docker compose build
-      # Pozzuoli: the demo crops hold Rione Terra (the default Comune is Gioia del Colle).
+      # Pozzuoli, the default Comune: the demo crops hold Rione Terra.
       - run: EGMS_UI_SOURCE=demo EGMS_UI_LAT=40.8225 EGMS_UI_LON=14.1205 docker compose up -d api ui
       - name: The page and the API answer
         run: |

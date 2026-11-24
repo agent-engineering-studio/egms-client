@@ -357,7 +357,7 @@ def test_the_area_comes_from_the_environment(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.delenv("EGMS_UI_LON", raising=False)
     monkeypatch.delenv("EGMS_UI_LAT", raising=False)
     monkeypatch.delenv("EGMS_UI_RADIUS_KM", raising=False)
-    assert api.area_from_env() == api.Area(16.9233, 40.7996, 10.0)  # Gioia del Colle
+    assert api.area_from_env() == api.Area(14.1205, 40.8225, 10.0)  # Pozzuoli
     monkeypatch.setenv("EGMS_UI_RADIUS_KM", "5,5")
     assert api.area_from_env().radius_km == 5.5
     monkeypatch.setenv("EGMS_UI_RADIUS_KM", "50")
@@ -387,20 +387,16 @@ def test_a_point_near_the_edge_reads_no_tile_beyond_it() -> None:
 
 
 def _archive_with(releases: object) -> api.Archive:
-    import asyncio
-
     source = object.__new__(api.Archive)
     source.archive = type("A", (), {"releases": releases})()
     source.release, source.confirmed, source.retry_at = None, False, 0.0
-    source.lock = asyncio.Lock()
+    source.confirming = None
     return source
 
 
-def test_a_silent_archive_falls_back_to_the_latest_known_release(
+def test_a_silent_archive_never_holds_an_answer(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    import asyncio
-
     from egms_client.releases import KNOWN_RELEASES
 
     monkeypatch.setattr(api, "ARCHIVE_WAIT_S", 0.05)
@@ -409,20 +405,29 @@ def test_a_silent_archive_falls_back_to_the_latest_known_release(
         await asyncio.sleep(10)
         return []
 
-    source = _archive_with(silent)
-    with caplog.at_level(logging.WARNING, logger="egms-client.api"):
-        assert asyncio.run(source.latest()) == KNOWN_RELEASES[-1]
-    assert "TimeoutError" in caplog.text and "the latest known" in caplog.text
-    assert not source.confirmed and source.retry_at > 0
-
     async def listed(self: object) -> list[str]:
         return ["2020-2024", "2020-2026"]
 
-    source.archive = type("A", (), {"releases": listed})()
-    assert asyncio.run(source.latest()) == KNOWN_RELEASES[-1]  # not asked again yet
-    source.retry_at = 0.0
-    assert asyncio.run(source.latest()) == "2020-2026"  # asked again, and it answered
-    assert source.confirmed
+    async def run() -> None:
+        source = _archive_with(silent)
+        # At once: the latest known release, while the archive is asked.
+        assert await asyncio.wait_for(source.latest(), 0.01) == KNOWN_RELEASES[-1]
+        await asyncio.sleep(0.1)
+        assert not source.confirmed and source.retry_at > 0
+        source.archive = type("A", (), {"releases": listed})()
+        await source.latest()  # not asked again yet
+        await asyncio.sleep(0.01)
+        assert source.release == KNOWN_RELEASES[-1]
+        source.retry_at = 0.0
+        await source.latest()  # asked again, and it answers
+        await asyncio.sleep(0.01)
+        assert source.release == "2020-2026" and source.confirmed
+        assert await source.latest() == "2020-2026"
+
+    with caplog.at_level(logging.INFO, logger="egms-client.api"):
+        asyncio.run(run())
+    assert "TimeoutError" in caplog.text and "the latest known" in caplog.text
+    assert "using it from now on" in caplog.text
 
 
 # --- A tile not on the disk yet -------------------------------------------------------
@@ -432,8 +437,8 @@ def _archive(fetch: Any) -> api.Archive:
     """An Archive whose release is known and whose downloads are ``fetch``."""
     source = object.__new__(api.Archive)
     source.release, source.confirmed, source.retry_at = "2020-2025", True, 0.0
-    source.lock, source.downloads, source.folder = asyncio.Lock(), {}, Path("/nowhere")
-    source.why = ""
+    source.confirming, source.downloads, source.folder = None, {}, Path("/nowhere")
+    source.why, source.status = "", {}
     source.archive = type("Fake", (), {"fetch_tile": staticmethod(fetch)})()
     return source
 
@@ -441,7 +446,7 @@ def _archive(fetch: Any) -> api.Archive:
 def test_an_answer_waits_a_little_and_the_download_goes_on() -> None:
     finished: list[str] = []
 
-    async def slow(tile: Any, component: str, release: str, folder: Path) -> Path:
+    async def slow(tile: Any, component: str, release: str, folder: Path, **_: Any) -> Path:
         await asyncio.sleep(0.2)
         finished.append(tile_id(tile))
         return Path(f"/{tile_id(tile)}.tiff")
@@ -461,7 +466,7 @@ def test_an_answer_waits_a_little_and_the_download_goes_on() -> None:
 
 
 def test_an_archive_that_does_not_answer_is_said_not_hidden() -> None:
-    async def down(tile: Any, component: str, release: str, folder: Path) -> Path:
+    async def down(tile: Any, component: str, release: str, folder: Path, **_: Any) -> Path:
         raise httpx.ConnectTimeout("")
 
     async def run() -> None:
@@ -504,7 +509,7 @@ def test_the_map_draws_the_tiles_it_has_and_stripes_the_others() -> None:
 
 
 def test_available_lists_what_is_missing_without_raising() -> None:
-    async def some(tile: Any, component: str, release: str, folder: Path) -> Path:
+    async def some(tile: Any, component: str, release: str, folder: Path, **_: Any) -> Path:
         if tile_id(tile).endswith("N20"):
             raise httpx.ConnectTimeout("")
         return Path(f"/{tile_id(tile)}.tiff")
@@ -545,3 +550,72 @@ def test_the_gaps_of_the_area_and_of_a_point(client: TestClient) -> None:
     assert g["blocks"] > 0 and 0 <= g["gaps"] <= g["blocks"] and g["missing_tiles"] == []
     place = client.get("/api/place", params={"lon": 14.1205, "lat": 40.8225}).json()
     assert place["gap"]["gap"] is False and place["gap"]["measured_share"] >= api.GAP_SHARE
+
+
+def test_the_startup_reports_the_progress_of_the_download() -> None:
+    gate = asyncio.Event()
+
+    async def fetch(tile: Any, component: str, release: str, folder: Path, **kw: Any) -> Path:
+        kw["on_progress"](None, 30, 60)  # half of the tile
+        await gate.wait()
+        return Path(f"/{tile_id(tile)}-{component}.tiff")
+
+    async def run() -> None:
+        source = _archive(fetch)
+        area = api.Area(14.1205, 40.8225, 10)
+        startup = api.Startup(source, area)
+        assert startup.as_json()["state"] == "running" and startup.as_json()["share"] == 0
+        task = asyncio.create_task(api.prefetch(source, area, startup=startup))
+        await asyncio.sleep(0.05)
+        now = startup.as_json()
+        assert not now["ready"] and now["share"] == 0.5
+        assert {(t["tile"], t["component"], t["state"]) for t in now["tiles"]} == {
+            ("E46N19", "U", "downloading"),
+            ("E46N19", "E", "downloading"),
+        }
+        gate.set()
+        assert await task
+        assert startup.as_json() | {"tiles": []} == {
+            "state": "ready",
+            "ready": True,
+            "share": 1.0,
+            "attempt": 1,
+            "error": None,
+            "retry_in_s": None,
+            "tiles": [],
+        }
+
+    asyncio.run(run())
+
+
+def test_a_failed_startup_says_when_it_tries_again() -> None:
+    async def down(tile: Any, component: str, release: str, folder: Path, **_: Any) -> Path:
+        raise httpx.ConnectTimeout("")
+
+    async def run() -> None:
+        source = _archive(down)
+        area = api.Area(14.1205, 40.8225, 10)
+        startup = api.Startup(source, area)
+        task = asyncio.create_task(api.prefetch(source, area, wait=30, startup=startup))
+        await asyncio.sleep(0.05)
+        now = startup.as_json()
+        assert now["state"] == "waiting" and 0 < now["retry_in_s"] <= 30
+        assert "ConnectTimeout" in now["error"]
+        assert {t["state"] for t in now["tiles"]} == {"failed"}
+        task.cancel()
+
+    asyncio.run(run())
+
+
+def test_demo_mode_needs_no_loading(client: TestClient) -> None:
+    startup = client.get("/api/health").json()["startup"]
+    assert startup["ready"] is True and startup["share"] == 1.0
+
+
+def test_a_startup_that_waits_too_long_says_so(monkeypatch: pytest.MonkeyPatch) -> None:
+    source = _archive(None)
+    startup = api.Startup(source, api.Area(14.1205, 40.8225, 10))
+    assert startup.as_json()["state"] == "running"
+    monkeypatch.setattr(api, "STARTUP_PATIENCE_S", -1)
+    now = startup.as_json()
+    assert now["state"] == "slow" and "does not answer" in now["error"]

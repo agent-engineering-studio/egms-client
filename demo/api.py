@@ -262,20 +262,43 @@ class Archive:
         self.release: str | None = None
         self.confirmed = False
         self.retry_at = 0.0
-        self.lock = asyncio.Lock()
+        self.confirming: asyncio.Task[None] | None = None
         #: One download per tile, shared by the answers that need it, and kept
         #: going when an answer stops waiting.
         self.downloads: dict[tuple[str, str, str], asyncio.Task[Path | None]] = {}
         self.why = ""
+        #: What each tile is doing: checking, downloading (bytes), ready, absent, failed.
+        self.status: dict[tuple[str, str], dict[str, Any]] = {}
 
     def _fetch(self, tile: Any, component: str, release: str) -> asyncio.Task[Path | None]:
         key = (tile_id(tile), component, release)
         task = self.downloads.get(key)
         if task is None or (task.done() and (task.cancelled() or task.exception())):
             # A failed download is tried again; a finished one is reused.
-            task = asyncio.create_task(
-                self.archive.fetch_tile(tile, component, release, self.folder)  # type: ignore[arg-type]
+            status = self.status.setdefault(
+                (key[0], component), {"tile": key[0], "component": component}
             )
+            status.update(state="checking", received=0, total=0)
+
+            def progress(_: Any, received: int, total: int) -> None:
+                status.update(state="downloading", received=received, total=total)
+
+            def finished(done: asyncio.Task[Path | None]) -> None:
+                if done.cancelled() or done.exception() is not None:
+                    status["state"] = "failed"
+                else:
+                    status["state"] = "ready" if done.result() is not None else "absent"
+
+            task = asyncio.create_task(
+                self.archive.fetch_tile(
+                    tile,
+                    component,  # type: ignore[arg-type]
+                    release,
+                    self.folder,
+                    on_progress=progress,
+                )
+            )
+            task.add_done_callback(finished)
             self.downloads[key] = task
         return task
 
@@ -315,31 +338,40 @@ class Archive:
         return tiffs, release, absent, missing
 
     async def latest(self) -> str:
-        """The latest release: asked to the archive, or the latest known if it does not answer.
+        """The latest release: the latest known at once, then the archive's own.
 
-        The tiles on disk are enough to answer: an archive that is slow or down
-        must not stop the page. It is asked again after RETRY_S.
+        The archive is asked in the background, at most ARCHIVE_WAIT_S: an
+        archive that is slow or down must not stop the page, and the tiles on
+        disk are enough to answer. If it does not answer it is asked again
+        after RETRY_S; when it lists a newer release, the next answers use it.
         """
-        async with self.lock:
-            if self.release is not None and (self.confirmed or time.monotonic() < self.retry_at):
-                return self.release
-            try:
-                self.release = (await asyncio.wait_for(self.archive.releases(), ARCHIVE_WAIT_S))[-1]
-                self.confirmed = True
-            except Exception as exc:
-                self.release = self.release or KNOWN_RELEASES[-1]
-                self.retry_at = time.monotonic() + RETRY_S
-                log.warning(
-                    "the archive did not list its releases (%s: %s): using %s, the latest known",
-                    type(exc).__name__,
-                    exc,
-                    self.release,
-                )
-            return self.release
+        if self.release is None:
+            self.release = KNOWN_RELEASES[-1]
+        asking = self.confirming is not None and not self.confirming.done()
+        if not self.confirmed and not asking and time.monotonic() >= self.retry_at:
+            self.confirming = asyncio.create_task(self._confirm())
+        return self.release
+
+    async def _confirm(self) -> None:
+        try:
+            newest = (await asyncio.wait_for(self.archive.releases(), ARCHIVE_WAIT_S))[-1]
+        except Exception as exc:
+            self.retry_at = time.monotonic() + RETRY_S
+            log.warning(
+                "the archive did not list its releases (%s: %s): using %s, the latest known",
+                type(exc).__name__,
+                exc,
+                self.release,
+            )
+            return
+        if newest != self.release:
+            log.info("the archive has the release %s: using it from now on", newest)
+        self.release, self.confirmed = newest, True
 
     async def aclose(self) -> None:
-        for task in self.downloads.values():
-            task.cancel()
+        for task in [*self.downloads.values(), self.confirming]:
+            if task is not None:
+                task.cancel()
         await self.archive.aclose()
 
 
@@ -498,7 +530,12 @@ def _inside(
 async def health(request: Request) -> JSONResponse:
     source = request.app.state.source
     return JSONResponse(
-        {"ok": True, "source": source.name, "area": request.app.state.area.as_json()}
+        {
+            "ok": True,
+            "source": source.name,
+            "area": request.app.state.area.as_json(),
+            "startup": request.app.state.startup.as_json(),
+        }
     )
 
 
@@ -809,8 +846,65 @@ async def _failed(_: Request, exc: Exception) -> JSONResponse:
     )
 
 
+#: At startup, a failed download of the area is tried again after this many seconds.
+STARTUP_RETRY_S = 60.0
+#: An attempt where tiles still wait for the archive, with no byte, after this
+#: many seconds is "slow": the page says the archive does not answer, and lets
+#: the visitor in with the tiles already on the disk. The download goes on.
+STARTUP_PATIENCE_S = 90.0
+
+
+class Startup:
+    """The download of the area at startup, for the loading screen of the page."""
+
+    def __init__(self, source: Any, area: Area) -> None:
+        self.source = source
+        tiles = [tile_id(t) for t in tiles_for_bounds(*lonlat_to_laea(*area.box))]
+        self.keys = [(name, c) for c in ("U", "E") for name in tiles]
+        # Demo mode reads the crops of the benchmark: nothing to download.
+        self.state = "ready" if not isinstance(source, Archive) else "running"
+        self.attempt = 0
+        self.error: str | None = None
+        self.retry_at: float | None = None
+        self.started = time.monotonic()
+
+    def as_json(self) -> dict[str, Any]:
+        status = getattr(self.source, "status", {})
+        tiles = []
+        for name, component in self.keys:
+            s = status.get((name, component), {"state": "waiting", "received": 0, "total": 0})
+            share = (
+                1.0
+                if s["state"] in ("ready", "absent")
+                else s["received"] / s["total"]
+                if s["state"] == "downloading" and s["total"]
+                else 0.0
+            )
+            tiles.append({"tile": name, "component": component, **s, "share": round(share, 3)})
+        done = 1.0 if self.state == "ready" else sum(t["share"] for t in tiles) / len(tiles)
+        retry = None if self.retry_at is None else max(0, round(self.retry_at - time.monotonic()))
+        state, error = self.state, self.error
+        stuck = [t for t in tiles if t["state"] in ("waiting", "checking")]
+        if state == "running" and stuck and time.monotonic() - self.started > STARTUP_PATIENCE_S:
+            state = "slow"
+            error = error or "the Copernicus archive does not answer"
+        return {
+            "state": state,
+            "ready": self.state == "ready",
+            "share": round(done, 3),
+            "attempt": self.attempt,
+            "error": error,
+            "retry_in_s": retry,
+            "tiles": tiles,
+        }
+
+
 async def prefetch(
-    source: Archive, area: Area, wait: float = RETRY_S, tries: int | None = None
+    source: Archive,
+    area: Area,
+    wait: float = STARTUP_RETRY_S,
+    tries: int | None = None,
+    startup: Startup | None = None,
 ) -> bool:
     """The tiles of the area of the page, at startup: no visitor waits for a download.
 
@@ -821,32 +915,43 @@ async def prefetch(
     """
     left = ["U", "E"]
     attempt = 0
+    startup = startup or Startup(source, area)
     while True:
         attempt += 1
-        for component in list(left):
-            try:
-                await source.tiffs(lonlat_to_laea(*area.box), component, wait=None)
+        startup.attempt, startup.state, startup.retry_at = attempt, "running", None
+        startup.started = time.monotonic()
+        # Both components at once: the bar moves for all the tiles together.
+        results = await asyncio.gather(
+            *(source.tiffs(lonlat_to_laea(*area.box), c, wait=None) for c in left),
+            return_exceptions=True,
+        )
+        for component, result in zip(list(left), results, strict=True):
+            if not isinstance(result, BaseException):
                 left.remove(component)
-            except Exception as exc:
-                log.warning(
-                    "prefetch %s of the area (attempt %d): %s: %s; trying again in %g s",
-                    component,
-                    attempt,
-                    type(exc).__name__,
-                    exc,
-                    wait,
-                )
-                break
+                continue
+            exc = result
+            startup.error = f"{type(exc).__name__}: {exc}"
+            log.warning(
+                "prefetch %s of the area (attempt %d): %s: %s; trying again in %g s",
+                component,
+                attempt,
+                type(exc).__name__,
+                exc,
+                wait,
+            )
         if not left:
             log.info("prefetch: the tiles of the area %s are ready", area.box)
+            startup.state, startup.error = "ready", None
             return True
         if tries is not None and attempt >= tries:
+            startup.state = "failed"
             return False
+        startup.state, startup.retry_at = "waiting", time.monotonic() + wait
         await asyncio.sleep(wait)
 
 
-#: Where the page opens when no place is set: Gioia del Colle (demo/web/lib/start.ts).
-DEFAULT_PLACE = (16.9233, 40.7996)
+#: Where the page opens when no place is set: Rione Terra, Pozzuoli (demo/web/lib/start.ts).
+DEFAULT_PLACE = (14.1205, 40.8225)
 
 
 def area_from_env() -> Area:
@@ -884,8 +989,11 @@ async def lifespan(app: Starlette) -> AsyncIterator[None]:
     log.info("the area of the page: %s", app.state.area.as_json())
     app.state.source = source_from_env()
     warm = None
+    app.state.startup = Startup(app.state.source, app.state.area)
     if isinstance(app.state.source, Archive):
-        warm = asyncio.create_task(prefetch(app.state.source, app.state.area))
+        warm = asyncio.create_task(
+            prefetch(app.state.source, app.state.area, startup=app.state.startup)
+        )
     incoming = [INCOMING / "uploads", INCOMING / "sensors"] if INCOMING else []
     app.state.shelf = Shelf([*RECORDS, *incoming])
     app.state.registry = sensors.Registry(SENSORS)
