@@ -621,6 +621,90 @@ async def gap_summary(request: Request) -> JSONResponse:
     )
 
 
+#: The squares where the ground moves most: at most HOT_TOP, with a median of
+#: at least HOT_MIN mm/year up or down. Zones to follow, not an alert.
+HOT_TOP, HOT_MIN = 8, 5.0
+
+
+def hotspots(
+    tiffs: list[Path], laea: tuple[float, ...], comuni: Sequence[boundaries.Comune] = ()
+) -> list[dict[str, Any]]:
+    """The BLOCK_M squares with the largest median vertical velocity, largest first.
+
+    Only squares where EGMS measures at least GAP_SHARE of the cells (of the
+    land, with the boundaries): a median of a few cells says little.
+    """
+    from pyproj import Transformer
+
+    g = gaps(tiffs, laea, comuni)
+    m = mosaic(
+        tiffs,
+        minx=g.west,
+        miny=g.north - g.share.shape[0] * BLOCK_M,
+        maxx=g.west + g.share.shape[1] * BLOCK_M,
+        maxy=g.north,
+    )
+    n = round(BLOCK_M / m.pixel)
+    rows, cols = g.share.shape
+    values = m.values if g.land is None else np.where(g.land, m.values, np.nan)
+    blocks = values.reshape(rows, n, cols, n).transpose(0, 2, 1, 3).reshape(rows, cols, n * n)
+    enough = g.share >= GAP_SHARE  # NaN compares False: not known is left out
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        median = np.nanmedian(np.where(enough[..., None], blocks, np.nan), axis=2)
+        top = np.nanmax(np.where(enough[..., None], np.abs(blocks), np.nan), axis=2)
+    order = np.argsort(-np.nan_to_num(np.abs(median), nan=-1), axis=None)
+    to_lonlat = Transformer.from_crs("EPSG:3035", "EPSG:4326", always_xy=True)
+    out: list[dict[str, Any]] = []
+    for flat in order[:HOT_TOP]:
+        r, c = divmod(int(flat), cols)
+        value = float(median[r, c])
+        if math.isnan(value) or abs(value) < HOT_MIN:
+            break
+        x0, y1 = g.west + c * BLOCK_M, g.north - r * BLOCK_M
+        xs, ys = [x0, x0 + BLOCK_M, x0 + BLOCK_M, x0, x0], [y1, y1, y1 - BLOCK_M, y1 - BLOCK_M, y1]
+        lons, lats = to_lonlat.transform(xs, ys)
+        lon, lat = to_lonlat.transform(x0 + BLOCK_M / 2, y1 - BLOCK_M / 2)
+        out.append(
+            {
+                "rank": len(out) + 1,
+                "lon": round(lon, 5),
+                "lat": round(lat, 5),
+                "median_mm_per_year": round(value, 1),
+                "largest_mm_per_year": round(float(top[r, c]), 1),
+                "measured_share": round(float(g.share[r, c]), 3),
+                "square": [[round(a, 5), round(b, 5)] for a, b in zip(lons, lats, strict=True)],
+            }
+        )
+    return out
+
+
+async def hot(request: Request) -> JSONResponse:
+    """Where the ground of the area moves most: squares to follow, ranked. Not an alert."""
+    area: Area = request.app.state.area
+    laea = lonlat_to_laea(*area.box)
+    source = request.app.state.source
+    missing: list[str] = []
+    if isinstance(source, Archive):
+        tiffs, release, _, missing = await source.available(laea, "U")
+    else:
+        tiffs, release, _ = await source.tiffs(laea, "U")
+    land: Land = request.app.state.land
+    found = await asyncio.to_thread(hotspots, tiffs, laea, land.comuni)
+    return JSONResponse(
+        {
+            "component": "U",
+            "block_m": BLOCK_M,
+            "at_least_mm_per_year": HOT_MIN,
+            "top": HOT_TOP,
+            "release": release,
+            "squares": found,
+            "missing_tiles": missing,
+            "note": "where the ground moved most in the period: zones to follow, not an alert",
+        }
+    )
+
+
 async def boundary(request: Request) -> JSONResponse:
     """The outline of the Comune of the page, from ISTAT, for the map."""
     land: Land = request.app.state.land
@@ -1191,6 +1275,7 @@ app = Starlette(
         Route("/api/map.png", map_png),
         Route("/api/gaps", gap_summary),
         Route("/api/boundary", boundary),
+        Route("/api/hotspots", hot),
         Route("/api/sources", sources),
         Route("/api/records", records),
         Route("/api/ingest/{sensor}", ingest, methods=["POST"]),

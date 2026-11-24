@@ -16,6 +16,8 @@ export type Row = {
   value: string;
   sub: string;
   trust: TrustKind;
+  /** The values of a series of one thing, oldest first: drawn as a line. */
+  series?: (number | null)[];
   detail: {
     sentence?: string;
     values?: [string, string][];
@@ -126,6 +128,7 @@ export function recordRow(group: Group, colour: string, t: Text, lang: Lang): Ro
     value,
     sub,
     trust: measured ? trustOf(measured) : "unmeasured",
+    series: records.length > 2 ? records.map((r) => r.value ?? null) : undefined,
     detail: {
       ...base.detail,
       values:

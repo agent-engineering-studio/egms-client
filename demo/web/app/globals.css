@@ -648,3 +648,241 @@ body {
 .egms-startup-tiles li.failed {
   color: #a61919;
 }
+
+/* The card of a point: over the map, slightly see-through. */
+.egms-popup .leaflet-popup-content-wrapper {
+  padding: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 6px 24px rgba(23, 50, 77, 0.25);
+}
+
+.egms-popup .leaflet-popup-content {
+  margin: 0;
+  font: inherit;
+  width: auto !important;
+}
+
+.egms-popup .leaflet-popup-tip {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.egms-card {
+  max-height: min(calc(100vh - 220px), 540px);
+  font-family: inherit;
+  overflow-y: auto;
+  padding: 12px 14px;
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+.egms-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.egms-card-close {
+  border: 0;
+  background: transparent;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--egms-muted);
+  cursor: pointer;
+}
+
+.egms-card-section {
+  margin: 10px 0 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--egms-muted);
+}
+
+.egms-card-motion {
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(23, 50, 77, 0.1);
+}
+
+.egms-card-head {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.egms-card-title {
+  font-size: 0.75rem;
+  color: var(--egms-muted);
+}
+
+.egms-card-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.egms-card-trust {
+  margin-top: 6px;
+  font-size: 0.75rem;
+  color: var(--egms-muted);
+}
+
+.egms-card-more {
+  margin: 8px 0;
+}
+
+.egms-card-more summary {
+  cursor: pointer;
+  color: #0066cc;
+}
+
+.egms-chart {
+  margin: 8px 0 0;
+}
+
+.egms-chart figcaption {
+  font-size: 0.7rem;
+  color: var(--egms-muted);
+  text-align: center;
+}
+
+.egms-chart-label,
+.egms-chart-value,
+.egms-chart-none {
+  font-size: 11px;
+  fill: #17324d;
+}
+
+.egms-chart-value {
+  font-weight: 700;
+}
+
+.egms-meter {
+  position: relative;
+  height: 8px;
+  margin-top: 3px;
+  border-radius: 4px;
+  background: #e6e9f2;
+}
+
+.egms-meter-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 4px;
+}
+
+.egms-meter-mark {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: #17324d;
+}
+
+.egms-period-track {
+  position: relative;
+  height: 6px;
+  margin-top: 4px;
+  border-radius: 3px;
+  background: #e6e9f2;
+}
+
+.egms-period-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 3px;
+  background: #0066cc;
+}
+
+.egms-period-years {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.65rem;
+}
+
+.egms-spark {
+  display: block;
+  margin-top: 4px;
+}
+
+/* Where the ground moves most: numbered squares on the map, a ranked list in the panel. */
+.egms-hot-badge span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #5c2d91;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+.egms-swatch-hot {
+  border: 2px solid #5c2d91;
+  background: rgba(92, 45, 145, 0.08);
+}
+
+.egms-hot {
+  margin-top: 16px;
+}
+
+.egms-hot-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.egms-hot-list button {
+  display: grid;
+  grid-template-columns: 22px 32px 1fr;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 4px;
+  border: 0;
+  border-bottom: 1px solid #e6e9f2;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.egms-hot-list button:hover {
+  background: rgba(92, 45, 145, 0.06);
+}
+
+.egms-hot-rank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #5c2d91;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* The ground map stays crisp at high zoom: its cells are squares, not a blur. */
+.leaflet-image-layer {
+  image-rendering: pixelated;
+}
+
+/* Leaflet sets its own font: the map speaks the page's. */
+.leaflet-container {
+  font-family: inherit;
+}
+
+@media (max-width: 768px) {
+  .egms-card {
+    max-height: 42vh;
+  }
+}
