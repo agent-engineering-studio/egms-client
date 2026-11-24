@@ -30,10 +30,12 @@ def _zip() -> bytes:
 class Archive:
     """A fake archive that records every request."""
 
-    def __init__(self, *, download_status: int = 200) -> None:
+    def __init__(self, *, download_status: int = 200, expired: int = 0) -> None:
         self.requests: list[httpx.Request] = []
         self.tokens = 0
         self.download_status = download_status
+        #: How many downloads answer 401 before one goes through.
+        self.expired = expired
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
@@ -50,6 +52,9 @@ class Archive:
             return httpx.Response(200, content=(FIXTURES / name).read_bytes())
         if "/download/" in path:
             assert request.url.params["id"] == "0123456789abcdef0123456789abcdef"
+            if self.expired:
+                self.expired -= 1
+                return httpx.Response(401, text="gone")
             if self.download_status != 200:
                 return httpx.Response(self.download_status, text="gone")
             return httpx.Response(200, content=_zip())
@@ -155,6 +160,50 @@ def test_a_404_download_is_absent_too(service_key: ServiceKey, tmp_path: Path) -
     )
     assert result is None
     assert (tmp_path / "EGMS_L3_E47N19_100km_U_2020_2025_absent").exists()
+
+
+def test_an_expired_search_is_searched_again_once(service_key: ServiceKey, tmp_path: Path) -> None:
+    archive = Archive(expired=1)
+    path = run(archive, service_key, lambda a: a.fetch_tile((47, 19), "U", "2020_2025", tmp_path))
+    assert path == tmp_path / f"{STEM}.tiff"
+    paths = [r.url.path.rsplit("/", 1)[-1] for r in archive.requests]
+    assert paths.count("search") == 2
+    assert sorted(p.name for p in tmp_path.iterdir()) == [f"{STEM}.tiff"]
+
+
+def test_a_tile_keeps_other_files_of_its_zip(service_key: ServiceKey, tmp_path: Path) -> None:
+    archive = Archive()
+
+    async def body(a: EgmsArchive) -> tuple[Path | None, Path | None, Path | None]:
+        only_tiff = await a.fetch_tile((47, 19), "U", "2020_2025", tmp_path)
+        with_csv = await a.fetch_tile((47, 19), "U", "2020_2025", tmp_path, keep=("tiff", "csv"))
+        again = await a.fetch_tile((47, 19), "U", "2020_2025", tmp_path, keep=["csv"])
+        return only_tiff, with_csv, again
+
+    only_tiff, with_csv, again = run(archive, service_key, body)
+    assert only_tiff == with_csv == again == tmp_path / f"{STEM}.tiff"
+    assert (tmp_path / f"{STEM}.csv").read_bytes() == b"series"
+    # The GeoTIFF alone was not enough for the second call; the third asks nothing.
+    assert sum("/download/" in r.url.path for r in archive.requests) == 2
+    assert sorted(p.name for p in tmp_path.iterdir()) == [f"{STEM}.csv", f"{STEM}.tiff"]
+
+
+def test_without_retries_a_busy_archive_says_its_status(
+    service_key: ServiceKey, tmp_path: Path
+) -> None:
+    async def body(client: httpx.AsyncClient) -> None:
+        a = EgmsArchive(client, service_key, archive_url=ARCHIVE, retries=0)
+        await a.fetch_tile((47, 19), "U", "2020_2025", tmp_path)
+
+    async def main() -> None:
+        transport = httpx.MockTransport(Archive(download_status=429))
+        async with httpx.AsyncClient(transport=transport) as client:
+            await body(client)
+
+    with pytest.raises(EgmsError, match="HTTP 429") as refused:
+        asyncio.run(main())
+    assert refused.value.status_code == 429
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_an_expired_search_raises_and_leaves_nothing(

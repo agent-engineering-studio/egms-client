@@ -135,7 +135,9 @@ def parse_token(status_code: int, body: bytes | str, *, now: float) -> Token:
         data = None
     if status_code != 200 or not isinstance(data, dict) or "access_token" not in data:
         detail = data.get("message") if isinstance(data, dict) else str(body)[:200]
-        raise EgmsError(f"CLMS token refused (HTTP {status_code}): {detail}")
+        raise EgmsError(
+            f"CLMS token refused (HTTP {status_code}): {detail}", status_code=status_code
+        )
     return Token(
         access_token=str(data["access_token"]),
         expires_at=now + float(data.get("expires_in", ASSERTION_LIFETIME)),

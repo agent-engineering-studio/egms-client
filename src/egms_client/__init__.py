@@ -52,6 +52,7 @@ from egms_client.client import (
     EgmsArchive,
     Keep,
     PointVelocity,
+    TileKeep,
     default_directory,
 )
 from egms_client.errors import EgmsError
@@ -82,6 +83,7 @@ __all__ = [
     "Search",
     "ServiceKey",
     "Tile",
+    "TileKeep",
     "Token",
     "__version__",
     "api_release",
