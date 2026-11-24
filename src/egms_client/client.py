@@ -59,6 +59,8 @@ RENEW_MARGIN_S = 300
 #: (``tiff`` for L3 only; ``csv`` and ``xml`` for all levels), or ``parquet``:
 #: the CSV as GeoParquet (needs the ``tables`` extra).
 Keep = Literal["zip", "tiff", "csv", "xml", "parquet"]
+#: What :meth:`EgmsArchive.fetch_tile` can keep of a tile's ZIP.
+TileKeep = Literal["tiff", "csv", "xml"]
 
 _RETRY_STATUS = frozenset({429, 502, 503, 504})
 
@@ -307,7 +309,13 @@ class EgmsArchive:
         return done
 
     async def fetch_tile(
-        self, tile: Tile, component: Component, release: str, directory: Path | None = None
+        self,
+        tile: Tile,
+        component: Component,
+        release: str,
+        directory: Path | None = None,
+        *,
+        keep: Iterable[TileKeep] = ("tiff",),
     ) -> Path | None:
         """The tile's mean-velocity GeoTIFF in ``directory``, downloaded if missing.
 
@@ -316,40 +324,67 @@ class EgmsArchive:
         ``None`` when the tile does not exist. Both outcomes are remembered in
         ``directory`` (the GeoTIFF, or an ``…absent`` marker), so running it
         again for a whole country asks the archive nothing.
+
+        ``keep`` adds other files of the same ZIP (``"csv"``, ``"xml"``),
+        written beside the GeoTIFF with its name and their suffix. A tile whose
+        GeoTIFF is there and whose other kept files are not is downloaded
+        again. The CSV of a tile is about 250 MB.
+
+        A search id that expired before the download (HTTP 401) is searched
+        again, once.
         """
         directory = directory or default_directory()
+        others = tuple(dict.fromkeys(k for k in keep if k != "tiff"))
         prefix = tile_prefix(tile, component, release)
-        cached = sorted(directory.glob(f"{prefix}*.tiff"), key=lambda p: _sub_release(p.stem))
-        if cached:
-            return cached[-1]
+
+        def cached() -> Path | None:
+            found = sorted(directory.glob(f"{prefix}*.tiff"), key=lambda p: _sub_release(p.stem))
+            if found and all(found[-1].with_suffix(f".{k}").exists() for k in others):
+                return found[-1]
+            return None
+
+        if (path := cached()) is not None:
+            return path
         marker = directory / f"{prefix}absent"
         if marker.exists():
             return None
         directory.mkdir(parents=True, exist_ok=True)
-        search = await self.search(tile, component, release)
-        hit = latest_hit(search) if search is not None else None
+        search, hit = await self._tile_hit(tile, component, release, prefix)
         if search is None or hit is None:
             marker.touch()
             return None
-        if not hit.stem.startswith(prefix):
-            # A name the glob above cannot find again would mean a ~60 MB
-            # download on every run.
-            raise EgmsError(f"unexpected file name for {prefix}: {hit.filename!r}")
-        _check_name(hit)
         async with self._file_lock(hit.filename):
             # Another call may have fetched it while this one waited.
-            cached = sorted(directory.glob(f"{prefix}*.tiff"), key=lambda p: _sub_release(p.stem))
-            if cached:
-                return cached[-1]
-            archive = await self._download(search.id, hit, directory)
+            if (path := cached()) is not None:
+                return path
+            try:
+                archive = await self._download(search.id, hit, directory)
+            except _ExpiredError:
+                search, hit = await self._tile_hit(tile, component, release, prefix)
+                if search is None or hit is None:
+                    raise EgmsError(f"{prefix}: no longer in the archive") from None
+                archive = await self._download(search.id, hit, directory)
             if archive is None:
                 marker.touch()
                 return None
             try:
-                (path,) = extract(archive, ["tiff"], directory)
+                path, *_ = extract(archive, ["tiff", *others], directory)
             finally:
                 archive.unlink()
         return path
+
+    async def _tile_hit(
+        self, tile: Tile, component: Component, release: str, prefix: str
+    ) -> tuple[Search | None, Hit | None]:
+        search = await self.search(tile, component, release)
+        hit = latest_hit(search) if search is not None else None
+        if hit is not None:
+            if not hit.stem.startswith(prefix):
+                # A name the glob of `fetch_tile` cannot find again would mean
+                # a ~60 MB download on every run.
+                raise EgmsError(f"unexpected file name for {prefix}: {hit.filename!r}")
+            _check_name(hit)
+        return search, hit
 
     def _file_lock(self, name: str) -> asyncio.Lock:
         return self._file_locks.setdefault(name, asyncio.Lock())
