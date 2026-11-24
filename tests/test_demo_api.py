@@ -21,6 +21,7 @@ pytest.importorskip("rasterio")
 from starlette.testclient import TestClient
 
 from egms_client import tile_id
+from egms_client.facts import velocity
 from egms_client.mosaic import lonlat_to_laea
 
 ROOT = Path(__file__).parent.parent
@@ -726,6 +727,9 @@ def test_the_squares_that_move_most_are_ranked() -> None:
     # The caldera rises: the first square is near Rione Terra, going up by > 100 mm a year.
     assert top["median_mm_per_year"] > 100 and abs(top["lon"] - 14.12) < 0.03
     assert top["measured_share"] >= api.GAP_SHARE and len(top["square"]) == 5
+    # Its point is a measured cell: a click there gives a value.
+    point = velocity(crop, top["lon"], top["lat"], component="U", release="2020-2025")
+    assert point["measured"] and point["velocity_mm_per_year"] > 50
 
 
 def test_a_still_area_has_no_squares_to_follow() -> None:

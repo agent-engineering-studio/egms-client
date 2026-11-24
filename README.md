@@ -285,17 +285,42 @@ Five stories with real data, from download to figure, in [`notebooks/`](https://
 ## A page for a Comune: open data side by side, in Docker
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/agent-engineering-studio/egms-client/main/docs/images/ui-territorio.jpg" alt="The page for the Comune di Pozzuoli: the map of vertical velocity, the EGMS card of the point clicked, and the cards of the other sources" width="100%">
+  <a href="https://agentengineering.it/egms-client/images/ui-territorio.mp4"><img src="https://raw.githubusercontent.com/agent-engineering-studio/egms-client/main/docs/images/ui-territorio.jpg" alt="The page for the Comune di Pozzuoli: the card of a point over the map, rising by 153.6 mm a year, with a chart against the median around it; the numbered squares where the ground moves most; on the right, what the map is for" width="100%"></a>
 </p>
 
+<p align="center"><em>Click the picture for a 30-second video: <a href="https://agentengineering.it/egms-client/images/ui-territorio.mp4">ui-territorio.mp4</a>.</em></p>
+
 A page that shows how to reuse open data, for one area: the Comune and a
-radius around it (`EGMS_UI_RADIUS_KM`, 10 km by default). Its EGMS tiles are
-downloaded once, at startup, and the map stays inside it. The map fills the screen; click a
-point and the panel gives one row per source: what it measures, its number
-in words, and a dot for how far to trust it. EGMS says how much the ground
-moves; next to it, the radar rain of the Protezione Civile, a landslide
-threshold, a rain gauge. A row opens on its source, dates, licence and
-notes. On a phone the panel is a sheet that slides up.
+radius around it (`EGMS_UI_RADIUS_KM`, 10 km by default). The map fills the
+screen and stays inside the area. What it is for is written next to it:
+what the open data of the area say, how far to trust them, and where they
+are missing.
+
+- **The card of a point.** Click a point and a card opens over the map,
+  slightly see-through: an arrow and the motion in words ("sale di 153,6
+  mm/anno"), a chart of the point against the median 5 km around, a meter
+  for how far to trust it, the period measured. Below, the other sources
+  nearby: the radar rain of the Protezione Civile, a landslide threshold, a
+  rain gauge with its line.
+- **Where the ground moves most.** The eight 1 km squares with the largest
+  median vertical velocity (at least 5 mm a year, where EGMS measures at
+  least a quarter of the cells), numbered on the map and ranked in the
+  panel. At Pozzuoli the first is by Rione Terra, at +153 mm a year. Zones
+  to follow, not an alert.
+- **Where data are missing.** A 1 km square where EGMS measures less than a
+  quarter of the cells is a data gap, in amber: a place where the Comune
+  can publish more open data. The boundaries of the Comuni from ISTAT
+  (CC BY 4.0) keep the sea out, and give the Comune its own count: at
+  Pozzuoli, 3 of 47 square kilometres.
+- **The first start.** The EGMS tiles of the area (about 60 MB each) and the
+  boundaries are downloaded once. Until they are there, a loading screen
+  shows a progress bar and each tile; if the archive does not answer, it
+  says so and lets the visitor in with what is already on the disk.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/agent-engineering-studio/egms-client/main/docs/images/ui-buco-di-dati.jpg" alt="A data gap at the Astroni crater, in Pozzuoli: the satellite measures 1% of the cells of this square kilometre" width="49%">
+  <img src="https://raw.githubusercontent.com/agent-engineering-studio/egms-client/main/docs/images/ui-territorio-telefono.jpg" alt="The page on a phone: the card over the map" width="24%">
+</p>
 
 Whoever runs the page has a back office on another port (`127.0.0.1:3004`,
 not published): upload a file, connect a sensor that sends SenML to

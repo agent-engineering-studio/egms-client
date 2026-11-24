@@ -662,7 +662,6 @@ body {
 .egms-popup .leaflet-popup-content {
   margin: 0;
   font: inherit;
-  width: auto !important;
 }
 
 .egms-popup .leaflet-popup-tip {
@@ -670,6 +669,8 @@ body {
 }
 
 .egms-card {
+  box-sizing: border-box;
+  width: min(340px, calc(100vw - 56px));
   max-height: min(calc(100vh - 220px), 540px);
   font-family: inherit;
   overflow-y: auto;
@@ -885,4 +886,8 @@ body {
   .egms-card {
     max-height: 42vh;
   }
+}
+
+.egms-card p {
+  font-size: inherit;
 }

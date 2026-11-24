@@ -91,6 +91,11 @@ export default function Ground({
   const [hotspots, setHotspots] = useState<HotspotsAnswer | null>(null);
   const [showHot, setShowHot] = useState(true);
   const [cardEl, setCardEl] = useState<HTMLElement | null>(null);
+  const [focus, setFocus] = useState<{
+    lat: number;
+    lon: number;
+    n: number;
+  } | null>(null);
   const [groundSince, setGroundSince] = useState(0);
   // On a phone the panel is a sheet: low, to see the map, or high, to read.
   const [sheet, setSheet] = useState<"low" | "high">("low");
@@ -314,6 +319,7 @@ export default function Ground({
             onOutside={onOutside}
             onBounds={setBounds}
             onGround={onGround}
+            focus={focus}
             hotspots={showHot && hotspots ? hotspots.squares : []}
             onCard={setCardEl}
             onCloseCard={onCloseCard}
@@ -506,7 +512,14 @@ export default function Ground({
                         <li key={h.rank}>
                           <button
                             type="button"
-                            onClick={() => onPoint(h.lat, h.lon)}
+                            onClick={() => {
+                              onPoint(h.lat, h.lon);
+                              setFocus((f) => ({
+                                lat: h.lat,
+                                lon: h.lon,
+                                n: (f?.n ?? 0) + 1,
+                              }));
+                            }}
                           >
                             <span className="egms-hot-rank">{h.rank}</span>
                             <MotionIcon

@@ -33,6 +33,8 @@ type Props = {
   onOutside: () => void;
   /** The view changed: for the records. */
   onBounds: (box: Box) => void;
+  /** A place to fly to (a zone of the list), with a counter so that the same place flies again. */
+  focus: { lat: number; lon: number; n: number } | null;
   /** The squares where the ground moves most, ranked: zones to follow. */
   hotspots: Hotspot[];
   /** The element the card of the point is drawn into, over the map (null when closed). */
@@ -69,6 +71,8 @@ export default function MapView(props: Props) {
   const cells = useRef<L.LayerGroup | null>(null);
   const hot = useRef<L.LayerGroup | null>(null);
   const popup = useRef<L.Popup | null>(null);
+  // While the map flies to a zone, the card does not pan it: that would stop the flight.
+  const flying = useRef(false);
   const others = useRef<L.LayerGroup | null>(null);
   const area = useRef<Area | null>(null);
   const handlers = useRef(props);
@@ -290,8 +294,9 @@ export default function MapView(props: Props) {
       const element = document.createElement("div");
       popup.current = L.popup({
         className: "egms-popup",
-        maxWidth: Math.min(360, window.innerWidth - 40),
-        minWidth: Math.min(300, window.innerWidth - 40),
+        // The card sets its own width (CSS); the popup follows it.
+        maxWidth: 400,
+        minWidth: 0,
         closeButton: false,
         closeOnClick: false,
         autoPanPaddingTopLeft: [16, 16],
@@ -303,11 +308,29 @@ export default function MapView(props: Props) {
           handlers.current.onCloseCard();
       });
       // The page fills the card after it opens: place it again, and keep it in view, as it grows.
-      new ResizeObserver(() => popup.current?.update()).observe(element);
+      new ResizeObserver(() => {
+        if (!flying.current) popup.current?.update();
+      }).observe(element);
       handlers.current.onCard(element);
     }
     popup.current.setLatLng([props.point.lat, props.point.lon]).openOn(m);
   }, [props.point]);
+
+  // A zone chosen in the list: fly there, close enough to read the cells.
+  useEffect(() => {
+    const m = map.current;
+    const f = props.focus;
+    if (!m || !f) return;
+    flying.current = true;
+    m.once("moveend", () => {
+      flying.current = false;
+      popup.current?.update();
+    });
+    // The point low in the map: the card opens above it, and needs the room.
+    const zoom = Math.max(m.getZoom(), 15);
+    const at = m.project([f.lat, f.lon], zoom).subtract([0, m.getSize().y * 0.3]);
+    m.flyTo(m.unproject(at, zoom), zoom, { duration: 1.2 });
+  }, [props.focus]);
 
   // The squares where the ground moves most: outlined, with their rank.
   useEffect(() => {
