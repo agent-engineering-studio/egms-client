@@ -2,6 +2,10 @@
   "schema": "opendata-record/v1",
   "kind": "fact",
   "id": "dpc-radar-trust-14.1205-40.8225",
+  "label": {
+    "it": "Quanto fidarsi del radar della pioggia, qui",
+    "en": "How far to trust the rain radar, here"
+  },
   "question": "How far can the radar rain of the Protezione Civile be trusted here?",
   "values": {
     "beam_height": {

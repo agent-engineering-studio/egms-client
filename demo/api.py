@@ -9,10 +9,10 @@ it. Nothing here is an alert service: a velocity is a measurement.
 
 Next to EGMS, the page shows any other source that writes **records of open
 data** (:mod:`egms_client.records`): a rain gauge, a threshold, the radar.
-They are files in the folders of ``EGMS_UI_RECORDS`` (``.json`` or
-``.jsonl``; several folders separated by ``:``), read again when a file
-changes. A file with an invalid record is refused whole, and the page says
-why. Nothing is imported from the libraries that wrote them.
+They are files in the folders of ``EGMS_UI_RECORDS`` (``.json``,
+``.jsonl`` or ``.csv`` like the template; several folders separated by
+``:``), read again when a file changes. A file with an invalid record is
+refused whole, and the page says why. Nothing is imported from the libraries that wrote them.
 
 Where the data come from (``EGMS_UI_SOURCE``):
 
@@ -195,7 +195,7 @@ class Shelf:
             for folder in self.folders
             if folder.is_dir()
             for path in folder.iterdir()
-            if path.suffix in (".json", ".jsonl") and path.is_file()
+            if path.suffix in (".json", ".jsonl", ".csv") and path.is_file()
         )
 
     def load(self) -> None:
@@ -228,6 +228,7 @@ class Shelf:
                     "records": 0,
                     "kinds": [],
                     "properties": [],
+                    "methods": [],
                     "files": [],
                 },
             )
@@ -236,6 +237,7 @@ class Shelf:
                 ("made_by", r["made_by"]["name"]),
                 ("kinds", r["kind"]),
                 ("properties", r.get("property") or r.get("question")),
+                ("methods", (r["reliability"] or {}).get("method")),
                 ("files", item["file"]),
             ):
                 if value and value not in s[key]:

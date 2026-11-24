@@ -218,5 +218,13 @@ Limen's job.
    and `/api/records`, and refuses a file with an invalid record, saying
    why. The page has three tabs: the point (EGMS, then the other sources
    within 2 km, each with «how it is made»), the sources, and how to add one.
-4. HTTP SenML input and a simulated rain gauge.
+3b. ✅ A simpler page (agreed on 24 November 2026): the map fills the
+   screen and zooms with the wheel; one row per source with a dot for how
+   far to trust it; a sheet on a phone; the technical side on `/dati`, with
+   templates (JSON and CSV). Records gain `label` and `headline`, both
+   optional, and a CSV with fixed columns reads as records.
+4. A back office on its own port (`127.0.0.1:3004`, not published), with
+   the user and password of the administrator from `.env` (the password as
+   a hash): upload a file, connect a sensor (HTTP SenML, one token per
+   sensor), see what was refused, and a log.
 5. `to_records()` in the other libraries, one PR each.

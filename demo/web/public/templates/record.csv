@@ -1,0 +1,4 @@
+tempo;lon;lat;grandezza;valore;unità;fonte;licenza;sensore;etichetta
+2026-10-15T12:00:00Z;14,1262;40,8262;rainfall;0,4;mm;Pluviometro del Comune;CC BY 4.0;pluvio-01;Pioggia
+2026-10-15T12:10:00Z;14,1262;40,8262;rainfall;;mm;Pluviometro del Comune;CC BY 4.0;pluvio-01;Pioggia
+2026-10-15T12:20:00Z;14,1262;40,8262;rainfall;1,2;mm;Pluviometro del Comune;CC BY 4.0;pluvio-01;Pioggia

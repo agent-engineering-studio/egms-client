@@ -16,13 +16,7 @@ export type Start = {
   lang: Lang;
   /** In an iframe: no header and no footer, only the map and the card. */
   embed: boolean;
-  /** The tab the card opens on: a link can point at the sources or at the guide. */
-  tab: Tab;
 };
-
-export type Tab = "point" | "sources" | "add";
-
-const TABS: Record<string, Tab> = { fonti: "sources", sources: "sources", aggiungi: "add", add: "add" };
 
 export type Asked = {
   lat?: string;
@@ -31,7 +25,6 @@ export type Asked = {
   place?: string;
   lang?: string;
   embed?: string;
-  tab?: string;
 };
 
 // Pozzuoli, Rione Terra: the ground rises there, and the demo data cover it.
@@ -57,7 +50,6 @@ const langOf = (sources: Asked[]): Lang =>
 export function startFrom(...sources: Asked[]): Start {
   const lang = langOf(sources);
   const embed = sources.some((s) => ["1", "true", "yes"].includes(s.embed?.trim().toLowerCase() ?? ""));
-  const tab = sources.map((s) => TABS[s.tab?.trim().toLowerCase() ?? ""]).find(Boolean) ?? "point";
   for (const asked of sources) {
     const lat = number(asked.lat);
     const lon = number(asked.lon);
@@ -71,10 +63,9 @@ export function startFrom(...sources: Asked[]): Start {
       given: true,
       lang,
       embed,
-      tab,
     };
   }
-  return { ...DEFAULT, zoom: DEFAULT_ZOOM, place: null, given: false, lang, embed, tab };
+  return { ...DEFAULT, zoom: DEFAULT_ZOOM, place: null, given: false, lang, embed };
 }
 
 export type Tiles = { url: string; attribution: string };

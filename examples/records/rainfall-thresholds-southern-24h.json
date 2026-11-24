@@ -2,6 +2,11 @@
   "schema": "opendata-record/v1",
   "kind": "fact",
   "id": "italica-t5-southern-24h",
+  "label": {
+    "it": "Pioggia che basta per le frane, in 24 ore",
+    "en": "Rain enough for landslides, in 24 hours"
+  },
+  "headline": "cumulated",
   "question": "How much rain in 24 hours is like the rain that triggered landslides in southern Italy?",
   "values": {
     "cumulated": {

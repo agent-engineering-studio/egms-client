@@ -32,25 +32,31 @@ Serve una chiave di servizio gratuita del Copernicus Land Monitoring Service
 
 ## La pagina per il sito del Comune
 
-Una mappa del territorio. Si clicca un punto, e ogni fonte dice che cosa sa
-di lì: l'EGMS quanto si muove il suolo, e accanto le altre fonti vicine, per
-esempio la pioggia del radar della Protezione Civile, una soglia di pioggia
-per le frane, un pluviometro. Ogni scheda dice da dove viene il dato,
-quando, quanto fidarsi e con quale licenza; «Come è fatto» mostra il codice
-o il record da cui vengono i numeri. In fondo, sempre: «una velocità del
-suolo è una misura, non un'allerta».
+Una mappa del territorio a tutto schermo. Si clicca un punto, e il pannello
+mostra una riga per ogni fonte: che cosa misura, il numero in parole («sale
+di 145,2 mm/anno», «27,1 mm») e un pallino per quanto fidarsi (affidabile,
+poco affidabile, non misurato, affidabilità non indicata). Toccando una riga
+si aprono fonte, date, licenza e note. Sul telefono il pannello è un foglio
+che sale dal basso.
 
 Le fonti restano una accanto all'altra: la pagina non le mescola in un
 punteggio e non è un sistema di allerta. Mostra i dati e i loro limiti.
 
-**Aggiungere una fonte, senza codice.** Un sensore, un file del Comune o
-un'altra libreria scrive i suoi dati come
-[record](api/records.md), un formato JSON aperto, in un file `.json` o
-`.jsonl` nella cartella `records/` (o in quella di `EGMS_RECORDS_DIR`). La
-pagina lo legge alla richiesta successiva. Un file con un record non valido
-è rifiutato per intero, e la scheda «Fonti» dice perché. Il file si
-controlla prima con `egms records FILE`. La scheda «Aggiungi una fonte»
-della pagina mostra un esempio.
+**La pagina dei dati** (`/dati`) raccoglie la parte tecnica: come è fatta
+ogni fonte, il codice per riusarla, il formato dei record, i template da
+scaricare (JSON e CSV) e le regole.
+
+![La pagina sul telefono](images/ui-territorio-telefono.jpg)
+
+**Aggiungere una fonte.** Una fonte entra nella pagina scrivendo i suoi dati
+come [record](api/records.md), un formato JSON aperto, oppure come tabella
+CSV con le colonne del template (`tempo, lon, lat, grandezza, valore, unità,
+fonte, licenza`, più `sensore`, `etichetta` e `significato` facoltative).
+Chi gestisce la pagina mette il file nella cartella `records/` (o in quella
+di `EGMS_RECORDS_DIR`); la pagina lo legge alla richiesta successiva. Un file
+con un record non valido è rifiutato per intero. Il file si controlla prima
+con `egms records FILE`. Il caricamento dal backoffice, con utente e
+password dell'amministratore, arriva nel prossimo rilascio.
 
 **Installarla.** Serve Docker. Dal repository:
 
@@ -74,8 +80,7 @@ computer stesso: per pubblicarla serve un proxy con HTTPS davanti.
 | `EGMS_RECORDS_DIR` | la cartella dei record delle altre fonti (di base `records/`), in sola lettura |
 
 Gli stessi valori si possono dare nell'indirizzo:
-`?lat=40.82&lon=14.12&place=Comune%20di%20Pozzuoli&lang=it`. Con
-`tab=fonti` o `tab=aggiungi` la pagina si apre sulle fonti o sulla guida.
+`?lat=40.82&lon=14.12&place=Comune%20di%20Pozzuoli&lang=it`.
 
 **Nel sito del Comune**, con `EGMS_UI_FRAME_ANCESTORS=https://www.comune.example.it`:
 
@@ -84,7 +89,8 @@ Gli stessi valori si possono dare nell'indirizzo:
         title="Il suolo si muove?" style="border:0"></iframe>
 ```
 
-Con `embed=1` la pagina toglie intestazione e piè di pagina.
+Con `embed=1` la pagina toglie intestazione e piè di pagina. La mappa
+riempie l'iframe e si ingrandisce con la rotella del mouse.
 
 **La chiave CLMS** va nella cartella `secrets/` (montata in sola lettura, mai
 copiata nell'immagine). Senza chiave la pagina parte in **modalità

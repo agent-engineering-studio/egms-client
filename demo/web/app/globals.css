@@ -1,4 +1,4 @@
-/* What Bootstrap Italia does not have: the map, its card and legend. Colours, type and
+/* What Bootstrap Italia does not have: the map, the panel, the sheet. Colours, type and
    controls are the kit's. */
 
 @font-face {
@@ -17,96 +17,257 @@
     format("woff2");
 }
 
+/* The page: the map fills the screen, the panel sits on the right; on a phone the panel
+   is a sheet over the bottom of the map. */
+
+:root {
+  --egms-blue: #0066cc;
+  --egms-ink: #17324d;
+  --egms-muted: #5c6f82;
+  --egms-line: #e3e6ea;
+  --egms-header: 60px;
+  --egms-footer: 28px;
+}
+
+html,
 body {
+  height: 100%;
+  margin: 0;
   background: #f2f5f8;
+  color: var(--egms-ink);
 }
 
 .egms {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  overflow-x: hidden;
+  height: 100dvh;
+  overflow: hidden;
 }
 
-.egms .it-header-center-wrapper {
-  height: auto;
-  padding: 12px 0;
-}
-
-.egms .it-brand-title {
+/* The header: the name of the place, the link to the data, the language. */
+.egms-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: var(--egms-header);
+  padding: 8px 16px;
+  background: var(--egms-blue);
   color: #fff;
-  font-size: 1.5rem;
+}
+
+.egms-brand {
+  min-width: 0;
+}
+
+.egms-brand-title {
+  font-size: 1.2rem;
   font-weight: 600;
   line-height: 1.2;
 }
 
-.egms .it-brand-tagline {
-  color: #fff;
-  font-size: 0.9rem;
+.egms-brand-tagline {
+  font-size: 0.85rem;
+  opacity: 0.9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+.egms-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.egms-nav-link {
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.egms-nav-link:hover {
+  color: #fff;
+}
+
+.egms-lang {
+  border: 1px solid #fff;
+  border-radius: 4px;
+  background: none;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 4px 10px;
+}
+
+/* The map and the panel. */
 .egms-main {
-  position: relative;
   flex: 1;
+  min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 420px;
-  gap: 0;
-  min-height: 520px;
+  grid-template-columns: minmax(0, 1fr) 380px;
+}
+
+.egms-map-wrap {
+  position: relative;
+  min-height: 0;
 }
 
 .egms-map {
-  min-height: 520px;
-  height: 100%;
+  position: absolute;
+  inset: 0;
 }
 
-.egms-card {
-  border-radius: 0;
-  overflow-y: auto;
-  max-height: calc(100vh - 120px);
-}
-
-.embed .egms-card {
-  max-height: 100vh;
-}
-
-.egms-legend .egms-step {
-  display: inline-block;
-  flex: 1;
-  height: 12px;
-}
-
-.egms-legend .egms-veil {
-  flex: 0 0 24px;
-  background: rgba(90, 96, 110, 0.35);
-}
-
-.egms-footer {
-  padding: 8px 16px;
-  color: #5a6772;
+.egms-panel {
   background: #fff;
-  border-top: 1px solid #d9dadb;
+  border-left: 1px solid var(--egms-line);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-@media (max-width: 768px) {
-  .egms-main {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .egms .it-brand-title {
-    font-size: 1.2rem;
-  }
-  .egms-map {
-    min-height: 60vh;
-  }
-  .egms-card {
-    max-height: none;
-  }
+.egms-panel-body {
+  overflow-y: auto;
+  padding: 16px;
+  flex: 1;
 }
 
-/* Open data side by side: the tabs, the cards of the records, the marks of the sources. */
+.egms-handle {
+  display: none;
+}
 
-.egms-tabs .nav-link {
-  padding: 6px 10px;
+.egms-hint {
+  font-size: 1rem;
+}
+
+.egms-place {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--egms-muted);
+  margin: 0 0 8px;
+}
+
+.egms-small {
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.egms-panel p {
+  line-height: 1.45;
+}
+
+.egms-warning {
   font-size: 0.9rem;
+  background: #fff4e5;
+  border-left: 3px solid #cc7a00;
+  padding: 8px 10px;
+}
+
+.egms-alert-note {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--egms-line);
+  font-weight: 600;
+}
+
+/* One row per source: name, number, when; the dot of how far to trust it. */
+.egms-rows {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+}
+
+.egms-row {
+  border: 1px solid var(--egms-line);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  background: #fff;
+}
+
+.egms-row.open {
+  border-color: #b9c4cf;
+}
+
+.egms-row-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: 0;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.egms-row-head:hover {
+  background: #f6f8fa;
+}
+
+.egms-row-head .egms-swatch {
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.egms-row-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.egms-row-title {
+  font-size: 0.8rem;
+  color: var(--egms-muted);
+  line-height: 1.3;
+}
+
+.egms-row-value {
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.egms-row-sub {
+  font-size: 0.75rem;
+  color: var(--egms-muted);
+  line-height: 1.3;
+}
+
+.egms-row-detail {
+  padding: 0 12px 12px 34px;
+  font-size: 0.85rem;
+}
+
+.egms-row-detail p {
+  margin-bottom: 8px;
+}
+
+.egms-notes {
+  padding-left: 16px;
+  color: var(--egms-muted);
+  margin-bottom: 8px;
+}
+
+.egms-values {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.egms-values th {
+  font-weight: 400;
+  color: var(--egms-muted);
+  padding: 2px 8px 2px 0;
+}
+
+.egms-values td {
+  text-align: right;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .egms-facts {
@@ -114,6 +275,7 @@ body {
   grid-template-columns: max-content minmax(0, 1fr);
   column-gap: 10px;
   row-gap: 2px;
+  margin-bottom: 8px;
 }
 
 .egms-facts dt {
@@ -125,42 +287,58 @@ body {
   overflow-wrap: anywhere;
 }
 
-.egms-record {
-  border-left: 3px solid #d9dadb;
-  padding-left: 10px;
+/* The dot: green reliable, amber not very, grey not measured, hollow not given. */
+.egms-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  color: var(--egms-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-top: 4px;
 }
 
-.egms-how summary {
-  cursor: pointer;
-  color: #0066cc;
-  font-weight: 600;
+.egms-dot > span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
 }
 
-.egms-how pre,
-.egms-card pre {
-  background: #f6f8fa;
-  border: 1px solid #e3e4e6;
-  padding: 8px;
-  font-size: 0.75rem;
-  white-space: pre;
-  overflow-x: auto;
-  max-width: 100%;
+.egms-dot-reliable > span {
+  background: #008055;
 }
 
-.egms-json {
-  max-height: 260px;
+.egms-dot-weak > span {
+  background: #cc7a00;
 }
 
+.egms-dot-unmeasured > span {
+  background: #a0a8b0;
+}
+
+.egms-dot-unknown > span {
+  border: 2px solid #a0a8b0;
+}
+
+/* Swatches: the colour of a source on the map. */
 .egms-swatch {
   display: inline-block;
-  width: 12px;
-  height: 12px;
-  border-radius: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
   vertical-align: middle;
 }
 
 .egms-swatch-egms {
   background: linear-gradient(90deg, #cb181d, #f0f0f0, #2171b5);
+}
+
+.egms-swatch-moving {
+  border-radius: 50%;
+  background: #cb181d;
+  border: 2px solid #17324d;
 }
 
 .egms-source-mark span {
@@ -170,4 +348,188 @@ body {
   border: 2px solid #fff;
   border-radius: 3px;
   box-shadow: 0 0 0 1px #17324d;
+}
+
+/* The layers, over the map. */
+.egms-layers {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 500;
+  max-width: min(300px, calc(100% - 80px));
+  font-size: 0.85rem;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(23, 50, 77, 0.25);
+}
+
+.egms-layers-toggle {
+  width: 100%;
+  padding: 6px 12px;
+  border: 0;
+  background: #fff;
+  font-weight: 600;
+  color: var(--egms-blue);
+  text-align: left;
+  border-radius: 6px;
+}
+
+.egms-layers-body {
+  padding: 4px 12px 10px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.egms-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  cursor: pointer;
+}
+
+.egms-legend {
+  margin: 2px 0 6px 22px;
+  font-size: 0.75rem;
+}
+
+.egms-ramp {
+  display: flex;
+  height: 8px;
+}
+
+.egms-ramp span {
+  flex: 1;
+}
+
+.egms-ramp-words {
+  display: flex;
+  justify-content: space-between;
+  color: var(--egms-muted);
+}
+
+.egms-veil {
+  display: inline-block;
+  width: 12px;
+  height: 8px;
+  background: rgba(90, 96, 110, 0.35);
+}
+
+.egms-footer {
+  min-height: var(--egms-footer);
+  padding: 4px 16px;
+  font-size: 0.75rem;
+  color: var(--egms-muted);
+  background: #fff;
+  border-top: 1px solid var(--egms-line);
+}
+
+.egms pre,
+.egms-data pre {
+  background: #f6f8fa;
+  border: 1px solid var(--egms-line);
+  padding: 8px;
+  font-size: 0.75rem;
+  white-space: pre;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/* On a phone: the map fills the screen, the panel is a sheet that slides up. */
+@media (max-width: 768px) {
+  .egms-brand-tagline,
+  .egms-footer {
+    display: none;
+  }
+  .egms-nav-link {
+    font-size: 0.8rem;
+  }
+  .egms-main {
+    display: block;
+    position: relative;
+  }
+  .egms-map-wrap {
+    position: absolute;
+    inset: 0;
+  }
+  .egms-panel {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    /* Over the controls of Leaflet (1000). */
+    z-index: 1100;
+    border-left: 0;
+    border-radius: 14px 14px 0 0;
+    box-shadow: 0 -4px 16px rgba(23, 50, 77, 0.18);
+    transition: height 0.2s ease;
+  }
+  .egms-panel.sheet-low {
+    height: 34%;
+  }
+  .egms-panel.sheet-high {
+    height: 78%;
+  }
+  .egms-handle {
+    display: flex;
+    justify-content: center;
+    padding: 8px 0 4px;
+    background: none;
+    border: 0;
+    width: 100%;
+  }
+  .egms-handle span {
+    width: 40px;
+    height: 5px;
+    border-radius: 3px;
+    background: #c5ccd3;
+  }
+  .egms-panel-body {
+    padding-top: 4px;
+  }
+  .egms-layers {
+    top: 8px;
+    right: 8px;
+  }
+}
+
+/* In an iframe: the map and the panel only. */
+.embed {
+  height: 100vh;
+}
+
+/* The page of the data: a readable column. */
+.egms-data .egms-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.egms-data-body {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+  background: #fff;
+}
+
+.egms-data-body h2 {
+  margin-top: 32px;
+  font-size: 1.5rem;
+}
+
+.egms-data-body h3 {
+  margin-top: 20px;
+  font-size: 1.1rem;
+}
+
+.egms-source-card {
+  border: 1px solid var(--egms-line);
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin: 12px 0;
+  scroll-margin-top: 80px;
+}
+
+.egms-source-card h3 {
+  margin-top: 0;
 }

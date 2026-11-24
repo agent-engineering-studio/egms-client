@@ -16,6 +16,8 @@ type Props = {
   text: Text;
   /** The point of the card, if any. */
   point: { lat: number; lon: number } | null;
+  /** The EGMS ground map, on or off. */
+  showGround: boolean;
   moving: MovingCell[];
   onPoint: (lat: number, lon: number) => void;
   /** The view changed: its box, or null when it is too wide for the velocity map. */
@@ -40,10 +42,12 @@ export default function MapView(props: Props) {
   const box = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const overlay = useRef<L.ImageOverlay | null>(null);
+  const reportRef = useRef<() => void>(() => undefined);
   const marker = useRef<L.CircleMarker | null>(null);
   const cells = useRef<L.LayerGroup | null>(null);
   const others = useRef<L.LayerGroup | null>(null);
   const handlers = useRef({ onPoint: props.onPoint, onView: props.onView, onBounds: props.onBounds });
+  const ground = useRef(props.showGround);
   useEffect(() => {
     handlers.current = { onPoint: props.onPoint, onView: props.onView, onBounds: props.onBounds };
   });
@@ -54,8 +58,8 @@ export default function MapView(props: Props) {
       zoom: props.start.zoom,
       minZoom: MIN_ZOOM,
       maxZoom: MAX_ZOOM,
-      // The map is in a page that scrolls: the wheel moves the page, the buttons zoom.
-      scrollWheelZoom: false,
+      // The map fills the page: the wheel zooms it.
+      scrollWheelZoom: true,
     });
     L.tileLayer(props.tiles.url, { attribution: props.tiles.attribution, maxZoom: MAX_ZOOM }).addTo(m);
     cells.current = L.layerGroup().addTo(m);
@@ -66,11 +70,11 @@ export default function MapView(props: Props) {
       const small = view.east - view.west <= MAX_SPAN && view.north - view.south <= MAX_SPAN;
       handlers.current.onView(small ? view : null);
       handlers.current.onBounds(view);
-      if (!small && overlay.current) {
+      if ((!small || !ground.current) && overlay.current) {
         overlay.current.remove();
         overlay.current = null;
       }
-      if (small) {
+      if (small && ground.current) {
         const url = `/api/map.png?${new URLSearchParams(Object.entries(view).map(([k, v]) => [k, v.toFixed(5)]))}`;
         const bounds: L.LatLngBoundsExpression = [
           [view.south, view.west],
@@ -86,14 +90,24 @@ export default function MapView(props: Props) {
     m.on("moveend", report);
     m.on("click", (e: L.LeafletMouseEvent) => handlers.current.onPoint(e.latlng.lat, e.latlng.lng));
     map.current = m;
+    reportRef.current = report;
     report();
+    // The panel or the sheet changes the size of the map.
+    const resized = new ResizeObserver(() => m.invalidateSize());
+    resized.observe(box.current!);
     return () => {
+      resized.disconnect();
       m.remove();
       map.current = null;
     };
     // The map is made once; later props move what is on it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    ground.current = props.showGround;
+    reportRef.current();
+  }, [props.showGround]);
 
   useEffect(() => {
     const m = map.current;

@@ -8,6 +8,20 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- A simpler page. The map fills the screen and zooms with the mouse wheel.
+  The panel has one row per source: its name, its number in words, and a
+  dot for how far to trust it; a row opens on its source, dates, licence
+  and notes. On a phone the panel is a sheet that slides up. A «Layers»
+  box turns the ground map, the moving cells and each source on and off.
+  The technical side moves to its own page, `/dati`: the sources and how
+  they are made, the code, the CSV columns and the templates to download
+  (`/templates/record.json`, `/templates/record.csv`). The old `?tab=`
+  links lead there.
+- Records: `label` (one text, or one per language) and, in a fact,
+  `headline`, the value to show first. `to_records` gives both.
+- Records from CSV: `records.read` and `egms records` take a `.csv` with the
+  columns of the template (Italian or English headers, comma or semicolon,
+  decimal comma), and the page reads `.csv` files too.
 - The page of a Comune shows open data side by side. Next to EGMS, it reads
   records from folders (`EGMS_UI_RECORDS`; in Docker the examples and
   `records/`, set by `EGMS_RECORDS_DIR`, read-only) and shows the sources
