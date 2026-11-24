@@ -6,7 +6,7 @@ tutta Europa, e li rende usabili da chiunque. Questa pagina è per un ente che
 vuole usarlo: che cosa trova pronto, che cosa resta a lui, e come il progetto
 entra nel Catalogo del software di Developers Italia.
 
-![La pagina per il Comune di Pozzuoli: la mappa della velocità verticale e la scheda del punto](images/ui-pozzuoli.jpg)
+![La pagina per il Comune di Pozzuoli: la mappa della velocità verticale, la scheda EGMS del punto e le schede delle altre fonti](images/ui-territorio.jpg)
 
 ## Che cosa trova pronto
 
@@ -19,7 +19,11 @@ entra nel Catalogo del software di Developers Italia.
 - **Quanto fidarsi** di ogni numero: quante celle intorno hanno una misura,
   quanto la serie segue il modello, e la velocità rispetto alla zona.
 - Una **pagina per il sito del Comune**, in italiano e in inglese, da
-  installare con Docker e da incorporare in un iframe (sotto).
+  installare con Docker e da incorporare in un iframe (sotto): i dati
+  aperti del territorio uno accanto all'altro, e come sono fatti.
+- Un **formato aperto per i dati di ogni fonte**, i
+  [record](api/records.md): un sensore o un file del Comune compaiono
+  nella pagina senza scrivere codice.
 - Un **server MCP** perché un assistente AI risponda con i numeri dei dati,
   citando release, date e file.
 
@@ -28,13 +32,25 @@ Serve una chiave di servizio gratuita del Copernicus Land Monitoring Service
 
 ## La pagina per il sito del Comune
 
-Una mappa del territorio con la velocità verticale del suolo, e una scheda
-per il punto cliccato: quanto si muove, in che direzione, quanto fidarsi, e
-fino a quando arrivano i dati. In fondo, sempre: «una velocità del suolo è una
-misura, non un'allerta».
+Una mappa del territorio. Si clicca un punto, e ogni fonte dice che cosa sa
+di lì: l'EGMS quanto si muove il suolo, e accanto le altre fonti vicine, per
+esempio la pioggia del radar della Protezione Civile, una soglia di pioggia
+per le frane, un pluviometro. Ogni scheda dice da dove viene il dato,
+quando, quanto fidarsi e con quale licenza; «Come è fatto» mostra il codice
+o il record da cui vengono i numeri. In fondo, sempre: «una velocità del
+suolo è una misura, non un'allerta».
 
-È stretta di proposito. Non è un sistema di allerta e non sostituisce
-piattaforme di analisi del rischio: mostra solo il dato EGMS, con i suoi limiti.
+Le fonti restano una accanto all'altra: la pagina non le mescola in un
+punteggio e non è un sistema di allerta. Mostra i dati e i loro limiti.
+
+**Aggiungere una fonte, senza codice.** Un sensore, un file del Comune o
+un'altra libreria scrive i suoi dati come
+[record](api/records.md), un formato JSON aperto, in un file `.json` o
+`.jsonl` nella cartella `records/` (o in quella di `EGMS_RECORDS_DIR`). La
+pagina lo legge alla richiesta successiva. Un file con un record non valido
+è rifiutato per intero, e la scheda «Fonti» dice perché. Il file si
+controlla prima con `egms records FILE`. La scheda «Aggiungi una fonte»
+della pagina mostra un esempio.
 
 **Installarla.** Serve Docker. Dal repository:
 
@@ -55,9 +71,11 @@ computer stesso: per pubblicarla serve un proxy con HTTPS davanti.
 | `EGMS_UI_LANG` | `it` o `en`; chi visita può cambiare |
 | `EGMS_UI_FRAME_ANCESTORS` | i siti che possono mostrarla in un iframe |
 | `EGMS_UI_TILES`, `EGMS_UI_TILES_CREDIT` | la mappa di sfondo (di base OpenStreetMap) |
+| `EGMS_RECORDS_DIR` | la cartella dei record delle altre fonti (di base `records/`), in sola lettura |
 
 Gli stessi valori si possono dare nell'indirizzo:
-`?lat=40.82&lon=14.12&place=Comune%20di%20Pozzuoli&lang=it`.
+`?lat=40.82&lon=14.12&place=Comune%20di%20Pozzuoli&lang=it`. Con
+`tab=fonti` o `tab=aggiungi` la pagina si apre sulle fonti o sulla guida.
 
 **Nel sito del Comune**, con `EGMS_UI_FRAME_ANCESTORS=https://www.comune.example.it`:
 

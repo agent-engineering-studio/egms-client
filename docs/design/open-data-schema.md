@@ -213,6 +213,10 @@ Limen's job.
    and the moving cells are one fact, then one observation per cell listed.
    `scripts/example_records.py` writes the egms examples, and a test checks
    that `to_records` still gives them.
-3. The app with file input and two sources.
+3. ✅ The app reads records from folders (`EGMS_UI_RECORDS`; in Docker the
+   examples and `records/`, read-only). `demo/api.py` adds `/api/sources`
+   and `/api/records`, and refuses a file with an invalid record, saying
+   why. The page has three tabs: the point (EGMS, then the other sources
+   within 2 km, each with «how it is made»), the sources, and how to add one.
 4. HTTP SenML input and a simulated rain gauge.
 5. `to_records()` in the other libraries, one PR each.

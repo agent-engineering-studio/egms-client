@@ -141,3 +141,68 @@ def test_an_unexpected_error_is_json_for_the_page(monkeypatch: pytest.MonkeyPatc
         answer = c.get("/api/place", params={"lon": 14.1205, "lat": 40.8225})
     assert answer.status_code == 500
     assert answer.json() == {"error": "the server could not answer (RuntimeError); try again"}
+
+
+# --- Records of open data, next to EGMS -----------------------------------------
+
+
+def test_the_sources_of_the_example_records(client: TestClient) -> None:
+    answer = client.get("/api/sources").json()
+    assert answer["egms"] == "demo"
+    assert answer["refused"] == []
+    names = {s["name"]: s for s in answer["sources"]}
+    gauge = names["simulated rain gauge"]
+    assert gauge["records"] == 4
+    assert gauge["licence"] == "CC0-1.0"
+    assert gauge["properties"] == ["rainfall"]
+    assert gauge["files"] == ["rain-gauge-simulated.jsonl"]
+    assert "rainfall-thresholds" in {m for s in answer["sources"] for m in s["made_by"]}
+
+
+def test_the_records_in_a_box(client: TestClient) -> None:
+    box = {"west": 14.10, "south": 40.81, "east": 14.14, "north": 40.84}
+    found = client.get("/api/records", params=box).json()["records"]
+    files = {item["file"] for item in found}
+    assert "rain-gauge-simulated.jsonl" in files
+    assert "egms-pozzuoli-layer.json" in files  # a polygon that covers the box
+    assert "egms-bologna-area.json" not in files
+    bad = client.get("/api/records", params={**box, "east": 14.0})
+    assert bad.status_code == 400
+
+
+def test_a_place_gives_its_records_too(client: TestClient) -> None:
+    answer = client.get("/api/place", params={"lon": 14.1205, "lat": 40.8225}).json()
+    [record] = answer["vertical"]["records"]
+    assert record["value"] == 145.2
+    assert record["unit"] == "mm/a"
+
+
+def test_an_invalid_file_is_refused_whole_and_says_why(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    good = json.loads((ROOT / "examples" / "records" / "egms-rione-terra.json").read_text())
+    (tmp_path / "good.json").write_text(json.dumps(good))
+    (tmp_path / "zero.json").write_text(json.dumps([good, good | {"value": float("nan")}]))
+    (tmp_path / "broken.jsonl").write_text("{")
+    (tmp_path / "notes.txt").write_text("not a record file")
+    monkeypatch.setenv("EGMS_UI_SOURCE", "demo")
+    monkeypatch.setattr(api, "RECORDS", [tmp_path, tmp_path / "missing"])
+    with TestClient(api.app) as c:
+        answer = c.get("/api/sources").json()
+        assert [s["records"] for s in answer["sources"]] == [1]
+        refused = {r["file"]: r["problems"] for r in answer["refused"]}
+        assert refused["zero.json"] == [
+            "zero.json #1: value: nan is not a value; write null when it is not measured"
+        ]
+        assert refused["broken.jsonl"][0].startswith("not JSON")
+        # A new file is read at the next request.
+        (tmp_path / "more.json").write_text(json.dumps(good))
+        assert [s["records"] for s in c.get("/api/sources").json()["sources"]] == [2]
+
+
+def test_the_bounds_of_every_shape() -> None:
+    assert api.bounds({"type": "Point", "coordinates": [14.1, 40.8]}) == (14.1, 40.8, 14.1, 40.8)
+    square = [[[0, 0], [2, 0], [2, 1], [0, 1], [0, 0]]]
+    assert api.bounds({"type": "Polygon", "coordinates": square}) == (0, 0, 2, 1)
+    two = [square, [[[5, 5], [6, 5], [6, 7], [5, 7], [5, 5]]]]
+    assert api.bounds({"type": "MultiPolygon", "coordinates": two}) == (0, 0, 6, 7)

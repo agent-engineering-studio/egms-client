@@ -1,18 +1,18 @@
 {
   "schema": "opendata-record/v1",
   "kind": "fact",
-  "id": "dpc-radar-trust-16.55-40.67",
+  "id": "dpc-radar-trust-14.1205-40.8225",
   "question": "How far can the radar rain of the Protezione Civile be trusted here?",
   "values": {
     "beam_height": {
-      "value": 700.0,
+      "value": 450.0,
       "unit": "m",
       "meaning": "height above the ground of the lowest radar beam"
     },
     "distance": {
-      "value": 54.9,
+      "value": 15.8,
       "unit": "km",
-      "meaning": "from the nearest radar, Bari Palese"
+      "meaning": "from the nearest radar, Napoli Capodichino"
     }
   },
   "source": {
@@ -29,12 +29,12 @@
   "where": {
     "type": "Point",
     "coordinates": [
-      16.55,
-      40.67
+      14.1205,
+      40.8225
     ]
   },
   "reliability": {
-    "score": 0.67,
+    "score": 0.81,
     "reliable": true,
     "method": "dpc-radar: the lowest of visibility, coverage and agreement with the rain gauges; an estimate made from outside the DPC",
     "reasons": []

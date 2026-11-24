@@ -21,3 +21,7 @@ node_modules/
 .next/
 next-env.d.ts
 *.tsbuildinfo
+
+# Your records (demo/api.py reads them): kept out of git, but the folder stays
+records/*
+!records/README.md

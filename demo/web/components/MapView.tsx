@@ -4,7 +4,8 @@ import L from "leaflet";
 import { useEffect, useRef } from "react";
 import type { Text } from "@/lib/i18n";
 import { MAX_ZOOM, MIN_ZOOM, type Start, type Tiles } from "@/lib/start";
-import type { Box, MovingCell } from "@/lib/types";
+import { centre } from "@/lib/records";
+import type { Box, Filed, MovingCell, OpenRecord } from "@/lib/types";
 
 /** The velocity map is asked for only on views at most this wide, in degrees. */
 export const MAX_SPAN = 0.3;
@@ -19,6 +20,11 @@ type Props = {
   onPoint: (lat: number, lon: number) => void;
   /** The view changed: its box, or null when it is too wide for the velocity map. */
   onView: (box: Box | null) => void;
+  /** The view changed, at any size: for the records. */
+  onBounds: (box: Box) => void;
+  /** The records in view, from every source but EGMS (which is the map). */
+  records: Filed[];
+  colour: (r: OpenRecord) => string;
 };
 
 const dot = (cell: MovingCell): L.CircleMarkerOptions => ({
@@ -36,9 +42,10 @@ export default function MapView(props: Props) {
   const overlay = useRef<L.ImageOverlay | null>(null);
   const marker = useRef<L.CircleMarker | null>(null);
   const cells = useRef<L.LayerGroup | null>(null);
-  const handlers = useRef({ onPoint: props.onPoint, onView: props.onView });
+  const others = useRef<L.LayerGroup | null>(null);
+  const handlers = useRef({ onPoint: props.onPoint, onView: props.onView, onBounds: props.onBounds });
   useEffect(() => {
-    handlers.current = { onPoint: props.onPoint, onView: props.onView };
+    handlers.current = { onPoint: props.onPoint, onView: props.onView, onBounds: props.onBounds };
   });
 
   useEffect(() => {
@@ -52,11 +59,13 @@ export default function MapView(props: Props) {
     });
     L.tileLayer(props.tiles.url, { attribution: props.tiles.attribution, maxZoom: MAX_ZOOM }).addTo(m);
     cells.current = L.layerGroup().addTo(m);
+    others.current = L.layerGroup().addTo(m);
     const report = () => {
       const b = m.getBounds();
       const view = { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() };
       const small = view.east - view.west <= MAX_SPAN && view.north - view.south <= MAX_SPAN;
       handlers.current.onView(small ? view : null);
+      handlers.current.onBounds(view);
       if (!small && overlay.current) {
         overlay.current.remove();
         overlay.current = null;
@@ -111,6 +120,38 @@ export default function MapView(props: Props) {
         .addTo(group);
     }
   }, [props.moving]);
+
+  useEffect(() => {
+    const group = others.current;
+    if (!group) return;
+    group.clearLayers();
+    // One mark per place and source: a series of a rain gauge is one square, not one per reading.
+    const seen = new Set<string>();
+    for (const { record: r } of props.records) {
+      if (r.kind === "layer") continue;
+      const [lon, lat] = centre(r.where);
+      const key = `${r.source.name}|${lon},${lat}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const colour = props.colour(r);
+      const label = r.kind === "fact" ? r.question : `${r.thing ?? r.source.name} · ${r.property}`;
+      const mark =
+        r.where.type === "Point"
+          ? L.marker([lat, lon], {
+              icon: L.divIcon({
+                className: "egms-source-mark",
+                html: `<span style="background:${colour}"></span>`,
+                iconSize: [16, 16],
+              }),
+              keyboard: false,
+            })
+          : L.geoJSON(r.where as GeoJSON.Geometry, { style: { color: colour, weight: 2, dashArray: "4 4", fill: false } });
+      mark
+        .bindTooltip(`${r.source.name}: ${label ?? ""}`)
+        .on("click", () => handlers.current.onPoint(lat, lon))
+        .addTo(group);
+    }
+  }, [props.records, props.colour]);
 
   return <div ref={box} className="egms-map" role="region" aria-label={props.text.mapLabel} />;
 }

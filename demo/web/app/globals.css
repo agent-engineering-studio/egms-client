@@ -49,7 +49,7 @@ body {
   position: relative;
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr) 420px;
   gap: 0;
   min-height: 520px;
 }
@@ -100,4 +100,74 @@ body {
   .egms-card {
     max-height: none;
   }
+}
+
+/* Open data side by side: the tabs, the cards of the records, the marks of the sources. */
+
+.egms-tabs .nav-link {
+  padding: 6px 10px;
+  font-size: 0.9rem;
+}
+
+.egms-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 10px;
+  row-gap: 2px;
+}
+
+.egms-facts dt {
+  font-weight: 600;
+}
+
+.egms-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.egms-record {
+  border-left: 3px solid #d9dadb;
+  padding-left: 10px;
+}
+
+.egms-how summary {
+  cursor: pointer;
+  color: #0066cc;
+  font-weight: 600;
+}
+
+.egms-how pre,
+.egms-card pre {
+  background: #f6f8fa;
+  border: 1px solid #e3e4e6;
+  padding: 8px;
+  font-size: 0.75rem;
+  white-space: pre;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.egms-json {
+  max-height: 260px;
+}
+
+.egms-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+
+.egms-swatch-egms {
+  background: linear-gradient(90deg, #cb181d, #f0f0f0, #2171b5);
+}
+
+.egms-source-mark span {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #fff;
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px #17324d;
 }
