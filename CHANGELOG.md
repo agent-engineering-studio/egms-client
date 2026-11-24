@@ -74,6 +74,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- The ground map draws the tiles on the disk and stripes those still downloading, instead of failing; the page asks again every 2 minutes until it is whole.
+- A point whose cell is not measured says how many cells are measured within 500 m, and the median within 5 km.
 - A tile not on the disk yet no longer holds an answer for minutes: the API waits 20 s, then answers 503 with the missing tiles, and the download goes on in the background. The page says so (it is not «not measured»).
 
 ## [0.8.0] - 2026-11-24

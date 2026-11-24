@@ -161,12 +161,25 @@ export function groundRow(component: "U" | "E", w: Worded<Velocity>, t: Text, la
       ? t.between(day(f.window.first), day(f.window.last))
       : t.releaseYears(f.window.release);
   const record = w.records?.[0];
+  // Not measured here: say what is measured around, so the visitor knows where to look.
+  const median = f.regional.median_mm_per_year;
+  const around =
+    v === null && f.reliability.coverage > 0
+      ? t.around(
+          Math.round(f.reliability.coverage * 100),
+          f.reliability.radius_m,
+          median === null
+            ? null
+            : `${median > 0 ? "+" : median < 0 ? "−" : ""}${Math.abs(median).toLocaleString(t.locale, { maximumFractionDigits: 1 })}`,
+          f.regional.radius_m / 1000,
+        )
+      : null;
   return {
     key: `egms-${component}`,
     colour: "egms",
     title: component === "U" ? t.groundU : t.groundE,
     value,
-    sub: when,
+    sub: around ? `${around} · ${when}` : when,
     trust: !f.measured ? "unmeasured" : f.reliability.reliable ? "reliable" : "weak",
     detail: {
       sentence: w.text.split(/(?<=\.) (?=Dati:|Data:)/)[0],

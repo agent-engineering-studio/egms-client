@@ -370,6 +370,17 @@ body {
   background: rgba(166, 25, 25, 0.88);
 }
 
+.egms-map-state.partial {
+  background: rgba(122, 86, 0, 0.9);
+}
+
+.egms-stripes {
+  display: inline-block;
+  width: 12px;
+  height: 8px;
+  background: repeating-linear-gradient(45deg, rgba(110, 110, 110, 0.6) 0 2px, transparent 2px 4px);
+}
+
 /* The layers, over the map. */
 .egms-layers {
   position: absolute;

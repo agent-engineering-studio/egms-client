@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import numpy as np
 import pytest
 
 pytest.importorskip("starlette")
@@ -432,6 +433,7 @@ def _archive(fetch: Any) -> api.Archive:
     source = object.__new__(api.Archive)
     source.release, source.confirmed, source.retry_at = "2020-2025", True, 0.0
     source.lock, source.downloads, source.folder = asyncio.Lock(), {}, Path("/nowhere")
+    source.why = ""
     source.archive = type("Fake", (), {"fetch_tile": staticmethod(fetch)})()
     return source
 
@@ -484,3 +486,36 @@ def test_missing_tiles_are_a_503_not_not_measured(monkeypatch: pytest.MonkeyPatc
     assert answer.status_code == 503 and answer.headers["retry-after"] == "60"
     body = answer.json()
     assert body["missing_tiles"] == ["E48N20"] and body["not_measured"] is False
+
+
+@pytest.mark.filterwarnings("ignore::rasterio.errors.NotGeoreferencedWarning")
+def test_the_map_draws_the_tiles_it_has_and_stripes_the_others() -> None:
+    from rasterio.io import MemoryFile
+
+    crop = sorted((ROOT / "benchmarks" / "data" / "murge").glob("U.tif"))
+    box = (16.80, 40.80, 17.04, 40.89)  # Gioia del Colle: E48N19, E49N19 and, north, N20
+    whole = api._png(box, crop)
+    striped = api._png(box, crop, ["E48N20", "E49N20"])
+    with MemoryFile(whole) as a, MemoryFile(striped) as b, a.open() as pa, b.open() as pb:
+        before, after = pa.read(), pb.read()
+    grey = np.all(np.moveaxis(after, 0, -1) == api.STRIPES, axis=-1)
+    assert grey[:5].any() and not grey[-5:].any()  # stripes in the north only
+    assert (before[:, -5:] == after[:, -5:]).all()  # the south is the same map
+
+
+def test_available_lists_what_is_missing_without_raising() -> None:
+    async def some(tile: Any, component: str, release: str, folder: Path) -> Path:
+        if tile_id(tile).endswith("N20"):
+            raise httpx.ConnectTimeout("")
+        return Path(f"/{tile_id(tile)}.tiff")
+
+    async def run() -> None:
+        source = _archive(some)
+        box = lonlat_to_laea(16.80, 40.80, 17.04, 40.89)
+        tiffs, _, absent, missing = await source.available(box, "U", wait=1)
+        assert sorted(t.name for t in tiffs) == ["E48N19.tiff", "E49N19.tiff"]
+        assert absent == [] and sorted(missing) == ["E48N20", "E49N20"]
+        with pytest.raises(api.MissingTilesError, match="ConnectTimeout"):
+            await source.tiffs(box, "U", wait=1)
+
+    asyncio.run(run())

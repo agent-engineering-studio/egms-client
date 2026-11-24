@@ -26,9 +26,14 @@ type Props = {
   onOutside: () => void;
   /** The view changed: for the records. */
   onBounds: (box: Box) => void;
-  /** The ground map: being loaded, shown, failed, or off. */
-  onGround: (state: "loading" | "ready" | "failed" | "none") => void;
+  /** The ground map: being loaded, shown, shown without some tiles (still downloading), failed, or off. */
+  onGround: (state: GroundState, missing?: string[]) => void;
 };
+
+export type GroundState = "loading" | "ready" | "partial" | "failed" | "none";
+
+/** A map without some tiles is asked again this often, until it is whole. */
+const AGAIN_MS = 120_000;
 
 const dot = (cell: MovingCell): L.CircleMarkerOptions => ({
   radius: 6,
@@ -135,29 +140,53 @@ export default function MapView(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.area]);
 
-  // The ground map: one picture of the whole area, asked once.
+  // The ground map: one picture of the whole area. Tiles not downloaded yet are
+  // striped, and the picture is asked again until it is whole.
   useEffect(() => {
     const m = map.current;
     const a = props.area;
     if (!m || !a) return;
     if (!props.showGround) {
-      overlay.current?.remove();
-      overlay.current = null;
       handlers.current.onGround("none");
       return;
     }
-    if (overlay.current) return;
     const query = new URLSearchParams({
       west: String(a.west),
       south: String(a.south),
       east: String(a.east),
       north: String(a.north),
     });
-    handlers.current.onGround("loading");
-    overlay.current = L.imageOverlay(`/api/map.png?${query}`, boundsOf(a), { opacity: 0.75, interactive: false })
-      .on("load", () => handlers.current.onGround("ready"))
-      .on("error", () => handlers.current.onGround("failed"))
-      .addTo(m);
+    let stopped = false;
+    let again: number | undefined;
+    let shown: string | null = null;
+    const load = async () => {
+      if (!overlay.current) handlers.current.onGround("loading");
+      try {
+        const answer = await fetch(`/api/map.png?${query}`, { cache: "no-store" });
+        if (!answer.ok) throw new Error(String(answer.status));
+        const missing = answer.headers.get("x-missing-tiles")?.split(",").filter(Boolean) ?? [];
+        const url = URL.createObjectURL(await answer.blob());
+        if (stopped) return URL.revokeObjectURL(url);
+        if (overlay.current) overlay.current.setUrl(url);
+        else overlay.current = L.imageOverlay(url, boundsOf(a), { opacity: 0.75, interactive: false }).addTo(m);
+        if (shown) URL.revokeObjectURL(shown);
+        shown = url;
+        handlers.current.onGround(missing.length ? "partial" : "ready", missing);
+        if (missing.length) again = window.setTimeout(load, AGAIN_MS);
+      } catch {
+        if (stopped) return;
+        handlers.current.onGround("failed");
+        again = window.setTimeout(load, AGAIN_MS);
+      }
+    };
+    load();
+    return () => {
+      stopped = true;
+      window.clearTimeout(again);
+      overlay.current?.remove();
+      overlay.current = null;
+      if (shown) URL.revokeObjectURL(shown);
+    };
   }, [props.area, props.showGround]);
 
   useEffect(() => {

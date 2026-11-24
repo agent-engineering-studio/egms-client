@@ -17,7 +17,9 @@ const it = {
     "Prima volta in questa zona: scarico i dati EGMS dall'archivio Copernicus (circa 60 MB). Può servire un minuto; le volte dopo è immediato.",
   mapLoading: "Carico la mappa del suolo…",
   mapDownloading: "Scarico la mappa del suolo dall'archivio (la prima volta, circa un minuto)…",
-  mapFailed: "La mappa del suolo qui non è disponibile.",
+  mapFailed: "La mappa del suolo qui non è disponibile: riprovo tra due minuti.",
+  mapPartial: (tiles: string[]) =>
+    `Mappa parziale: a righe le zone ancora da scaricare (${tiles.join(", ")}). La pagina riprova da sola.`,
   here: "Qui",
   near: "Vicino",
   noneNear: "Nessun'altra fonte ha dati entro 2 km.",
@@ -34,6 +36,9 @@ const it = {
   west: (v: string) => `verso ovest, ${v} mm/anno`,
   zero: "0 mm/anno",
   between: (a: string, b: string) => `dal ${a} al ${b}`,
+  around: (pct: number, metres: number, median: string | null, km: number) =>
+    `la cella di questo punto non ha misure, ma entro ${metres} m è misurato il ${pct}% delle celle` +
+    (median === null ? "" : `; mediana entro ${km} km: ${median} mm/anno`),
   releaseYears: (r: string) => `release ${r}`,
   demo: "Modalità dimostrativa: dati EGMS solo per alcuni luoghi.",
   // Trust.
@@ -65,6 +70,7 @@ const it = {
   legendDown: "scende",
   legendUp: "sale",
   legendNone: "nessuna misura",
+  legendMissing: "non ancora scaricato",
   close: "Chiudi",
   openPanel: "Apri il pannello",
   closePanel: "Riduci il pannello",
@@ -86,7 +92,9 @@ const en: typeof it = {
     "First time in this area: downloading the EGMS data from the Copernicus archive (about 60 MB). It may take a minute; afterwards it is immediate.",
   mapLoading: "Loading the ground map…",
   mapDownloading: "Downloading the ground map from the archive (the first time, about a minute)…",
-  mapFailed: "The ground map is not available here.",
+  mapFailed: "The ground map is not available here: trying again in two minutes.",
+  mapPartial: (tiles: string[]) =>
+    `Partial map: striped, the zones still to download (${tiles.join(", ")}). The page keeps trying.`,
   here: "Here",
   near: "Nearby",
   noneNear: "No other source has data within 2 km.",
@@ -102,6 +110,9 @@ const en: typeof it = {
   west: (v: string) => `westward, ${v} mm/year`,
   zero: "0 mm/year",
   between: (a: string, b: string) => `from ${a} to ${b}`,
+  around: (pct: number, metres: number, median: string | null, km: number) =>
+    `the cell of this point has no measure, but within ${metres} m ${pct}% of the cells are measured` +
+    (median === null ? "" : `; median within ${km} km: ${median} mm/year`),
   releaseYears: (r: string) => `release ${r}`,
   demo: "Demo mode: EGMS data for a few places only.",
   trust: { reliable: "reliable", weak: "not very reliable", unmeasured: "not measured", unknown: "reliability not given" },
@@ -130,6 +141,7 @@ const en: typeof it = {
   legendDown: "down",
   legendUp: "up",
   legendNone: "no measurement",
+  legendMissing: "not downloaded yet",
   close: "Close",
   openPanel: "Open the panel",
   closePanel: "Shrink the panel",

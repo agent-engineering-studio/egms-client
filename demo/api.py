@@ -53,7 +53,7 @@ import os
 import sys
 import time
 import warnings
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Iterator, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -261,6 +261,7 @@ class Archive:
         #: One download per tile, shared by the answers that need it, and kept
         #: going when an answer stops waiting.
         self.downloads: dict[tuple[str, str, str], asyncio.Task[Path | None]] = {}
+        self.why = ""
 
     def _fetch(self, tile: Any, component: str, release: str) -> asyncio.Task[Path | None]:
         key = (tile_id(tile), component, release)
@@ -277,30 +278,36 @@ class Archive:
         self, box: tuple[float, ...], component: str, wait: float | None = TILE_WAIT_S
     ) -> tuple[list[Path], str, list[str]]:
         """The GeoTIFFs over the box. MissingTilesError when one is not there after ``wait`` s."""
+        tiffs, release, absent, missing = await self.available(box, component, wait)
+        if missing:
+            raise MissingTilesError(missing, self.why)
+        return tiffs, release, absent
+
+    async def available(
+        self, box: tuple[float, ...], component: str, wait: float | None = TILE_WAIT_S
+    ) -> tuple[list[Path], str, list[str], list[str]]:
+        """The GeoTIFFs on the disk after ``wait`` s, the tiles the archive does not
+        have (``absent``), and those not downloaded yet (``missing``), still going on."""
         release = await self.latest()
         tiles = tiles_for_bounds(*box)
         if len(tiles) > MAX_TILES:
             raise ValueError(f"the box touches {len(tiles)} tiles; at most {MAX_TILES}")
         tasks = {tile_id(tile): self._fetch(tile, component, release) for tile in tiles}
         _, pending = await asyncio.wait(tasks.values(), timeout=wait)
-        if pending:
-            late = [name for name, task in tasks.items() if task in pending]
-            raise MissingTilesError(late, "downloading from the EGMS archive")
-        broken = {name: task.exception() for name, task in tasks.items() if task.exception()}
-        if broken:
-            name, exc = next(iter(broken.items()))
-            log.warning("tile %s %s: %s: %s", name, component, type(exc).__name__, exc)
-            raise MissingTilesError(
-                list(broken), f"the EGMS archive did not answer: {type(exc).__name__}"
-            )
-        tiffs, absent = [], []
+        tiffs, absent, missing = [], [], []
+        self.why = "downloading from the EGMS archive"
         for name, task in tasks.items():
-            tiff = task.result()
-            if tiff is None:
+            if task in pending:
+                missing.append(name)
+            elif (exc := task.exception()) is not None:
+                log.warning("tile %s %s: %s: %s", name, component, type(exc).__name__, exc)
+                self.why = f"the EGMS archive did not answer: {type(exc).__name__}"
+                missing.append(name)
+            elif (tiff := task.result()) is None:
                 absent.append(name)
             else:
                 tiffs.append(tiff)
-        return tiffs, release, absent
+        return tiffs, release, absent, missing
 
     async def latest(self) -> str:
         """The latest release: asked to the archive, or the latest known if it does not answer.
@@ -560,7 +567,13 @@ def picture(values: Any, inside: Any) -> Any:
     return rgba
 
 
-def _png(box: tuple[float, float, float, float], tiffs: list[Path]) -> bytes:
+#: Where a tile is not downloaded yet: grey stripes, not the veil of "not measured".
+STRIPES = (110, 110, 110, 150)
+
+
+def _png(
+    box: tuple[float, float, float, float], tiffs: list[Path], missing: Sequence[str] = ()
+) -> bytes:
     import rasterio
     import rasterio.errors
     from pyproj import Transformer
@@ -588,6 +601,22 @@ def _png(box: tuple[float, float, float, float], tiffs: list[Path]) -> bytes:
         resampling=Resampling.nearest,
     )
     rgba = picture(out, np.ones(out.shape, dtype=bool))
+    if missing:
+        # The pixels of the map back in LAEA: those in a missing tile get stripes.
+        xs = np.linspace(left, right, width, endpoint=False) + (right - left) / width / 2
+        ys = np.linspace(top, bottom, height, endpoint=False) - (top - bottom) / height / 2
+        gx, gy = np.meshgrid(xs, ys)
+        lon, lat = Transformer.from_crs("EPSG:3857", "EPSG:4326", always_xy=True).transform(gx, gy)
+        x, y = Transformer.from_crs("EPSG:4326", "EPSG:3035", always_xy=True).transform(lon, lat)
+        names = np.char.add(
+            np.char.add("E", (x // 100_000).astype(int).astype(str)),
+            np.char.add("N", (y // 100_000).astype(int).astype(str)),
+        )
+        gone = np.isin(names, list(missing))
+        rows, cols = np.indices(out.shape)
+        stripe = ((rows + cols) // 4) % 2 == 0
+        rgba[gone] = 0
+        rgba[gone & stripe] = STRIPES
     with warnings.catch_warnings(), MemoryFile() as memory:
         # A PNG for a web map has no geotransform: Leaflet places it by the box.
         warnings.simplefilter("ignore", rasterio.errors.NotGeoreferencedWarning)
@@ -599,9 +628,18 @@ def _png(box: tuple[float, float, float, float], tiffs: list[Path]) -> bytes:
 async def map_png(request: Request) -> Response:
     box = request.app.state.area.clip(_box(request))
     source = request.app.state.source
-    tiffs, _, _ = await source.tiffs(lonlat_to_laea(*box), _component(request))
-    body = await asyncio.to_thread(_png, box, tiffs)
-    return Response(body, media_type="image/png", headers={"cache-control": "max-age=3600"})
+    laea, component = lonlat_to_laea(*box), _component(request)
+    missing: list[str] = []
+    if isinstance(source, Archive):
+        # The tiles on the disk now; the others are drawn with stripes, and come later.
+        tiffs, _, _, missing = await source.available(laea, component)
+    else:
+        tiffs, _, _ = await source.tiffs(laea, component)
+    body = await asyncio.to_thread(_png, box, tiffs, missing)
+    headers = {"cache-control": "no-store" if missing else "max-age=3600"}
+    if missing:
+        headers["x-missing-tiles"] = ",".join(missing)
+    return Response(body, media_type="image/png", headers=headers)
 
 
 async def sources(request: Request) -> JSONResponse:

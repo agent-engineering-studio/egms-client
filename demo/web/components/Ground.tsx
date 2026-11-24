@@ -6,6 +6,7 @@ import { TEXT, type Text } from "@/lib/i18n";
 import { near, SOURCE_COLOURS } from "@/lib/records";
 import { groundRow, recordRow, type Row, type TrustKind } from "@/lib/rows";
 import type { Lang, Start, Tiles } from "@/lib/start";
+import type { GroundState } from "./MapView";
 import type {
   Area,
   Box,
@@ -140,7 +141,8 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<string | null>(null);
   const [slow, setSlow] = useState(false);
-  const [groundState, setGroundState] = useState<"loading" | "ready" | "failed" | "none">("none");
+  const [groundState, setGroundState] = useState<GroundState>("none");
+  const [groundMissing, setGroundMissing] = useState<string[]>([]);
   const [groundSince, setGroundSince] = useState(0);
   // On a phone the panel is a sheet: low, to see the map, or high, to read.
   const [sheet, setSheet] = useState<"low" | "high">(start.given ? "high" : "low");
@@ -191,8 +193,9 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
     };
   }, [point, lang]);
 
-  const onGround = useCallback((state: "loading" | "ready" | "failed" | "none") => {
+  const onGround = useCallback((state: GroundState, missing?: string[]) => {
     setGroundState(state);
+    setGroundMissing(missing ?? []);
     if (state === "loading") setGroundSince(Date.now());
   }, []);
   // A map that takes more than 3 seconds is being downloaded: tick to update the badge.
@@ -307,13 +310,15 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
             onGround={onGround}
           />
 
-          {(groundState === "loading" || groundState === "failed") && (
+          {groundState !== "ready" && groundState !== "none" && (
             <div className={`egms-map-state ${groundState}`} role="status">
               {groundState === "failed"
                 ? t.mapFailed
-                : archive && Date.now() - groundSince > 3000
-                  ? t.mapDownloading
-                  : t.mapLoading}
+                : groundState === "partial"
+                  ? t.mapPartial(groundMissing)
+                  : archive && Date.now() - groundSince > 3000
+                    ? t.mapDownloading
+                    : t.mapLoading}
             </div>
           )}
 
@@ -344,6 +349,13 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
                       </span>
                       <span>{t.legendUp}</span>
                     </div>
+                    {groundState === "partial" && (
+                      <div className="egms-ramp-words">
+                        <span>
+                          <span className="egms-stripes" /> {t.legendMissing}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
                 <label className="egms-check">
