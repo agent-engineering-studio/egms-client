@@ -342,6 +342,221 @@ def moving_points(
     }
 
 
+# --- Records of open data (egms_client.records) -------------------------------
+
+#: The source of every EGMS record.
+SOURCE = {
+    "url": "https://egms.land.copernicus.eu/",
+    "licence": "Copernicus data policy, free and open",
+    "attribution": (
+        "Contains modified Copernicus Land Monitoring Service information (EGMS), © European Union"
+    ),
+}
+
+#: How the reliability of a point is made, in one line.
+POINT_METHOD = (
+    "egms-client: share of measured 100 m cells within 500 m, and fit of the series; "
+    "an estimate made from outside EGMS"
+)
+
+#: How the reliability of a box is made, in one line.
+BOX_METHOD = "egms-client: the share of the 100 m cells in the box that have a value"
+
+_COMPONENT = {"U": "vertical", "E": "east-west"}
+
+
+def to_records(facts: dict[str, Any]) -> list[dict[str, Any]]:
+    """The facts of :func:`velocity`, :func:`area` or :func:`moving_points` as records.
+
+    Records follow opendata-record/v1 (:mod:`egms_client.records`), the
+    shape the application reads from every source. A velocity is one
+    ``observation``. An area and the moving cells are one ``fact`` with the
+    statistics, then one ``observation`` per cell listed. A missing value
+    stays ``null`` and carries the reason ``not_measured``.
+    """
+    answer = facts.get("answer")
+    if answer == "velocity":
+        records = [_point_record(facts)]
+    elif answer == "area":
+        records = [_box_record(facts, "How fast does the ground move in this box?")]
+        records += _cells(facts, "fastest")
+    elif answer == "moving_points":
+        records = [_box_record(facts, "Which cells move against the rest of this box?")]
+        records += _cells(facts, "cells")
+    else:
+        raise ValueError(f"no records for an answer of kind {answer!r}")
+    # The id first, after the schema and the kind: it is what a reader looks for.
+    head = ("schema", "kind", "id")
+    return [
+        {k: r[k] for k in head} | {k: v for k, v in r.items() if k not in head} for r in records
+    ]
+
+
+def _envelope(facts: dict[str, Any], kind: str, where: dict[str, Any]) -> dict[str, Any]:
+    from egms_client import __version__
+
+    component = facts["component"]
+    return {
+        "schema": "opendata-record/v1",
+        "kind": kind,
+        "source": {"name": f"EGMS Ortho L3 {facts['release']}, {_COMPONENT[component]}", **SOURCE},
+        "made_by": {"name": "egms-client", "version": __version__},
+        "time": _record_time(facts["window"]),
+        "where": where,
+    }
+
+
+def _record_time(w: dict[str, Any]) -> dict[str, Any]:
+    if w["first"] and w["last"]:
+        return {"first": w["first"], "last": w["last"], "exact": bool(w["exact"])}
+    # Only the years of the release name: say they are not the dates.
+    first, last = str(w["release"]).split("-")
+    return {"first": f"{first}-01-01", "last": f"{last}-12-31", "exact": False}
+
+
+def _point(lon: float, lat: float) -> dict[str, Any]:
+    return {"type": "Point", "coordinates": [lon, lat]}
+
+
+def _reasons(reasons: list[str]) -> list[str]:
+    return ["not_measured" if r == NOT_MEASURED else r for r in reasons]
+
+
+def _point_record(facts: dict[str, Any]) -> dict[str, Any]:
+    r, regional = facts["reliability"], facts["regional"]
+    notes = [n for n in facts["notes"] if n != NOT_MEASURED]
+    if r["coverage"] is not None:
+        notes.insert(
+            0, f"{r['coverage']:.0%} of the cells within {r['radius_m']:.0f} m have a value."
+        )
+    if regional["median_mm_per_year"] is not None:
+        notes.insert(
+            0,
+            f"The median within {regional['radius_m'] / 1000:.0f} km is "
+            f"{regional['median_mm_per_year']:+.1f} mm/a.",
+        )
+    if not facts["measured"]:
+        notes.insert(0, NOT_MEASURED)
+    c = facts["component"]
+    return {
+        **_envelope(facts, "observation", _point(facts["lon"], facts["lat"])),
+        "id": f"egms-l3-{c.lower()}-{facts['release']}-{facts['lon']}-{facts['lat']}",
+        "property": "velocity",
+        "value": facts["velocity_mm_per_year"],
+        "unit": "mm/a",
+        "meaning": facts["meaning"],
+        "reliability": {
+            "score": r["score"],
+            "reliable": r["reliable"],
+            "method": POINT_METHOD,
+            "reasons": _reasons(r["reasons"]),
+        },
+        "notes": notes,
+    }
+
+
+def _box_record(facts: dict[str, Any], question: str) -> dict[str, Any]:
+    west, south, east, north = facts["box"]
+    ring = [[west, south], [east, south], [east, north], [west, north], [west, south]]
+    meaning = facts["meaning"]
+    measured = facts["measured"]
+    if facts["answer"] == "area":
+        names = {"median": "median", "p5": "p5", "p95": "p95", "min": "min", "max": "max"}
+        values: dict[str, Any] = {
+            name: {"value": facts[key], "unit": "mm/a", "meaning": meaning}
+            for name, key in names.items()
+        }
+        if measured:
+            band = facts["stable_band_mm_per_year"]
+            values |= {
+                "share_down": {
+                    "value": facts["share_below"],
+                    "unit": "1",
+                    "meaning": f"share of the measured cells below -{band} mm/a",
+                },
+                "share_up": {
+                    "value": facts["share_above"],
+                    "unit": "1",
+                    "meaning": f"share of the measured cells above +{band} mm/a",
+                },
+            }
+    else:
+        values = {
+            "reference": {
+                "value": facts["reference_median_mm_per_year"],
+                "unit": "mm/a",
+                "meaning": f"median of the box, the reference; {meaning}",
+            }
+        }
+        if measured:
+            values |= {
+                "moving": {
+                    "value": facts["moving"],
+                    "unit": "1",
+                    "meaning": (
+                        f"cells {facts['threshold_mm_per_year']} mm/a or more from the reference"
+                    ),
+                },
+                "moving_reliable": {
+                    "value": facts["moving_reliable"],
+                    "unit": "1",
+                    "meaning": "of them, cells with enough measured cells around",
+                },
+            }
+    if measured:
+        values |= {
+            "coverage": {
+                "value": facts["coverage"],
+                "unit": "1",
+                "meaning": "share of the cells in the box that have a value",
+            },
+            "cells_with_data": {"value": facts["cells_with_data"], "unit": "1"},
+        }
+    box = "-".join(str(v) for v in facts["box"])
+    return {
+        **_envelope(facts, "fact", {"type": "Polygon", "coordinates": [ring]}),
+        "id": f"egms-l3-{facts['component'].lower()}-{facts['release']}-{facts['answer']}-{box}",
+        "question": question,
+        "values": values,
+        "reliability": {
+            "method": BOX_METHOD,
+            "reasons": [] if measured else ["not_measured"],
+        },
+        "notes": list(facts["notes"]),
+    }
+
+
+def _cells(facts: dict[str, Any], key: str) -> list[dict[str, Any]]:
+    c = facts["component"]
+    out = []
+    for cell in facts[key]:
+        lon, lat = cell["lon"], cell["lat"]
+        record: dict[str, Any] = {
+            **_envelope(facts, "observation", _point(lon, lat)),
+            "id": f"egms-l3-{c.lower()}-{facts['release']}-{lon}-{lat}",
+            "property": "velocity",
+            "value": cell["velocity_mm_per_year"],
+            "unit": "mm/a",
+            "meaning": facts["meaning"],
+            "reliability": None,
+            "notes": [NOT_TODAY, NOT_AN_ALERT],
+        }
+        if "relative_mm_per_year" in cell:
+            record["reliability"] = {
+                "score": None,
+                "reliable": cell["reliable"],
+                "method": f"egms-client: share of measured cells within {RADIUS_M:.0f} m",
+                "reasons": [],
+            }
+            record["notes"].insert(
+                0,
+                f"{cell['relative_mm_per_year']:+.1f} mm/a against the median of the box; "
+                f"{cell['coverage']:.0%} of the cells within {RADIUS_M:.0f} m have a value.",
+            )
+        out.append(record)
+    return out
+
+
 __all__ = [
     "LICENCE",
     "MEANING",
@@ -349,6 +564,7 @@ __all__ = [
     "area",
     "moving_points",
     "summarize",
+    "to_records",
     "velocity",
     "window_facts",
 ]

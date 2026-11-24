@@ -83,10 +83,12 @@ nav:
       - Cells for a model: api/cells.md
       - Facts for agents: api/facts.md
       - Checking a text: api/check.md
+      - Records of open data: api/records.md
       - Command line: api/cli.md
       - MCP server: api/mcp.md
       - Errors: api/errors.md
   - Roadmap: roadmap.md
+  - 'Design: one schema for open data': design/open-data-schema.md
   - Riuso (per gli enti): riuso.md
   - Changelog: changelog.md
   - Contributing: contributing.md

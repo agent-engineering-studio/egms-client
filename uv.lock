@@ -838,6 +838,9 @@ raster = [
     { name = "pyproj" },
     { name = "rasterio" },
 ]
+records = [
+    { name = "jsonschema" },
+]
 tables = [
     { name = "pandas" },
     { name = "pyarrow" },
@@ -853,6 +856,7 @@ demo = [
     { name = "uvicorn" },
 ]
 dev = [
+    { name = "jsonschema" },
     { name = "mcp" },
     { name = "mypy" },
     { name = "numpy" },
@@ -880,6 +884,7 @@ examples = [
 requires-dist = [
     { name = "cryptography", specifier = ">=43" },
     { name = "httpx", specifier = ">=0.27" },
+    { name = "jsonschema", marker = "extra == 'records'", specifier = ">=4.23" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=2.3" },
     { name = "numpy", marker = "extra == 'mcp'", specifier = ">=2.0" },
     { name = "numpy", marker = "extra == 'raster'", specifier = ">=2.0" },
@@ -892,7 +897,7 @@ requires-dist = [
     { name = "rasterio", marker = "extra == 'raster'", specifier = ">=1.4" },
     { name = "xarray", marker = "extra == 'xarray'", specifier = ">=2024.6" },
 ]
-provides-extras = ["raster", "tables", "xarray", "mcp"]
+provides-extras = ["raster", "tables", "xarray", "records", "mcp"]
 
 [package.metadata.requires-dev]
 demo = [
@@ -900,6 +905,7 @@ demo = [
     { name = "uvicorn", specifier = ">=0.34" },
 ]
 dev = [
+    { name = "jsonschema", specifier = ">=4.23" },
     { name = "mcp", specifier = ">=2.3" },
     { name = "mypy", specifier = ">=1.13" },
     { name = "numpy", specifier = ">=2.0" },

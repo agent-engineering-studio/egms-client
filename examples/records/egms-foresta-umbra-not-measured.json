@@ -1,0 +1,46 @@
+{
+  "schema": "opendata-record/v1",
+  "kind": "observation",
+  "id": "egms-l3-u-2020-2025-15.935-41.8239",
+  "source": {
+    "name": "EGMS Ortho L3 2020-2025, vertical",
+    "url": "https://egms.land.copernicus.eu/",
+    "licence": "Copernicus data policy, free and open",
+    "attribution": "Contains modified Copernicus Land Monitoring Service information (EGMS), © European Union"
+  },
+  "made_by": {
+    "name": "egms-client",
+    "version": "0.7.0"
+  },
+  "time": {
+    "first": "2020-12-09",
+    "last": "2025-11-19",
+    "exact": true
+  },
+  "where": {
+    "type": "Point",
+    "coordinates": [
+      15.935,
+      41.8239
+    ]
+  },
+  "property": "velocity",
+  "value": null,
+  "unit": "mm/a",
+  "meaning": "vertical: positive up, negative down (subsidence)",
+  "reliability": {
+    "score": 0.0,
+    "reliable": false,
+    "method": "egms-client: share of measured 100 m cells within 500 m, and fit of the series; an estimate made from outside EGMS",
+    "reasons": [
+      "not_measured"
+    ]
+  },
+  "notes": [
+    "No cell here: not measured, which is not zero.",
+    "The median within 5 km is -0.2 mm/a.",
+    "8% of the cells within 500 m have a value.",
+    "The data stop at the end of the window: they do not describe the ground of today.",
+    "A ground velocity is a measurement, not an alert or a safety verdict."
+  ]
+}
