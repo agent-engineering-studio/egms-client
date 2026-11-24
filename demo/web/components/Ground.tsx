@@ -6,10 +6,12 @@ import { TEXT, type Text } from "@/lib/i18n";
 import { near, SOURCE_COLOURS } from "@/lib/records";
 import { groundRow, recordRow, type Row, type TrustKind } from "@/lib/rows";
 import type { Lang, Start, Tiles } from "@/lib/start";
+import type { GroundState } from "./MapView";
 import type {
   Area,
   Box,
   Failed,
+  GapSummary,
   Health,
   MovingAnswer,
   OpenRecord,
@@ -140,7 +142,9 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<string | null>(null);
   const [slow, setSlow] = useState(false);
-  const [groundState, setGroundState] = useState<"loading" | "ready" | "failed" | "none">("none");
+  const [groundState, setGroundState] = useState<GroundState>("none");
+  const [groundMissing, setGroundMissing] = useState<string[]>([]);
+  const [gapSummary, setGapSummary] = useState<GapSummary | null>(null);
   const [groundSince, setGroundSince] = useState(0);
   // On a phone the panel is a sheet: low, to see the map, or high, to read.
   const [sheet, setSheet] = useState<"low" | "high">(start.given ? "high" : "low");
@@ -148,6 +152,19 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
   useEffect(() => {
     document.documentElement.lang = lang;
   }, [lang]);
+
+  // How much of the area is data gap; counted again when the map gets new tiles.
+  useEffect(() => {
+    if (!area) return;
+    let live = true;
+    const box = { west: area.west, south: area.south, east: area.east, north: area.north };
+    ask<GapSummary>("gaps", box).then((g) => {
+      if (live && !failed(g)) setGapSummary(g);
+    });
+    return () => {
+      live = false;
+    };
+  }, [area, groundState]);
 
   // The area of the page: the map stays in it, and a point given outside it is dropped.
   useEffect(() => {
@@ -191,8 +208,9 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
     };
   }, [point, lang]);
 
-  const onGround = useCallback((state: "loading" | "ready" | "failed" | "none") => {
+  const onGround = useCallback((state: GroundState, missing?: string[]) => {
     setGroundState(state);
+    setGroundMissing(missing ?? []);
     if (state === "loading") setGroundSince(Date.now());
   }, []);
   // A map that takes more than 3 seconds is being downloaded: tick to update the badge.
@@ -271,7 +289,7 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
         <header className="egms-header">
           <div className="egms-brand">
             <div className="egms-brand-title">{start.place ?? t.title}</div>
-            <div className="egms-brand-tagline">{start.place ? t.title : t.tagline}</div>
+            <div className="egms-brand-tagline">{t.tagline}</div>
           </div>
           <nav className="egms-nav">
             <a href={`/dati?lang=${lang}`} className="egms-nav-link">
@@ -307,13 +325,15 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
             onGround={onGround}
           />
 
-          {(groundState === "loading" || groundState === "failed") && (
+          {groundState !== "ready" && groundState !== "none" && (
             <div className={`egms-map-state ${groundState}`} role="status">
               {groundState === "failed"
                 ? t.mapFailed
-                : archive && Date.now() - groundSince > 3000
-                  ? t.mapDownloading
-                  : t.mapLoading}
+                : groundState === "partial"
+                  ? t.mapPartial(groundMissing)
+                  : archive && Date.now() - groundSince > 3000
+                    ? t.mapDownloading
+                    : t.mapLoading}
             </div>
           )}
 
@@ -344,6 +364,18 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
                       </span>
                       <span>{t.legendUp}</span>
                     </div>
+                    <div className="egms-ramp-words">
+                      <span>
+                        <span className="egms-gap-swatch" /> {t.legendGap}
+                      </span>
+                    </div>
+                    {groundState === "partial" && (
+                      <div className="egms-ramp-words">
+                        <span>
+                          <span className="egms-stripes" /> {t.legendMissing}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
                 <label className="egms-check">
@@ -383,7 +415,23 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
           </button>
           <div className="egms-panel-body">
             {outside && area && <p className="egms-warning">{t.outsideArea(area.radius_km)}</p>}
-            {!point && <p className="egms-hint">{t.hint}</p>}
+            {!point && (
+              <section className="egms-purpose">
+                <h2 className="egms-place">{t.purposeTitle}</h2>
+                <p>{t.purpose}</p>
+                <p>
+                  <span className="egms-gap-swatch" /> {t.purposeGaps}
+                </p>
+                {gapSummary?.gap_share != null && (
+                  <p className="egms-gap-count">
+                    {t.gapSummary(Math.round(gapSummary.gap_share * 100), gapSummary.gaps, gapSummary.blocks)}
+                    {gapSummary.missing_tiles.length > 0 && <span className="egms-small"> {t.gapSummaryPartial}</span>}
+                  </p>
+                )}
+                <p className="egms-hint">{t.hint}</p>
+                <a href="/dati#aggiungi">{t.addData}</a>
+              </section>
+            )}
             {point && (
               <>
                 <h2 className="egms-place">
@@ -404,6 +452,21 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
                     <RowView key={row.key} row={row} t={t} lang={lang} open={open === row.key} onToggle={() => toggle(row.key)} />
                   ))}
                 </ul>
+                {place && !failed(place) && place.gap && (
+                  <div className={place.gap.gap ? "egms-gap" : "egms-small text-secondary mb-2"}>
+                    {place.gap.gap ? (
+                      <>
+                        <strong>
+                          <span className="egms-gap-swatch" /> {t.gapHere}
+                        </strong>
+                        <p className="mb-1">{t.gapHereText(Math.round(place.gap.measured_share * 100))}</p>
+                        <a href="/dati#aggiungi">{t.addData}</a>
+                      </>
+                    ) : (
+                      t.gapCovered(Math.round(place.gap.measured_share * 100))
+                    )}
+                  </div>
+                )}
                 {place && !failed(place) && place.source === "demo" && <p className="egms-small text-secondary">{t.demo}</p>}
 
                 <h2 className="egms-place mt-3">{t.near}</h2>

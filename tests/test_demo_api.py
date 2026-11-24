@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import numpy as np
 import pytest
 
 pytest.importorskip("starlette")
@@ -432,6 +433,7 @@ def _archive(fetch: Any) -> api.Archive:
     source = object.__new__(api.Archive)
     source.release, source.confirmed, source.retry_at = "2020-2025", True, 0.0
     source.lock, source.downloads, source.folder = asyncio.Lock(), {}, Path("/nowhere")
+    source.why = ""
     source.archive = type("Fake", (), {"fetch_tile": staticmethod(fetch)})()
     return source
 
@@ -484,3 +486,62 @@ def test_missing_tiles_are_a_503_not_not_measured(monkeypatch: pytest.MonkeyPatc
     assert answer.status_code == 503 and answer.headers["retry-after"] == "60"
     body = answer.json()
     assert body["missing_tiles"] == ["E48N20"] and body["not_measured"] is False
+
+
+@pytest.mark.filterwarnings("ignore::rasterio.errors.NotGeoreferencedWarning")
+def test_the_map_draws_the_tiles_it_has_and_stripes_the_others() -> None:
+    from rasterio.io import MemoryFile
+
+    crop = sorted((ROOT / "benchmarks" / "data" / "murge").glob("U.tif"))
+    box = (16.80, 40.80, 17.04, 40.89)  # Gioia del Colle: E48N19, E49N19 and, north, N20
+    whole = api._png(box, crop)
+    striped = api._png(box, crop, ["E48N20", "E49N20"])
+    with MemoryFile(whole) as a, MemoryFile(striped) as b, a.open() as pa, b.open() as pb:
+        before, after = pa.read(), pb.read()
+    grey = np.all(np.moveaxis(after, 0, -1) == api.STRIPES, axis=-1)
+    assert grey[:5].any() and not grey[-5:].any()  # stripes in the north only
+    assert (before[:, -5:] == after[:, -5:]).all()  # the south is the same map
+
+
+def test_available_lists_what_is_missing_without_raising() -> None:
+    async def some(tile: Any, component: str, release: str, folder: Path) -> Path:
+        if tile_id(tile).endswith("N20"):
+            raise httpx.ConnectTimeout("")
+        return Path(f"/{tile_id(tile)}.tiff")
+
+    async def run() -> None:
+        source = _archive(some)
+        box = lonlat_to_laea(16.80, 40.80, 17.04, 40.89)
+        tiffs, _, absent, missing = await source.available(box, "U", wait=1)
+        assert sorted(t.name for t in tiffs) == ["E48N19.tiff", "E49N19.tiff"]
+        assert absent == [] and sorted(missing) == ["E48N20", "E49N20"]
+        with pytest.raises(api.MissingTilesError, match="ConnectTimeout"):
+            await source.tiffs(box, "U", wait=1)
+
+    asyncio.run(run())
+
+
+def test_data_gaps_are_squares_with_few_measured_cells() -> None:
+    crop = [ROOT / "benchmarks" / "data" / "murge" / "U.tif"]
+    share, west, north = api.gaps(crop, lonlat_to_laea(16.85, 40.72, 17.0, 40.85))
+    assert west % api.BLOCK_M == 0 and north % api.BLOCK_M == 0
+    known = share[~np.isnan(share)]
+    assert known.size > 100 and 0 < (known < api.GAP_SHARE).mean() < 0.5
+    # Not known is not a gap: outside the crop the squares are NaN.
+    outside, _, _ = api.gaps(crop, lonlat_to_laea(17.2, 40.9, 17.25, 40.95))
+    assert np.isnan(outside).all()
+    assert api._gap_at(crop, 16.9625, 40.7839) == {
+        "block_m": 1000,
+        "measured_share": 0.6,
+        "gap": False,
+    }
+
+
+def test_the_gaps_of_the_area_and_of_a_point(client: TestClient) -> None:
+    g = client.get(
+        "/api/gaps", params={"west": 14.0, "south": 40.75, "east": 14.25, "north": 40.9}
+    ).json()
+    assert g["block_m"] == 1000 and g["gap_below"] == api.GAP_SHARE
+    assert g["blocks"] > 0 and 0 <= g["gaps"] <= g["blocks"] and g["missing_tiles"] == []
+    place = client.get("/api/place", params={"lon": 14.1205, "lat": 40.8225}).json()
+    assert place["gap"]["gap"] is False and place["gap"]["measured_share"] >= api.GAP_SHARE

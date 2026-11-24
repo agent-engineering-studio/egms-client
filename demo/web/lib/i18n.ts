@@ -7,7 +7,20 @@ import type { Lang } from "./start";
 const it = {
   locale: "it-IT",
   title: "Il territorio nei dati aperti",
-  tagline: "Fonti aperte una accanto all'altra: che cosa dicono, e quanto fidarsi",
+  tagline: "Che cosa dicono i dati aperti del territorio, quanto fidarsi, e dove mancano",
+  purposeTitle: "A cosa serve questa mappa",
+  purpose:
+    "Mette una accanto all'altra le fonti aperte su questo territorio: il movimento del suolo misurato dai satelliti (EGMS, Copernicus) e le altre fonti pubblicate. Per ogni punto dice che cosa sanno, e quanto fidarsi.",
+  purposeGaps:
+    "Mostra anche dove i dati mancano. In arancione i buchi di dati: chilometri quadrati dove il satellite misura meno di un quarto delle celle. Non sono zone di pericolo: sono i posti dove un'amministrazione può pubblicare nuovi dati aperti, come livellazioni, stazioni GNSS, rilievi o sensori.",
+  gapSummary: (pct: number, gaps: number, blocks: number) =>
+    `Nell'area della pagina ${gaps} chilometri quadrati su ${blocks} (${pct}%) sono buchi di dati.`,
+  gapSummaryPartial: "Conto parziale: alcune tessere EGMS non sono ancora scaricate.",
+  gapHere: "Buco di dati",
+  gapHereText: (pct: number) =>
+    `In questo chilometro quadrato il satellite misura il ${pct}% delle celle. Qui un dato aperto in più (una livellazione, una stazione GNSS, un sensore, un rilievo del Comune) direbbe che cosa fa il suolo.`,
+  gapCovered: (pct: number) => `In questo chilometro quadrato il satellite misura il ${pct}% delle celle.`,
+  addData: "Come aggiungere una fonte",
   language: "Lingua",
   dataLink: "I dati e come riusarli",
   mapLabel: "Mappa del territorio con le fonti di dati aperti",
@@ -17,7 +30,9 @@ const it = {
     "Prima volta in questa zona: scarico i dati EGMS dall'archivio Copernicus (circa 60 MB). Può servire un minuto; le volte dopo è immediato.",
   mapLoading: "Carico la mappa del suolo…",
   mapDownloading: "Scarico la mappa del suolo dall'archivio (la prima volta, circa un minuto)…",
-  mapFailed: "La mappa del suolo qui non è disponibile.",
+  mapFailed: "La mappa del suolo qui non è disponibile: riprovo tra due minuti.",
+  mapPartial: (tiles: string[]) =>
+    `Mappa parziale: a righe le zone ancora da scaricare (${tiles.join(", ")}). La pagina riprova da sola.`,
   here: "Qui",
   near: "Vicino",
   noneNear: "Nessun'altra fonte ha dati entro 2 km.",
@@ -34,6 +49,9 @@ const it = {
   west: (v: string) => `verso ovest, ${v} mm/anno`,
   zero: "0 mm/anno",
   between: (a: string, b: string) => `dal ${a} al ${b}`,
+  around: (pct: number, metres: number, median: string | null, km: number) =>
+    `la cella di questo punto non ha misure, ma entro ${metres} m è misurato il ${pct}% delle celle` +
+    (median === null ? "" : `; mediana entro ${km} km: ${median} mm/anno`),
   releaseYears: (r: string) => `release ${r}`,
   demo: "Modalità dimostrativa: dati EGMS solo per alcuni luoghi.",
   // Trust.
@@ -65,6 +83,8 @@ const it = {
   legendDown: "scende",
   legendUp: "sale",
   legendNone: "nessuna misura",
+  legendMissing: "non ancora scaricato",
+  legendGap: "buco di dati",
   close: "Chiudi",
   openPanel: "Apri il pannello",
   closePanel: "Riduci il pannello",
@@ -76,7 +96,20 @@ const it = {
 const en: typeof it = {
   locale: "en-GB",
   title: "Your area in open data",
-  tagline: "Open sources side by side: what they say, and how far to trust them",
+  tagline: "What the open data of the area say, how far to trust them, and where they are missing",
+  purposeTitle: "What this map is for",
+  purpose:
+    "It puts the open sources on this area side by side: the ground motion measured by satellites (EGMS, Copernicus) and the other published sources. For each point it says what they know, and how far to trust them.",
+  purposeGaps:
+    "It also shows where data are missing. In amber, the data gaps: square kilometres where the satellite measures less than a quarter of the cells. They are not dangerous places: they are where an administration can publish new open data, such as levelling, GNSS stations, surveys or sensors.",
+  gapSummary: (pct: number, gaps: number, blocks: number) =>
+    `In the area of the page, ${gaps} square kilometres out of ${blocks} (${pct}%) are data gaps.`,
+  gapSummaryPartial: "A partial count: some EGMS tiles are not downloaded yet.",
+  gapHere: "Data gap",
+  gapHereText: (pct: number) =>
+    `In this square kilometre the satellite measures ${pct}% of the cells. Here one more open dataset (levelling, a GNSS station, a sensor, a survey of the Comune) would tell what the ground does.`,
+  gapCovered: (pct: number) => `In this square kilometre the satellite measures ${pct}% of the cells.`,
+  addData: "How to add a source",
   language: "Language",
   dataLink: "The data and how to reuse them",
   mapLabel: "Map of the area with the open data sources",
@@ -86,7 +119,9 @@ const en: typeof it = {
     "First time in this area: downloading the EGMS data from the Copernicus archive (about 60 MB). It may take a minute; afterwards it is immediate.",
   mapLoading: "Loading the ground map…",
   mapDownloading: "Downloading the ground map from the archive (the first time, about a minute)…",
-  mapFailed: "The ground map is not available here.",
+  mapFailed: "The ground map is not available here: trying again in two minutes.",
+  mapPartial: (tiles: string[]) =>
+    `Partial map: striped, the zones still to download (${tiles.join(", ")}). The page keeps trying.`,
   here: "Here",
   near: "Nearby",
   noneNear: "No other source has data within 2 km.",
@@ -102,6 +137,9 @@ const en: typeof it = {
   west: (v: string) => `westward, ${v} mm/year`,
   zero: "0 mm/year",
   between: (a: string, b: string) => `from ${a} to ${b}`,
+  around: (pct: number, metres: number, median: string | null, km: number) =>
+    `the cell of this point has no measure, but within ${metres} m ${pct}% of the cells are measured` +
+    (median === null ? "" : `; median within ${km} km: ${median} mm/year`),
   releaseYears: (r: string) => `release ${r}`,
   demo: "Demo mode: EGMS data for a few places only.",
   trust: { reliable: "reliable", weak: "not very reliable", unmeasured: "not measured", unknown: "reliability not given" },
@@ -130,6 +168,8 @@ const en: typeof it = {
   legendDown: "down",
   legendUp: "up",
   legendNone: "no measurement",
+  legendMissing: "not downloaded yet",
+  legendGap: "data gap",
   close: "Close",
   openPanel: "Open the panel",
   closePanel: "Shrink the panel",

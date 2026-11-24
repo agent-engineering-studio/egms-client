@@ -53,7 +53,7 @@ import os
 import sys
 import time
 import warnings
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Iterator, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -124,6 +124,11 @@ COLOURS = [
 ]
 #: Where there is no measurement: a light veil, because not measured is not still.
 VEIL = (90, 96, 110, 70)
+#: A data gap: a square of BLOCK_M where EGMS measures less than GAP_SHARE of the
+#: 100 m cells. A place where open data on the ground are missing, for the Comune
+#: to think about; not a danger. Amber, not red: it is not an alert.
+BLOCK_M, GAP_SHARE = 1000, 0.25
+GAP = (214, 140, 0, 130)
 
 
 @dataclass(frozen=True)
@@ -261,6 +266,7 @@ class Archive:
         #: One download per tile, shared by the answers that need it, and kept
         #: going when an answer stops waiting.
         self.downloads: dict[tuple[str, str, str], asyncio.Task[Path | None]] = {}
+        self.why = ""
 
     def _fetch(self, tile: Any, component: str, release: str) -> asyncio.Task[Path | None]:
         key = (tile_id(tile), component, release)
@@ -277,30 +283,36 @@ class Archive:
         self, box: tuple[float, ...], component: str, wait: float | None = TILE_WAIT_S
     ) -> tuple[list[Path], str, list[str]]:
         """The GeoTIFFs over the box. MissingTilesError when one is not there after ``wait`` s."""
+        tiffs, release, absent, missing = await self.available(box, component, wait)
+        if missing:
+            raise MissingTilesError(missing, self.why)
+        return tiffs, release, absent
+
+    async def available(
+        self, box: tuple[float, ...], component: str, wait: float | None = TILE_WAIT_S
+    ) -> tuple[list[Path], str, list[str], list[str]]:
+        """The GeoTIFFs on the disk after ``wait`` s, the tiles the archive does not
+        have (``absent``), and those not downloaded yet (``missing``), still going on."""
         release = await self.latest()
         tiles = tiles_for_bounds(*box)
         if len(tiles) > MAX_TILES:
             raise ValueError(f"the box touches {len(tiles)} tiles; at most {MAX_TILES}")
         tasks = {tile_id(tile): self._fetch(tile, component, release) for tile in tiles}
         _, pending = await asyncio.wait(tasks.values(), timeout=wait)
-        if pending:
-            late = [name for name, task in tasks.items() if task in pending]
-            raise MissingTilesError(late, "downloading from the EGMS archive")
-        broken = {name: task.exception() for name, task in tasks.items() if task.exception()}
-        if broken:
-            name, exc = next(iter(broken.items()))
-            log.warning("tile %s %s: %s: %s", name, component, type(exc).__name__, exc)
-            raise MissingTilesError(
-                list(broken), f"the EGMS archive did not answer: {type(exc).__name__}"
-            )
-        tiffs, absent = [], []
+        tiffs, absent, missing = [], [], []
+        self.why = "downloading from the EGMS archive"
         for name, task in tasks.items():
-            tiff = task.result()
-            if tiff is None:
+            if task in pending:
+                missing.append(name)
+            elif (exc := task.exception()) is not None:
+                log.warning("tile %s %s: %s: %s", name, component, type(exc).__name__, exc)
+                self.why = f"the EGMS archive did not answer: {type(exc).__name__}"
+                missing.append(name)
+            elif (tiff := task.result()) is None:
                 absent.append(name)
             else:
                 tiffs.append(tiff)
-        return tiffs, release, absent
+        return tiffs, release, absent, missing
 
     async def latest(self) -> str:
         """The latest release: asked to the archive, or the latest known if it does not answer.
@@ -511,12 +523,49 @@ async def place(request: Request) -> JSONResponse:
         facts = await asyncio.to_thread(
             velocity, tiffs, lon, lat, component=component, release=release
         )
+        if component == "U":
+            out["gap"] = await asyncio.to_thread(_gap_at, tiffs, lon, lat)
         out[name] = {
             "facts": facts,
             "text": words(facts, lang),  # type: ignore[arg-type]
             "records": to_records(facts),
         }
     return JSONResponse(out)
+
+
+def _gap_at(tiffs: list[Path], lon: float, lat: float) -> dict[str, Any] | None:
+    """The BLOCK_M square of a point: the share of its cells EGMS measures, and if it is a gap."""
+    x, y = lonlat_to_laea(lon, lat, lon, lat)[:2]
+    share, _, _ = gaps(tiffs, (x, y, x + 1, y + 1))
+    value = float(share[0, 0])
+    if math.isnan(value):
+        return None
+    return {"block_m": BLOCK_M, "measured_share": round(value, 3), "gap": value < GAP_SHARE}
+
+
+async def gap_summary(request: Request) -> JSONResponse:
+    """How much of a box is data gap: squares of BLOCK_M with less than GAP_SHARE measured."""
+    box = request.app.state.area.clip(_box(request))
+    laea = lonlat_to_laea(*box)
+    source = request.app.state.source
+    missing: list[str] = []
+    if isinstance(source, Archive):
+        tiffs, _, _, missing = await source.available(laea, "U")
+    else:
+        tiffs, _, _ = await source.tiffs(laea, "U")
+    share, _, _ = await asyncio.to_thread(gaps, tiffs, laea)
+    known = share[~np.isnan(share)]
+    found = int((known < GAP_SHARE).sum())
+    return JSONResponse(
+        {
+            "block_m": BLOCK_M,
+            "gap_below": GAP_SHARE,
+            "blocks": int(known.size),
+            "gaps": found,
+            "gap_share": round(found / known.size, 3) if known.size else None,
+            "missing_tiles": missing,
+        }
+    )
 
 
 async def summary(request: Request) -> JSONResponse:
@@ -560,7 +609,42 @@ def picture(values: Any, inside: Any) -> Any:
     return rgba
 
 
-def _png(box: tuple[float, float, float, float], tiffs: list[Path]) -> bytes:
+def gaps(tiffs: list[Path], laea: tuple[float, ...]) -> tuple[Any, float, float]:
+    """The share of measured cells in each BLOCK_M square over a box in EPSG:3035.
+
+    Squares on the LAEA grid; NaN where no tile on the disk covers the square
+    (not downloaded, or no tile in the archive): not known is not a gap.
+    Returns the shares (rows from north) and the west and north edges.
+    """
+    import rasterio
+
+    x0 = math.floor(laea[0] / BLOCK_M) * BLOCK_M
+    y0 = math.floor(laea[1] / BLOCK_M) * BLOCK_M
+    x1 = math.ceil(laea[2] / BLOCK_M) * BLOCK_M
+    y1 = math.ceil(laea[3] / BLOCK_M) * BLOCK_M
+    m = mosaic(tiffs, minx=x0, miny=y0, maxx=x1, maxy=y1)
+    n = round(BLOCK_M / m.pixel)
+    rows, cols = m.values.shape
+    loaded = np.zeros((rows, cols), dtype=bool)
+    for path in tiffs:
+        with rasterio.open(path) as src:
+            b = src.bounds
+        c0, c1 = round((b.left - x0) / m.pixel), round((b.right - x0) / m.pixel)
+        r0, r1 = round((y1 - b.top) / m.pixel), round((y1 - b.bottom) / m.pixel)
+        loaded[max(0, r0) : max(0, r1), max(0, c0) : max(0, c1)] = True
+    shape = (rows // n, n, cols // n, n)
+    share = (~np.isnan(m.values)).reshape(shape).mean(axis=(1, 3))
+    share[~loaded.reshape(shape).all(axis=(1, 3))] = np.nan
+    return share, x0, y1
+
+
+#: Where a tile is not downloaded yet: grey stripes, not the veil of "not measured".
+STRIPES = (110, 110, 110, 150)
+
+
+def _png(
+    box: tuple[float, float, float, float], tiffs: list[Path], missing: Sequence[str] = ()
+) -> bytes:
     import rasterio
     import rasterio.errors
     from pyproj import Transformer
@@ -588,6 +672,39 @@ def _png(box: tuple[float, float, float, float], tiffs: list[Path]) -> bytes:
         resampling=Resampling.nearest,
     )
     rgba = picture(out, np.ones(out.shape, dtype=bool))
+    # The data gaps: their unmeasured cells in amber, the measured ones keep their colour.
+    share, gx0, gy1 = gaps(tiffs, laea)
+    n = round(BLOCK_M / m.pixel)
+    gap = np.repeat(np.repeat(np.where(np.isnan(share), np.nan, share < GAP_SHARE), n, 0), n, 1)
+    on_web = np.full((height, width), np.nan, dtype="float32")
+    reproject(
+        gap.astype("float32"),
+        on_web,
+        src_transform=rasterio.transform.from_origin(gx0, gy1, m.pixel, m.pixel),
+        src_crs="EPSG:3035",
+        src_nodata=np.nan,
+        dst_transform=from_bounds(left, bottom, right, top, width, height),
+        dst_crs="EPSG:3857",
+        dst_nodata=np.nan,
+        resampling=Resampling.nearest,
+    )
+    rgba[(on_web == 1) & np.isnan(out)] = GAP
+    if missing:
+        # The pixels of the map back in LAEA: those in a missing tile get stripes.
+        xs = np.linspace(left, right, width, endpoint=False) + (right - left) / width / 2
+        ys = np.linspace(top, bottom, height, endpoint=False) - (top - bottom) / height / 2
+        gx, gy = np.meshgrid(xs, ys)
+        lon, lat = Transformer.from_crs("EPSG:3857", "EPSG:4326", always_xy=True).transform(gx, gy)
+        x, y = Transformer.from_crs("EPSG:4326", "EPSG:3035", always_xy=True).transform(lon, lat)
+        names = np.char.add(
+            np.char.add("E", (x // 100_000).astype(int).astype(str)),
+            np.char.add("N", (y // 100_000).astype(int).astype(str)),
+        )
+        gone = np.isin(names, list(missing))
+        rows, cols = np.indices(out.shape)
+        stripe = ((rows + cols) // 4) % 2 == 0
+        rgba[gone] = 0
+        rgba[gone & stripe] = STRIPES
     with warnings.catch_warnings(), MemoryFile() as memory:
         # A PNG for a web map has no geotransform: Leaflet places it by the box.
         warnings.simplefilter("ignore", rasterio.errors.NotGeoreferencedWarning)
@@ -599,9 +716,18 @@ def _png(box: tuple[float, float, float, float], tiffs: list[Path]) -> bytes:
 async def map_png(request: Request) -> Response:
     box = request.app.state.area.clip(_box(request))
     source = request.app.state.source
-    tiffs, _, _ = await source.tiffs(lonlat_to_laea(*box), _component(request))
-    body = await asyncio.to_thread(_png, box, tiffs)
-    return Response(body, media_type="image/png", headers={"cache-control": "max-age=3600"})
+    laea, component = lonlat_to_laea(*box), _component(request)
+    missing: list[str] = []
+    if isinstance(source, Archive):
+        # The tiles on the disk now; the others are drawn with stripes, and come later.
+        tiffs, _, _, missing = await source.available(laea, component)
+    else:
+        tiffs, _, _ = await source.tiffs(laea, component)
+    body = await asyncio.to_thread(_png, box, tiffs, missing)
+    headers = {"cache-control": "no-store" if missing else "max-age=3600"}
+    if missing:
+        headers["x-missing-tiles"] = ",".join(missing)
+    return Response(body, media_type="image/png", headers=headers)
 
 
 async def sources(request: Request) -> JSONResponse:
@@ -779,6 +905,7 @@ app = Starlette(
         Route("/api/area", summary),
         Route("/api/moving", moving),
         Route("/api/map.png", map_png),
+        Route("/api/gaps", gap_summary),
         Route("/api/sources", sources),
         Route("/api/records", records),
         Route("/api/ingest/{sensor}", ingest, methods=["POST"]),

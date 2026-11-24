@@ -370,6 +370,40 @@ body {
   background: rgba(166, 25, 25, 0.88);
 }
 
+.egms-map-state.partial {
+  background: rgba(122, 86, 0, 0.9);
+}
+
+.egms-gap-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 8px;
+  background: rgba(214, 140, 0, 0.6);
+}
+
+.egms-purpose p {
+  font-size: 0.9rem;
+}
+
+.egms-gap-count {
+  font-weight: 600;
+}
+
+.egms-gap {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-left: 4px solid rgb(214, 140, 0);
+  background: rgba(214, 140, 0, 0.1);
+  font-size: 0.9rem;
+}
+
+.egms-stripes {
+  display: inline-block;
+  width: 12px;
+  height: 8px;
+  background: repeating-linear-gradient(45deg, rgba(110, 110, 110, 0.6) 0 2px, transparent 2px 4px);
+}
+
 /* The layers, over the map. */
 .egms-layers {
   position: absolute;

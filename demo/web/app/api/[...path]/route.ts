@@ -15,7 +15,7 @@ export async function GET(request: Request, context: { params: Promise<{ path: s
     return Response.json({ error: "the egms-client API does not answer: is demo/api.py running?" }, { status: 502 });
   }
   const headers = new Headers();
-  for (const name of ["content-type", "cache-control"]) {
+  for (const name of ["content-type", "cache-control", "retry-after", "x-missing-tiles"]) {
     const value = answer.headers.get(name);
     if (value) headers.set(name, value);
   }

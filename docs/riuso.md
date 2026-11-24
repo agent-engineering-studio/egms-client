@@ -42,6 +42,18 @@ che sale dal basso.
 Le fonti restano una accanto all'altra: la pagina non le mescola in un
 punteggio e non è un sistema di allerta. Mostra i dati e i loro limiti.
 
+**I buchi di dati.** La mappa mostra anche dove i dati mancano. L'area è
+divisa in quadrati di 1 km sulla griglia europea (EPSG:3035). Un quadrato
+dove EGMS misura meno di un quarto delle celle di 100 m è un buco di dati, in
+arancione. Il satellite misura solo dove trova riflettori stabili (edifici,
+strade, roccia): nei campi e nei boschi spesso non misura. Un buco di dati
+non è una zona di pericolo. È il posto dove l'amministrazione può pubblicare
+un dato aperto in più: una livellazione, una stazione GNSS, un sensore, un
+rilievo. Il pannello conta i buchi dell'area, e la scheda di un punto dice
+se il suo quadrato è un buco. Un quadrato di una tessera non ancora
+scaricata non è contato: non sapere non è un buco. Attenzione al mare: lì
+EGMS non misura mai, quindi i quadrati in mare risultano buchi.
+
 **La pagina dei dati** (`/dati`) raccoglie la parte tecnica: come è fatta
 ogni fonte, il codice per riusarla, il formato dei record, i template da
 scaricare (JSON e CSV) e le regole.

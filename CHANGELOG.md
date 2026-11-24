@@ -8,6 +8,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Data gaps: the page marks in amber the 1 km squares where EGMS measures less than a quarter of the cells, counts them for the area (`/api/gaps`), and says on the card of a point if its square is one. They are where a Comune can publish more open data; not a danger. The page now says what it is for.
 - The page works on one area: the Comune (`EGMS_UI_LON`, `EGMS_UI_LAT`) and
   a radius around it (`EGMS_UI_RADIUS_KM`, 1 to 20, 10 by default). At
   startup the API downloads all the tiles of the area, both components; the
@@ -74,6 +75,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- The ground map draws the tiles on the disk and stripes those still downloading, instead of failing; the page asks again every 2 minutes until it is whole.
+- A point whose cell is not measured says how many cells are measured within 500 m, and the median within 5 km.
 - A tile not on the disk yet no longer holds an answer for minutes: the API waits 20 s, then answers 503 with the missing tiles, and the download goes on in the background. The page says so (it is not «not measured»).
 
 ## [0.8.0] - 2026-11-24
