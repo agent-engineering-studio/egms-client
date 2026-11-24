@@ -521,9 +521,49 @@ async def _failed(_: Request, exc: Exception) -> JSONResponse:
     )
 
 
+async def prefetch(source: Archive, lon: float, lat: float) -> None:
+    """The tiles around the place of the page, at startup: the first visitor does not wait.
+
+    One L3 tile is about 60 MB, and the archive takes about a minute for it.
+    In the background, and only in archive mode; a failure is logged, not raised.
+    """
+    for component in ("U", "E"):
+        try:
+            await source.tiffs(_around(lon, lat), component)
+        except Exception as exc:  # the page still works: it downloads on the first click
+            log.warning("prefetch %s at %.4f, %.4f: %s", component, lon, lat, exc)
+            return
+    log.info("prefetch: the tiles around %.4f, %.4f are ready", lon, lat)
+
+
+#: Where the page opens when no place is set: Rione Terra, Pozzuoli (demo/web/lib/start.ts).
+DEFAULT_PLACE = (14.1205, 40.8225)
+
+
+def _place_from_env() -> tuple[float, float] | None:
+    lon_text, lat_text = os.environ.get("EGMS_UI_LON") or "", os.environ.get("EGMS_UI_LAT") or ""
+    if not lon_text.strip() and not lat_text.strip():
+        return DEFAULT_PLACE
+    try:
+        lon, lat = float(lon_text.replace(",", ".")), float(lat_text.replace(",", "."))
+    except ValueError:
+        return None
+    return (lon, lat) if -32 <= lon <= 45 and 27 <= lat <= 72 else None
+
+
 @asynccontextmanager
 async def lifespan(app: Starlette) -> AsyncIterator[None]:
+    # uvicorn sets up its own loggers only: ours too, so the mode and the prefetch show.
+    if not log.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("%(levelname)s:     %(message)s"))
+        log.addHandler(handler)
+        log.setLevel(logging.INFO)
     app.state.source = source_from_env()
+    place = _place_from_env()
+    warm = None
+    if isinstance(app.state.source, Archive) and place is not None:
+        warm = asyncio.create_task(prefetch(app.state.source, *place))
     incoming = [INCOMING / "uploads", INCOMING / "sensors"] if INCOMING else []
     app.state.shelf = Shelf([*RECORDS, *incoming])
     app.state.registry = sensors.Registry(SENSORS)
@@ -531,6 +571,8 @@ async def lifespan(app: Starlette) -> AsyncIterator[None]:
     try:
         yield
     finally:
+        if warm is not None:
+            warm.cancel()
         await app.state.source.aclose()
 
 

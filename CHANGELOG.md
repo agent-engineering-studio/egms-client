@@ -8,6 +8,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- The first click in an area no longer looks broken. Its EGMS tile (about
+  60 MB) takes about a minute to come from the archive: after 2 seconds the
+  panel says so, and a badge on the map says the ground map is loading,
+  downloading, or not available. At startup, in archive mode, the API
+  downloads in the background the tiles around `EGMS_UI_LAT`/`EGMS_UI_LON`
+  (Rione Terra when unset), so the first visitor does not wait. The API now
+  logs its mode and the prefetch.
 - A back office (`demo/admin.py`, container `egms-client-admin`, on
   127.0.0.1:3004 only), off until `.env` names the administrator:
   `EGMS_ADMIN_USER` and `EGMS_ADMIN_PASSWORD_HASH` (scrypt, made by

@@ -350,6 +350,26 @@ body {
   box-shadow: 0 0 0 1px #17324d;
 }
 
+/* The state of the ground map, over the map. */
+.egms-map-state {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 500;
+  max-width: calc(100% - 32px);
+  padding: 6px 14px;
+  border-radius: 16px;
+  background: rgba(23, 50, 77, 0.88);
+  color: #fff;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.egms-map-state.failed {
+  background: rgba(166, 25, 25, 0.88);
+}
+
 /* The layers, over the map. */
 .egms-layers {
   position: absolute;
@@ -490,6 +510,11 @@ body {
   .egms-layers {
     top: 8px;
     right: 8px;
+  }
+  /* Above the sheet, under the buttons. */
+  .egms-map-state {
+    top: 56px;
+    bottom: auto;
   }
 }
 

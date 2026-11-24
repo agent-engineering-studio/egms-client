@@ -209,3 +209,65 @@ def test_the_bounds_of_every_shape() -> None:
     assert api.bounds({"type": "Polygon", "coordinates": square}) == (0, 0, 2, 1)
     two = [square, [[[5, 5], [6, 5], [6, 7], [5, 7], [5, 5]]]]
     assert api.bounds({"type": "MultiPolygon", "coordinates": two}) == (0, 0, 6, 7)
+
+
+# --- The tiles of the place, at startup ------------------------------------------
+
+
+def test_the_place_of_the_page_comes_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("EGMS_UI_LON", "14.1205")
+    monkeypatch.setenv("EGMS_UI_LAT", "40.8225")
+    assert api._place_from_env() == (14.1205, 40.8225)
+    monkeypatch.setenv("EGMS_UI_LAT", "")
+    assert api._place_from_env() is None  # half a place is a mistake
+    monkeypatch.setenv("EGMS_UI_LON", "")
+    assert api._place_from_env() == api.DEFAULT_PLACE  # the page opens there too
+    monkeypatch.setenv("EGMS_UI_LON", "14,1205")
+    monkeypatch.setenv("EGMS_UI_LAT", "40,8225")
+    assert api._place_from_env() == (14.1205, 40.8225)
+    monkeypatch.setenv("EGMS_UI_LAT", "10")  # outside EGMS
+    assert api._place_from_env() is None
+
+
+def test_prefetch_asks_both_components_and_never_raises(caplog: pytest.LogCaptureFixture) -> None:
+    import asyncio
+
+    from egms_client import EgmsError
+
+    asked: list[str] = []
+
+    class Fake:
+        async def tiffs(self, box: tuple[float, ...], component: str) -> None:
+            asked.append(component)
+
+    class Broken:
+        async def tiffs(self, box: tuple[float, ...], component: str) -> None:
+            raise EgmsError("the archive is busy")
+
+    with caplog.at_level(logging.INFO, logger="egms-client.api"):
+        asyncio.run(api.prefetch(Fake(), 14.12, 40.82))  # type: ignore[arg-type]
+        asyncio.run(api.prefetch(Broken(), 14.12, 40.82))  # type: ignore[arg-type]
+    assert asked == ["U", "E"]
+    assert "are ready" in caplog.text and "the archive is busy" in caplog.text
+
+
+def test_startup_prefetches_only_in_archive_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    started: list[tuple[float, str]] = []
+
+    class FakeArchive(api.Archive):
+        def __init__(self) -> None:
+            self.name = "archive"
+
+        async def tiffs(self, box: tuple[float, ...], component: str):  # type: ignore[no-untyped-def]
+            started.append((box[0], component))
+            return [], "2020-2025", []
+
+        async def aclose(self) -> None:
+            return None
+
+    monkeypatch.setattr(api, "source_from_env", FakeArchive)
+    monkeypatch.setenv("EGMS_UI_LON", "14.1205")
+    monkeypatch.setenv("EGMS_UI_LAT", "40.8225")
+    with TestClient(api.app) as c:
+        c.get("/api/health")
+    assert [component for _, component in started] == ["U", "E"]

@@ -13,6 +13,11 @@ const it = {
   mapLabel: "Mappa del territorio con le fonti di dati aperti",
   hint: "Clicca un punto della mappa: ogni fonte dice che cosa sa di lì.",
   loading: "Lettura dei dati…",
+  downloading:
+    "Prima volta in questa zona: scarico i dati EGMS dall'archivio Copernicus (circa 60 MB). Può servire un minuto; le volte dopo è immediato.",
+  mapLoading: "Carico la mappa del suolo…",
+  mapDownloading: "Scarico la mappa del suolo dall'archivio (la prima volta, circa un minuto)…",
+  mapFailed: "La mappa del suolo qui non è disponibile.",
   here: "Qui",
   near: "Vicino",
   noneNear: "Nessun'altra fonte ha dati entro 2 km.",
@@ -73,6 +78,11 @@ const en: typeof it = {
   mapLabel: "Map of the area with the open data sources",
   hint: "Click a point of the map: each source says what it knows of the place.",
   loading: "Reading the data…",
+  downloading:
+    "First time in this area: downloading the EGMS data from the Copernicus archive (about 60 MB). It may take a minute; afterwards it is immediate.",
+  mapLoading: "Loading the ground map…",
+  mapDownloading: "Downloading the ground map from the archive (the first time, about a minute)…",
+  mapFailed: "The ground map is not available here.",
   here: "Here",
   near: "Nearby",
   noneNear: "No other source has data within 2 km.",

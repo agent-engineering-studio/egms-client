@@ -128,6 +128,9 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
   const [showMoving, setShowMoving] = useState(false);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<string | null>(null);
+  const [slow, setSlow] = useState(false);
+  const [groundState, setGroundState] = useState<"loading" | "ready" | "failed" | "none">("none");
+  const [groundSince, setGroundSince] = useState(0);
   // On a phone the panel is a sheet: low, to see the map, or high, to read.
   const [sheet, setSheet] = useState<"low" | "high">(start.given ? "high" : "low");
 
@@ -149,13 +152,31 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
     if (!point) return;
     let live = true;
     setPlace(null);
+    setSlow(false);
+    // The first answer in an area may wait for a download from the archive: say so.
+    const wait = window.setTimeout(() => live && setSlow(true), 2000);
     ask<PlaceAnswer>("place", { lat: point.lat.toFixed(5), lon: point.lon.toFixed(5), lang }).then((a) => {
       if (live) setPlace(a);
+      window.clearTimeout(wait);
     });
     return () => {
       live = false;
+      window.clearTimeout(wait);
     };
   }, [point, lang]);
+
+  const onGround = useCallback((state: "loading" | "ready" | "failed" | "none") => {
+    setGroundState(state);
+    if (state === "loading") setGroundSince(Date.now());
+  }, []);
+  // A map that takes more than 3 seconds is being downloaded: tick to update the badge.
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (groundState !== "loading") return;
+    const timer = window.setInterval(() => tick((n) => n + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [groundState]);
+  const archive = sources?.egms === "archive";
 
   useEffect(() => {
     if (!bounds) return;
@@ -253,7 +274,18 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
             onPoint={onPoint}
             onView={setView}
             onBounds={setBounds}
+            onGround={onGround}
           />
+
+          {(groundState === "loading" || groundState === "failed") && (
+            <div className={`egms-map-state ${groundState}`} role="status">
+              {groundState === "failed"
+                ? t.mapFailed
+                : archive && Date.now() - groundSince > 3000
+                  ? t.mapDownloading
+                  : t.mapLoading}
+            </div>
+          )}
 
           <div className={`egms-layers ${layersOpen ? "open" : ""}`}>
             <button type="button" className="egms-layers-toggle" aria-expanded={layersOpen} onClick={() => {
@@ -327,7 +359,7 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
                 <h2 className="egms-place">
                   {t.here} · {point.lat.toFixed(4)}° N, {point.lon.toFixed(4)}° E
                 </h2>
-                {!place && <p className="text-secondary">{t.loading}</p>}
+                {!place && <p className="text-secondary">{slow && archive ? t.downloading : t.loading}</p>}
                 {place && failed(place) && <p className="egms-warning">{place.not_measured === false ? t.outside : `${t.failed}: ${place.error}`}</p>}
                 <ul className="egms-rows">
                   {ground.map((row) => (

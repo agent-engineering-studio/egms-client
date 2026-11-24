@@ -33,6 +33,9 @@ services:
       <<: *env
       EGMS_UI_SOURCE: ${EGMS_UI_SOURCE:-}
       EGMS_UI_MAX_TILES: ${EGMS_UI_MAX_TILES:-4}
+      # The place of the page: its tiles are downloaded at startup (archive mode).
+      EGMS_UI_LAT: ${EGMS_UI_LAT:-}
+      EGMS_UI_LON: ${EGMS_UI_LON:-}
       # The records of the other sources: the examples, the files of ./records,
       # and what the back office and the sensors write (egms-incoming).
       EGMS_UI_RECORDS: /app/examples/records:/srv/records
