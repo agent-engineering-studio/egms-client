@@ -192,3 +192,68 @@ def test_the_command_checks_files(tmp_path: Path, capsys: pytest.CaptureFixture[
     assert "egms-rione-terra.json: 1 record(s), valid" in out
     assert "bad.json: bad.json #0: value: nan is not a value" in out
     assert "broken.json: Expecting property name" in out
+
+
+# --- egms facts as records (egms_client.facts.to_records) -----------------------
+
+DATA = Path(__file__).resolve().parent.parent / "benchmarks" / "data"
+FLEGREI = DATA / "campi-flegrei" / "U.tif"
+SEA = (14.10, 40.785, 14.12, 40.795)  # the Gulf of Pozzuoli, inside the crop: no cell has a value
+
+
+def test_the_egms_examples_are_what_to_records_gives() -> None:
+    from egms_client import __version__
+    from scripts.example_records import OUT, made, text
+
+    for name, records in made().items():
+        assert {r["made_by"]["version"] for r in records} == {__version__}
+        for r in records:
+            r["made_by"]["version"] = "X"
+        written = json.loads((OUT / name).read_text(encoding="utf-8"))
+        for r in written if isinstance(written, list) else [written]:
+            r["made_by"]["version"] = "X"
+        assert json.loads(text(records)) == written, name
+
+
+def test_every_record_of_every_answer_is_valid() -> None:
+    from egms_client.facts import area, moving_points, to_records, velocity
+
+    answers = [
+        velocity([FLEGREI], 14.1205, 40.8225, release="2020-2025"),
+        velocity([FLEGREI], 14.09, 40.785, release="2020-2025"),
+        area([FLEGREI], SEA, release="2020-2025"),
+        moving_points([FLEGREI], SEA, release="2020-2025"),
+        area([FLEGREI], (14.10, 40.81, 14.14, 40.83), release="2020-2025"),
+        moving_points([FLEGREI], (14.10, 40.81, 14.14, 40.83), release="2020-2025"),
+    ]
+    for facts in answers:
+        for record in to_records(facts):
+            assert problems(record) == [], record["id"]
+
+
+def test_a_box_with_no_value_gives_null_and_the_reason() -> None:
+    from egms_client.facts import area, moving_points, to_records
+
+    for facts in (
+        area([FLEGREI], SEA, release="2020-2025"),
+        moving_points([FLEGREI], SEA, release="2020-2025"),
+    ):
+        [record] = to_records(facts)
+        assert record["reliability"]["reasons"] == ["not_measured"]
+        assert {q["value"] for q in record["values"].values()} == {None}
+
+
+def test_a_window_known_only_by_its_years_is_not_exact() -> None:
+    from egms_client.facts import to_records, velocity
+
+    facts = velocity([FLEGREI], 14.1205, 40.8225, release="2018-2022")
+    facts["window"] |= {"first": None, "last": None, "exact": False}
+    [record] = to_records(facts)
+    assert record["time"] == {"first": "2018-01-01", "last": "2022-12-31", "exact": False}
+
+
+def test_only_the_answers_of_facts_have_records() -> None:
+    from egms_client.facts import to_records
+
+    with pytest.raises(ValueError, match="no records for an answer of kind 'releases'"):
+        to_records({"answer": "releases"})

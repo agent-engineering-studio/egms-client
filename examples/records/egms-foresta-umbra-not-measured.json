@@ -10,7 +10,7 @@
   },
   "made_by": {
     "name": "egms-client",
-    "version": "0.8.0"
+    "version": "0.7.0"
   },
   "time": {
     "first": "2020-12-09",
@@ -27,7 +27,7 @@
   "property": "velocity",
   "value": null,
   "unit": "mm/a",
-  "meaning": "vertical; positive = up, negative = down (subsidence)",
+  "meaning": "vertical: positive up, negative down (subsidence)",
   "reliability": {
     "score": 0.0,
     "reliable": false,
@@ -37,7 +37,10 @@
     ]
   },
   "notes": [
-    "Foresta Umbra: no cell here. Not measured, which is not zero.",
-    "8% of the cells within 500 m have a value."
+    "No cell here: not measured, which is not zero.",
+    "The median within 5 km is -0.2 mm/a.",
+    "8% of the cells within 500 m have a value.",
+    "The data stop at the end of the window: they do not describe the ground of today.",
+    "A ground velocity is a measurement, not an alert or a safety verdict."
   ]
 }
