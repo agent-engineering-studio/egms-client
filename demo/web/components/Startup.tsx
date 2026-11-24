@@ -82,6 +82,15 @@ export default function Startup({ start, tiles }: { start: Start; tiles: Tiles }
                 </span>
               </li>
             ))}
+            {s.boundaries && (
+              <li className={s.boundaries.state}>
+                <span>{t.loadingBoundaries}</span>
+                <span>
+                  {t.loadingBoundaryStates[s.boundaries.state]}
+                  {s.boundaries.state === "downloading" && ` ${Math.round(s.boundaries.share * 100)}%`}
+                </span>
+              </li>
+            )}
           </ul>
         )}
         {silent && <p className="egms-warning">{t.loadingNoApi}</p>}

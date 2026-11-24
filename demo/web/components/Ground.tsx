@@ -424,8 +424,18 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
                 </p>
                 {gapSummary?.gap_share != null && (
                   <p className="egms-gap-count">
-                    {t.gapSummary(Math.round(gapSummary.gap_share * 100), gapSummary.gaps, gapSummary.blocks)}
+                    {gapSummary.comune?.gap_share != null
+                      ? t.gapComune(
+                          gapSummary.comune.name,
+                          Math.round(gapSummary.comune.gap_share * 100),
+                          gapSummary.comune.gaps,
+                          gapSummary.comune.blocks,
+                        )
+                      : t.gapSummary(Math.round(gapSummary.gap_share * 100), gapSummary.gaps, gapSummary.blocks)}
                     {gapSummary.missing_tiles.length > 0 && <span className="egms-small"> {t.gapSummaryPartial}</span>}
+                    <span className="egms-small d-block fw-normal">
+                      {gapSummary.land_only ? t.gapLandOnly : t.gapWithSea}
+                    </span>
                   </p>
                 )}
                 <p className="egms-hint">{t.hint}</p>

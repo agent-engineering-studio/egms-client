@@ -77,6 +77,7 @@ dev = [
     "xarray>=2024.6",
     "mcp>=2.3",
     "jsonschema>=4.23",
+    "pyshp>=2.3",
 ]
 docs = [
     "mkdocs-material>=9.5",
@@ -90,6 +91,7 @@ examples = [
 ]
 # The API behind the page of a Comune (demo/api.py).
 demo = [
+    "pyshp>=2.3",
     "python-multipart>=0.0.20",
     "starlette>=0.46",
     "uvicorn>=0.34",
@@ -117,7 +119,7 @@ warn_unused_ignores = true
 warn_redundant_casts = true
 
 [[tool.mypy.overrides]]
-module = ["jsonschema.*", "rasterio.*", "pyproj.*", "pandas.*", "pyarrow.*", "xarray.*", "anthropic.*"]
+module = ["jsonschema.*", "shapefile.*", "rasterio.*", "pyproj.*", "pandas.*", "pyarrow.*", "xarray.*", "anthropic.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

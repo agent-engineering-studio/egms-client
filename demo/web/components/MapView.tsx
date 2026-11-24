@@ -140,6 +140,28 @@ export default function MapView(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.area]);
 
+  // The outline of the Comune, from ISTAT: where its own data gaps are counted.
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !props.area) return;
+    let layer: L.GeoJSON | null = null;
+    let live = true;
+    fetch("/api/boundary")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((feature) => {
+        if (!live || !feature?.geometry) return;
+        layer = L.geoJSON(feature, {
+          style: { color: "#5c2d91", weight: 2.5, fill: false, dashArray: "8 5" },
+          interactive: false,
+        }).addTo(m);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+      layer?.remove();
+    };
+  }, [props.area]);
+
   // The ground map: one picture of the whole area. Tiles not downloaded yet are
   // striped, and the picture is asked again until it is whole.
   useEffect(() => {

@@ -8,6 +8,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- The boundaries of the Comuni from ISTAT (generalised, 1 January 2025, CC BY 4.0), downloaded once at startup: data gaps count land only, the Comune of the page gets its own count, and its outline is on the map (`/api/boundary`). The sea is no longer a gap.
 - A loading screen at the first start: a progress bar and the state of each EGMS tile of the area, from `/api/health` (`startup`); the map opens when they are on the disk. If the archive does not answer for 90 s, the visitor can enter with the tiles already there.
 - `EgmsArchive.fetch_tile(..., on_progress=)`: the bytes of a download as they arrive.
 - Data gaps: the page marks in amber the 1 km squares where EGMS measures less than a quarter of the cells, counts them for the area (`/api/gaps`), and says on the card of a point if its square is one. They are where a Comune can publish more open data; not a danger. The page now says what it is for.

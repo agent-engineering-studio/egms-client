@@ -35,9 +35,9 @@ COPY src src
 RUN uv sync --locked --no-dev --all-extras --group demo --group examples --no-editable
 
 # Fail the build, not the first run, if a system library is missing.
-RUN python -c "import rasterio, pyproj, pandas, mcp, starlette, uvicorn, egms_client"
+RUN python -c "import rasterio, pyproj, pandas, mcp, starlette, uvicorn, shapefile, egms_client"
 
-COPY demo/api.py demo/admin.py demo/sensors.py demo/notebook.sh demo/
+COPY demo/api.py demo/admin.py demo/boundaries.py demo/sensors.py demo/notebook.sh demo/
 COPY benchmarks benchmarks
 COPY examples examples
 COPY notebooks notebooks
