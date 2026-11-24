@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-24
+
+How far to trust the data, and an AI layer that cannot invent numbers.
+The work of #22 (phases 0-6): a benchmark of known places (21 of 23),
+reliability, release windows, cells for a model, facts and checks,
+Docker and a page for a Comune.
+
 ### Added
 
 - `EgmsArchive.fetch_tile(..., keep=("tiff", "csv"))`: other files of the
