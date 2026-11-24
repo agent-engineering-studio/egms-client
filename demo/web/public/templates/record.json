@@ -1,0 +1,133 @@
+[
+  {
+    "schema": "opendata-record/v1",
+    "kind": "observation",
+    "id": "pluvio-01-2026-10-15T12:00Z",
+    "label": {
+      "it": "Pioggia",
+      "en": "Rain"
+    },
+    "source": {
+      "name": "Pluviometro del Comune",
+      "url": "https://www.comune.example.it/dati",
+      "licence": "CC BY 4.0",
+      "attribution": "Comune di Esempio"
+    },
+    "made_by": {
+      "name": "pluvio-01"
+    },
+    "thing": "pluvio-01",
+    "time": {
+      "instant": "2026-10-15T12:00:00Z"
+    },
+    "where": {
+      "type": "Point",
+      "coordinates": [
+        14.1262,
+        40.8262
+      ]
+    },
+    "property": "rainfall",
+    "value": 0.4,
+    "unit": "mm",
+    "quality": {
+      "flags": [
+        "ok"
+      ]
+    },
+    "reliability": null,
+    "notes": [
+      "Pioggia dei 10 minuti prima dell'ora indicata. Esempio: non è una misura vera."
+    ]
+  },
+  {
+    "schema": "opendata-record/v1",
+    "kind": "observation",
+    "id": "pluvio-01-2026-10-15T12:10Z",
+    "label": {
+      "it": "Pioggia",
+      "en": "Rain"
+    },
+    "source": {
+      "name": "Pluviometro del Comune",
+      "licence": "CC BY 4.0"
+    },
+    "made_by": {
+      "name": "pluvio-01"
+    },
+    "thing": "pluvio-01",
+    "time": {
+      "instant": "2026-10-15T12:10:00Z"
+    },
+    "where": {
+      "type": "Point",
+      "coordinates": [
+        14.1262,
+        40.8262
+      ]
+    },
+    "property": "rainfall",
+    "value": null,
+    "unit": "mm",
+    "quality": {
+      "flags": [
+        "gap"
+      ]
+    },
+    "reliability": {
+      "method": "controllo di qualità del pluviometro",
+      "reasons": [
+        "not_measured"
+      ]
+    },
+    "notes": [
+      "Il pluviometro non ha trasmesso: non misurato, non zero. Esempio."
+    ]
+  },
+  {
+    "schema": "opendata-record/v1",
+    "kind": "fact",
+    "id": "esempio-soglia",
+    "label": {
+      "it": "Pioggia che basta per le frane, in 24 ore",
+      "en": "Rain enough for landslides, in 24 hours"
+    },
+    "question": "Quanta pioggia in 24 ore è come quella che ha innescato frane nell'Italia meridionale?",
+    "headline": "cumulata",
+    "values": {
+      "cumulata": {
+        "value": 27.1,
+        "unit": "mm"
+      },
+      "durata": {
+        "value": 24,
+        "unit": "h"
+      }
+    },
+    "source": {
+      "name": "e-ITALICA v4, soglia ITALICA_T5 (sud)",
+      "url": "https://doi.org/10.5281/zenodo.14204473",
+      "licence": "CC BY 4.0",
+      "attribution": "Brunetti et al. 2024"
+    },
+    "made_by": {
+      "name": "rainfall-thresholds",
+      "version": "0.3.0"
+    },
+    "time": null,
+    "where": {
+      "type": "Point",
+      "coordinates": [
+        14.1205,
+        40.8225
+      ]
+    },
+    "reliability": {
+      "method": "5° percentile di 1.425 eventi di pioggia che hanno innescato frane",
+      "reasons": []
+    },
+    "notes": [
+      "Una soglia superata non è un'allerta."
+    ]
+  }
+]

@@ -288,24 +288,23 @@ Five stories with real data, from download to figure, in [`notebooks/`](https://
   <img src="https://raw.githubusercontent.com/agent-engineering-studio/egms-client/main/docs/images/ui-territorio.jpg" alt="The page for the Comune di Pozzuoli: the map of vertical velocity, the EGMS card of the point clicked, and the cards of the other sources" width="100%">
 </p>
 
-A page that shows how to reuse open data. Click a point: EGMS says how much
-the ground moves there, and every other source near it gets a card of its
-own: the radar rain of the Protezione Civile, a landslide threshold, a rain
-gauge. Each card says where the data come from, when, how far to trust
-them and under which licence, and **«How it is made»** shows the code or
-the record behind the numbers.
+A page that shows how to reuse open data. The map fills the screen; click a
+point and the panel gives one row per source: what it measures, its number
+in words, and a dot for how far to trust it. EGMS says how much the ground
+moves; next to it, the radar rain of the Protezione Civile, a landslide
+threshold, a rain gauge. A row opens on its source, dates, licence and
+notes. On a phone the panel is a sheet that slides up.
 
-Any source can join without code: it writes
-[records of open data](https://agentengineering.it/egms-client/api/records/)
-(`.json` or `.jsonl`) into the folder `records/`, and the page reads them.
-A file with an invalid record is refused, and the tab «Sources» says why.
-The sources stay side by side: the page does not blend them into a score,
-and it is not an alert system.
+The technical side is on its own page, `/dati`: how each source is made,
+the code to reuse it, the [records of open data](https://agentengineering.it/egms-client/api/records/),
+and templates to download (JSON and CSV). A source joins without code: its
+file goes in the folder `records/`, and a file with an invalid record is
+refused. The sources stay side by side: the page does not blend them into a
+score, and it is not an alert system.
 
 It is in Italian and English, uses
 [Bootstrap Italia](https://italia.github.io/bootstrap-italia/) served from
-the image (no CDN), and can be embedded in an iframe (`?tab=fonti` or
-`?tab=aggiungi` opens on the sources or on the guide).
+the image (no CDN), and can be embedded in an iframe.
 
 ```bash
 cp .env.example .env      # the place, the name, the language; the key in ./secrets

@@ -15,6 +15,19 @@
     "where": {"$ref": "#/$defs/geometry"},
     "reliability": {"$ref": "#/$defs/reliability"},
     "notes": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "label": {
+      "description": "What the record is about, in words for people: one text, or one per language ({\"it\": \"Pioggia\", \"en\": \"Rain\"})",
+      "oneOf": [
+        {"type": "string", "minLength": 1, "maxLength": 80},
+        {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"pattern": "^[a-z]{2}$"},
+          "additionalProperties": {"type": "string", "minLength": 1, "maxLength": 80}
+        }
+      ]
+    },
+    "headline": {"type": "string", "minLength": 1, "description": "In a fact: the name of the value to show first"},
     "thing": {"type": "string", "minLength": 1, "description": "The device or station, as a SensorThings Thing"},
     "property": {"$ref": "#/$defs/property"},
     "value": {"type": ["number", "null"], "description": "null when not measured; never 0 in its place"},

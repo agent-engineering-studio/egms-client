@@ -21,6 +21,10 @@ from egms_client.facts import to_records, velocity
 records = to_records(velocity(tiffs, 14.1205, 40.8225, release="2020-2025"))
 ```
 
+A CSV with the columns of the template (`tempo, lon, lat, grandezza,
+valore, unità, fonte, licenza`, or the same in English) reads as
+observations; an empty `valore` is not measured.
+
 Check a file from the command line:
 
 ```bash

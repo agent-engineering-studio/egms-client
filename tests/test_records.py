@@ -257,3 +257,74 @@ def test_only_the_answers_of_facts_have_records() -> None:
 
     with pytest.raises(ValueError, match="no records for an answer of kind 'releases'"):
         to_records({"answer": "releases"})
+
+
+# --- label, headline, and the CSV template --------------------------------------
+
+TEMPLATES = Path(__file__).resolve().parent.parent / "demo" / "web" / "public" / "templates"
+
+
+def test_a_label_is_one_text_or_one_per_language() -> None:
+    assert problems(_observation(label="Suolo")) == []
+    assert problems(_observation(label={"it": "Suolo", "en": "Ground"})) == []
+    assert problems(_observation(label={"italiano": "Suolo"})) != []
+    assert problems(_observation(label={})) != []
+
+
+def test_a_headline_names_one_of_the_values() -> None:
+    assert problems(_fact(headline="cumulated")) == []
+    assert problems(_fact(headline="median")) == [
+        "headline: 'median' is not one of the values (cumulated)"
+    ]
+    assert problems(_observation(headline="value")) == [
+        "headline: not part of a record of kind observation"
+    ]
+
+
+@pytest.mark.parametrize("path", sorted(TEMPLATES.iterdir()), ids=lambda p: p.name)
+def test_the_templates_of_the_page_are_valid(path: Path) -> None:
+    assert len(read(path)) == 3
+
+
+def test_the_csv_template_reads_as_a_spreadsheet_saves_it(tmp_path: Path) -> None:
+    rain = read(TEMPLATES / "record.csv")
+    assert [r["value"] for r in rain] == [0.4, None, 1.2]
+    assert rain[0]["where"]["coordinates"] == [14.1262, 40.8262]
+    assert rain[0]["thing"] == "pluvio-01"
+    assert rain[0]["label"] == "Pioggia"
+    english = tmp_path / "en.csv"
+    english.write_text(
+        "time,lon,lat,property,value,unit,source,licence,meaning\n"
+        "2025-11-19,14.12,40.82,velocity,145.2,mm/a,EGMS,CC0-1.0,positive = up\n"
+    )
+    [one] = read(english)
+    assert one["time"] == {"first": "2025-11-19", "last": "2025-11-19", "exact": True}
+    assert one["meaning"] == "positive = up"
+
+
+def test_a_wrong_csv_says_which_line(tmp_path: Path) -> None:
+    wrong = tmp_path / "wrong.csv"
+    wrong.write_text(
+        "tempo;lon;lat;grandezza;valore;unità;fonte;licenza\n"
+        "2026-10-15T12:00:00;14,1;40,8;rainfall;0,4;mm;P;CC0-1.0\n"
+        "2026-10-15T12:10:00Z;est;40,8;rainfall;0,4;mm;P;CC0-1.0\n"
+    )
+    with pytest.raises(RecordError) as caught:
+        read(wrong)
+    assert (
+        caught.value.problems[0] == "wrong.csv line 2: time/instant: give the time zone (use UTC)"
+    )
+    assert caught.value.problems[1].startswith("wrong.csv line 3: where")
+
+
+def test_a_csv_without_the_columns_is_refused(tmp_path: Path) -> None:
+    few = tmp_path / "few.csv"
+    few.write_text("tempo,valore\n2026-10-15,1\n")
+    with pytest.raises(
+        RecordError, match="csv: the columns lat, licence, lon, property, source, unit"
+    ):
+        read(few)
+    empty = tmp_path / "empty.csv"
+    empty.write_text("")
+    with pytest.raises(RecordError, match="csv: the columns"):
+        read(empty)

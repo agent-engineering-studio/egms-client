@@ -364,6 +364,36 @@ BOX_METHOD = "egms-client: the share of the 100 m cells in the box that have a v
 
 _COMPONENT = {"U": "vertical", "E": "east-west"}
 
+#: The names of the records for people, by answer and component.
+_LABELS = {
+    "velocity": {
+        "U": {"it": "Movimento del suolo, verticale", "en": "Ground motion, vertical"},
+        "E": {"it": "Movimento del suolo, est-ovest", "en": "Ground motion, east-west"},
+    },
+    "area": {
+        "U": {
+            "it": "Movimento verticale del suolo nel riquadro",
+            "en": "Vertical ground motion in the box",
+        },
+        "E": {
+            "it": "Movimento est-ovest del suolo nel riquadro",
+            "en": "East-west ground motion in the box",
+        },
+    },
+    "moving_points": {
+        "U": {
+            "it": "Celle che si muovono più dei dintorni",
+            "en": "Cells that move more than their surroundings",
+        },
+        "E": {
+            "it": "Celle che si muovono più dei dintorni",
+            "en": "Cells that move more than their surroundings",
+        },
+    },
+}
+#: The value a fact shows first.
+_HEADLINES = {"area": "median", "moving_points": "moving"}
+
 
 def to_records(facts: dict[str, Any]) -> list[dict[str, Any]]:
     """The facts of :func:`velocity`, :func:`area` or :func:`moving_points` as records.
@@ -401,6 +431,7 @@ def _envelope(facts: dict[str, Any], kind: str, where: dict[str, Any]) -> dict[s
         "kind": kind,
         "source": {"name": f"EGMS Ortho L3 {facts['release']}, {_COMPONENT[component]}", **SOURCE},
         "made_by": {"name": "egms-client", "version": __version__},
+        "label": _LABELS["velocity" if kind == "observation" else facts["answer"]][component],
         "time": _record_time(facts["window"]),
         "where": where,
     }
@@ -517,6 +548,7 @@ def _box_record(facts: dict[str, Any], question: str) -> dict[str, Any]:
         **_envelope(facts, "fact", {"type": "Polygon", "coordinates": [ring]}),
         "id": f"egms-l3-{facts['component'].lower()}-{facts['release']}-{facts['answer']}-{box}",
         "question": question,
+        "headline": _HEADLINES[facts["answer"]] if facts["measured"] else next(iter(values)),
         "values": values,
         "reliability": {
             "method": BOX_METHOD,

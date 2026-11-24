@@ -13,6 +13,10 @@
       "name": "egms-client",
       "version": "0.8.0"
     },
+    "label": {
+      "it": "Celle che si muovono più dei dintorni",
+      "en": "Cells that move more than their surroundings"
+    },
     "time": {
       "first": "2020-12-09",
       "last": "2025-11-19",
@@ -46,6 +50,7 @@
       ]
     },
     "question": "Which cells move against the rest of this box?",
+    "headline": "moving",
     "values": {
       "reference": {
         "value": -3.9,
@@ -96,6 +101,10 @@
       "name": "egms-client",
       "version": "0.8.0"
     },
+    "label": {
+      "it": "Movimento del suolo, verticale",
+      "en": "Ground motion, vertical"
+    },
     "time": {
       "first": "2020-12-09",
       "last": "2025-11-19",
@@ -138,6 +147,10 @@
       "name": "egms-client",
       "version": "0.8.0"
     },
+    "label": {
+      "it": "Movimento del suolo, verticale",
+      "en": "Ground motion, vertical"
+    },
     "time": {
       "first": "2020-12-09",
       "last": "2025-11-19",
@@ -179,6 +192,10 @@
     "made_by": {
       "name": "egms-client",
       "version": "0.8.0"
+    },
+    "label": {
+      "it": "Movimento del suolo, verticale",
+      "en": "Ground motion, vertical"
     },
     "time": {
       "first": "2020-12-09",

@@ -98,6 +98,8 @@ export type OpenRecord = {
   where: Geometry;
   reliability: RecordReliability;
   notes?: string[];
+  label?: string | Record<string, string>;
+  headline?: string;
   thing?: string;
   property?: string;
   value?: number | null;
@@ -124,6 +126,7 @@ export type Source = {
   records: number;
   kinds: string[];
   properties: string[];
+  methods: string[];
   files: string[];
 };
 

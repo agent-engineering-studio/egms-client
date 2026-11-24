@@ -2,6 +2,10 @@
   "schema": "opendata-record/v1",
   "kind": "layer",
   "id": "egms-l3-u-2020-2025-campi-flegrei",
+  "label": {
+    "it": "Mappa del movimento verticale del suolo",
+    "en": "Map of the vertical ground motion"
+  },
   "source": {
     "name": "EGMS Ortho L3 2020-2025, vertical",
     "url": "https://egms.land.copernicus.eu/",

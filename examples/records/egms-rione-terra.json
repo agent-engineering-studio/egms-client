@@ -12,6 +12,10 @@
     "name": "egms-client",
     "version": "0.8.0"
   },
+  "label": {
+    "it": "Movimento del suolo, verticale",
+    "en": "Ground motion, vertical"
+  },
   "time": {
     "first": "2020-12-09",
     "last": "2025-11-19",

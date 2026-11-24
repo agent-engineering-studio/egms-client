@@ -21,6 +21,8 @@ Validation needs the extra ``records`` (``jsonschema``).
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import math
 from datetime import date, datetime
@@ -44,7 +46,7 @@ NOT_A_RECORD = ("alert", "alarm", "warning", "risk", "allerta", "allarme", "risc
 #: The fields that belong to one kind only (the schema says the same).
 ONLY = {
     "observation": frozenset({"value", "quality"}),
-    "fact": frozenset({"question", "values"}),
+    "fact": frozenset({"question", "values", "headline"}),
     "layer": frozenset({"href", "media_type", "no_data"}),
 }
 
@@ -89,6 +91,7 @@ def problems(record: Any) -> list[str]:
     found += _not_measured(record)
     found += _time(record)
     found += _names(record)
+    found += _headline(record)
     return found
 
 
@@ -101,25 +104,117 @@ def validate(record: Any) -> dict[str, Any]:
 
 
 def read(path: str | Path) -> list[dict[str, Any]]:
-    """The records in a file: one object, a list of objects, or JSON Lines (``.jsonl``).
+    """The records in a file: one object, a list of objects, JSON Lines (``.jsonl``) or CSV.
 
-    Every record is validated; the first file with an invalid one raises
-    :class:`RecordError`, with the position of the record in the file.
+    Every record is validated; a file with an invalid one raises
+    :class:`RecordError`, with the position of the record in the file (for
+    a CSV, its line).
     """
     path = Path(path)
-    text = path.read_text(encoding="utf-8")
-    if path.suffix == ".jsonl":
-        loaded: Any = [json.loads(line) for line in text.splitlines() if line.strip()]
+    text = path.read_text(encoding="utf-8-sig")
+    if path.suffix == ".csv":
+        items = from_csv(text, made_by=path.name)
+        where = [f"line {i + 2}" for i in range(len(items))]
     else:
-        loaded = json.loads(text)
-    items = loaded if isinstance(loaded, list) else [loaded]
+        if path.suffix == ".jsonl":
+            loaded: Any = [json.loads(line) for line in text.splitlines() if line.strip()]
+        else:
+            loaded = json.loads(text)
+        items = loaded if isinstance(loaded, list) else [loaded]
+        where = [f"#{i}" for i in range(len(items))]
+    found = [
+        f"{path.name} {w}: {p}"
+        for w, item in zip(where, items, strict=True)
+        for p in problems(item)
+    ]
+    if found:
+        raise RecordError(found)
+    return items
+
+
+#: The columns of the CSV template, in Italian and in English.
+CSV_COLUMNS = {
+    "tempo": "time",
+    "lon": "lon",
+    "lat": "lat",
+    "grandezza": "property",
+    "valore": "value",
+    "unità": "unit",
+    "fonte": "source",
+    "licenza": "licence",
+}
+#: Columns a CSV may add: what the sign means, the sensor, a name for people.
+CSV_OPTIONAL = {"significato": "meaning", "sensore": "thing", "etichetta": "label"}
+
+
+def from_csv(text: str, *, made_by: str) -> list[dict[str, Any]]:
+    """Observations from a CSV with the columns of the template, one per line.
+
+    The columns are ``tempo, lon, lat, grandezza, valore, unità, fonte,
+    licenza`` (or ``time, lon, lat, property, value, unit, source,
+    licence``), and optionally ``significato``, ``sensore``, ``etichetta``.
+    The separator may be a comma or a semicolon, and a decimal a comma, as
+    a spreadsheet saves it. An empty ``valore`` is not measured: ``null``.
+    ``tempo`` is a date (a day) or a date and time with its time zone.
+    The records are not validated here: :func:`read` does it.
+    """
+    try:
+        dialect: Any = csv.Sniffer().sniff(text.split("\n", 1)[0], delimiters=";,\t")
+    except csv.Error:
+        dialect = csv.excel
+    rows = list(csv.DictReader(io.StringIO(text), dialect=dialect))
+    english = {v: v for v in (*CSV_COLUMNS.values(), *CSV_OPTIONAL.values())}
+    names = {**CSV_COLUMNS, **CSV_OPTIONAL, **english, "unita": "unit"}
+    header = [h.strip().lower() for h in (rows[0].keys() if rows else [])]
+    missing = set(CSV_COLUMNS.values()) - {names.get(h) for h in header}
+    if not rows or missing:
+        raise RecordError(
+            [f"csv: the columns {', '.join(sorted(missing or CSV_COLUMNS.values()))} are missing"]
+        )
     out = []
-    for i, item in enumerate(items):
-        found = problems(item)
-        if found:
-            raise RecordError([f"{path.name} #{i}: {p}" for p in found])
-        out.append(item)
+    for row in rows:
+        cell = {
+            names[k.strip().lower()]: (v or "").strip()
+            for k, v in row.items()
+            if k and k.strip().lower() in names
+        }
+        record: dict[str, Any] = {
+            "schema": SCHEMA,
+            "kind": "observation",
+            "source": {"name": cell["source"], "licence": cell["licence"]},
+            "made_by": {"name": made_by},
+            "time": _csv_time(cell["time"]),
+            "where": {
+                "type": "Point",
+                "coordinates": [_csv_number(cell["lon"]), _csv_number(cell["lat"])],
+            },
+            "reliability": None,
+            "property": cell["property"],
+            "value": _csv_number(cell["value"]) if cell["value"] else None,
+            "unit": cell["unit"],
+        }
+        for key in ("meaning", "thing", "label"):
+            if cell.get(key):
+                record[key] = cell[key]
+        out.append(record)
     return out
+
+
+def _csv_number(text: str) -> float | str:
+    try:
+        return (
+            float(text.replace(",", "."))
+            if text.count(",") <= 1 and "." not in text
+            else float(text)
+        )
+    except ValueError:
+        return text  # the schema says it is not a number
+
+
+def _csv_time(text: str) -> dict[str, Any]:
+    if len(text) == 10:
+        return {"first": text, "last": text, "exact": True}
+    return {"instant": text.replace(" ", "T", 1)}
 
 
 def _schema_errors(record: Any) -> list[str]:
@@ -229,3 +324,10 @@ def _names(record: dict[str, Any]) -> list[str]:
         for word in NOT_A_RECORD
         if word in name.lower()
     ]
+
+
+def _headline(record: dict[str, Any]) -> list[str]:
+    headline, values = record.get("headline"), record.get("values")
+    if headline is None or not isinstance(values, dict) or headline in values:
+        return []
+    return [f"headline: {headline!r} is not one of the values ({', '.join(values)})"]
