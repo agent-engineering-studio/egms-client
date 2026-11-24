@@ -11,6 +11,9 @@ All notable changes to this project are documented here. The format follows
 - `EgmsArchive.fetch_tile(..., keep=("tiff", "csv"))`: other files of the
   tile's ZIP beside the GeoTIFF. A search id that expired before the download
   (HTTP 401) is searched again, once, as `fetch` already did.
+- `EgmsError.status_code`: the HTTP status of a refused download or token. A
+  caller with its own retry (`EgmsArchive(retries=0)`) reads it to tell a
+  busy archive from a refusal.
 - Records of open data (`egms_client.records`, extra `records`): one JSON
   Schema, `opendata-record/v1`, for observations, facts and map layers from
   any source, with checks a schema cannot make (not measured is null, a

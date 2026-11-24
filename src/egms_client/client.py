@@ -483,7 +483,9 @@ class EgmsArchive:
                         return None
                     if status == 401:
                         text = (await response.aread())[:200].decode("utf-8", "replace")
-                        raise _ExpiredError(f"EGMS download refused (HTTP 401): {text}")
+                        raise _ExpiredError(
+                            f"EGMS download refused (HTTP 401): {text}", status_code=401
+                        )
                     if status == 200:
                         received = 0
                         with partial.open("wb") as out:

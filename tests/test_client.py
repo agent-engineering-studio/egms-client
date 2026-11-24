@@ -188,6 +188,24 @@ def test_a_tile_keeps_other_files_of_its_zip(service_key: ServiceKey, tmp_path: 
     assert sorted(p.name for p in tmp_path.iterdir()) == [f"{STEM}.csv", f"{STEM}.tiff"]
 
 
+def test_without_retries_a_busy_archive_says_its_status(
+    service_key: ServiceKey, tmp_path: Path
+) -> None:
+    async def body(client: httpx.AsyncClient) -> None:
+        a = EgmsArchive(client, service_key, archive_url=ARCHIVE, retries=0)
+        await a.fetch_tile((47, 19), "U", "2020_2025", tmp_path)
+
+    async def main() -> None:
+        transport = httpx.MockTransport(Archive(download_status=429))
+        async with httpx.AsyncClient(transport=transport) as client:
+            await body(client)
+
+    with pytest.raises(EgmsError, match="HTTP 429") as refused:
+        asyncio.run(main())
+    assert refused.value.status_code == 429
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_an_expired_search_raises_and_leaves_nothing(
     service_key: ServiceKey, tmp_path: Path
 ) -> None:
