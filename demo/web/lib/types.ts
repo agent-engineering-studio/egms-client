@@ -48,12 +48,16 @@ export type PlaceAnswer = {
 export type GapAt = { block_m: number; measured_share: number; gap: boolean };
 
 /** How much of the area is data gap: squares where EGMS measures less than gap_below of the cells. */
-export type GapSummary = {
+export type GapCount = { blocks: number; gaps: number; gap_share: number | null };
+
+export type GapSummary = GapCount & {
   block_m: number;
   gap_below: number;
-  blocks: number;
-  gaps: number;
-  gap_share: number | null;
+  /** True when the boundaries of ISTAT keep the sea out of the count. */
+  land_only: boolean;
+  /** The squares mostly in the Comune of the page. */
+  comune: (GapCount & { name: string; code: string }) | null;
+  boundaries: string | null;
   missing_tiles: string[];
 };
 
@@ -173,7 +177,17 @@ export type StartupTile = {
   share: number;
 };
 
+export type StartupBoundaries = {
+  state: "waiting" | "downloading" | "ready" | "none" | "failed";
+  received: number;
+  total: number;
+  share: number;
+  comune: string | null;
+  error: string | null;
+};
+
 export type StartupState = {
+  boundaries: StartupBoundaries | null;
   state: "running" | "slow" | "waiting" | "ready" | "failed";
   ready: boolean;
   share: number;

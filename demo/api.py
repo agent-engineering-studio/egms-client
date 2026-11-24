@@ -76,6 +76,7 @@ from egms_client.records import RecordError, read
 from egms_client.releases import KNOWN_RELEASES
 
 sys.path.insert(0, str(Path(__file__).parent))
+import boundaries
 import sensors
 
 log = logging.getLogger("egms-client.api")
@@ -561,7 +562,7 @@ async def place(request: Request) -> JSONResponse:
             velocity, tiffs, lon, lat, component=component, release=release
         )
         if component == "U":
-            out["gap"] = await asyncio.to_thread(_gap_at, tiffs, lon, lat)
+            out["gap"] = await asyncio.to_thread(_gap_at, tiffs, lon, lat, request.app.state.land)
         out[name] = {
             "facts": facts,
             "text": words(facts, lang),  # type: ignore[arg-type]
@@ -570,11 +571,13 @@ async def place(request: Request) -> JSONResponse:
     return JSONResponse(out)
 
 
-def _gap_at(tiffs: list[Path], lon: float, lat: float) -> dict[str, Any] | None:
+def _gap_at(
+    tiffs: list[Path], lon: float, lat: float, land: Land | None = None
+) -> dict[str, Any] | None:
     """The BLOCK_M square of a point: the share of its cells EGMS measures, and if it is a gap."""
     x, y = lonlat_to_laea(lon, lat, lon, lat)[:2]
-    share, _, _ = gaps(tiffs, (x, y, x + 1, y + 1))
-    value = float(share[0, 0])
+    comuni = land.comuni if land else []
+    value = float(gaps(tiffs, (x, y, x + 1, y + 1), comuni).share[0, 0])
     if math.isnan(value):
         return None
     return {"block_m": BLOCK_M, "measured_share": round(value, 3), "gap": value < GAP_SHARE}
@@ -590,18 +593,51 @@ async def gap_summary(request: Request) -> JSONResponse:
         tiffs, _, _, missing = await source.available(laea, "U")
     else:
         tiffs, _, _ = await source.tiffs(laea, "U")
-    share, _, _ = await asyncio.to_thread(gaps, tiffs, laea)
-    known = share[~np.isnan(share)]
-    found = int((known < GAP_SHARE).sum())
+    land: Land = request.app.state.land
+    g = await asyncio.to_thread(gaps, tiffs, laea, land.comuni, land.home)
+
+    def count(share: Any) -> dict[str, Any]:
+        known = share[~np.isnan(share)]
+        found = int((known < GAP_SHARE).sum())
+        return {
+            "blocks": int(known.size),
+            "gaps": found,
+            "gap_share": round(found / known.size, 3) if known.size else None,
+        }
+
+    comune = None
+    if g.home is not None and land.home is not None:
+        comune = {"name": land.home.name, "code": land.home.code, **count(g.share[g.home])}
     return JSONResponse(
         {
             "block_m": BLOCK_M,
             "gap_below": GAP_SHARE,
-            "blocks": int(known.size),
-            "gaps": found,
-            "gap_share": round(found / known.size, 3) if known.size else None,
+            **count(g.share),
+            "land_only": bool(land.comuni),
+            "comune": comune,
+            "boundaries": boundaries.CREDIT if land.comuni else None,
             "missing_tiles": missing,
         }
+    )
+
+
+async def boundary(request: Request) -> JSONResponse:
+    """The outline of the Comune of the page, from ISTAT, for the map."""
+    land: Land = request.app.state.land
+    if land.home is None:
+        return JSONResponse({"error": "no boundary of the Comune here"}, status_code=404)
+    geometry = await asyncio.to_thread(boundaries.lonlat, land.home.geometry)
+    return JSONResponse(
+        {
+            "type": "Feature",
+            "properties": {
+                "name": land.home.name,
+                "code": land.home.code,
+                "source": boundaries.CREDIT,
+            },
+            "geometry": geometry,
+        },
+        headers={"cache-control": "max-age=86400"},
     )
 
 
@@ -646,12 +682,36 @@ def picture(values: Any, inside: Any) -> Any:
     return rgba
 
 
-def gaps(tiffs: list[Path], laea: tuple[float, ...]) -> tuple[Any, float, float]:
-    """The share of measured cells in each BLOCK_M square over a box in EPSG:3035.
+#: A square is counted only if at least this share of it is land (in a Comune).
+MIN_LAND = 0.10
 
-    Squares on the LAEA grid; NaN where no tile on the disk covers the square
-    (not downloaded, or no tile in the archive): not known is not a gap.
-    Returns the shares (rows from north) and the west and north edges.
+
+@dataclass
+class Gaps:
+    """The share of measured cells in each BLOCK_M square, rows from north.
+
+    NaN where it is not known: no tile on the disk, or (with the boundaries)
+    a square that is mostly sea. ``land`` is the land at 100 m (None without
+    the boundaries); ``home`` the squares mostly in the Comune of the page.
+    """
+
+    share: Any
+    west: float
+    north: float
+    pixel: float
+    land: Any | None
+    home: Any | None
+
+
+def gaps(
+    tiffs: list[Path],
+    laea: tuple[float, ...],
+    comuni: Sequence[boundaries.Comune] = (),
+    home: boundaries.Comune | None = None,
+) -> Gaps:
+    """The data gaps over a box in EPSG:3035: squares on the LAEA grid.
+
+    With the Comuni of ISTAT, only land counts: EGMS never measures the sea.
     """
     import rasterio
 
@@ -670,9 +730,24 @@ def gaps(tiffs: list[Path], laea: tuple[float, ...]) -> tuple[Any, float, float]
         r0, r1 = round((y1 - b.top) / m.pixel), round((y1 - b.bottom) / m.pixel)
         loaded[max(0, r0) : max(0, r1), max(0, c0) : max(0, c1)] = True
     shape = (rows // n, n, cols // n, n)
-    share = (~np.isnan(m.values)).reshape(shape).mean(axis=(1, 3))
+    measured = ~np.isnan(m.values)
+    land = which = None
+    if comuni:
+        land, which = boundaries.land(list(comuni), x0, y1, m.pixel, rows, cols)
+        on_land = land.reshape(shape).sum(axis=(1, 3))
+        with np.errstate(invalid="ignore", divide="ignore"):
+            share = (measured & land).reshape(shape).sum(axis=(1, 3)) / on_land
+        share[on_land < MIN_LAND * n * n] = np.nan
+    else:
+        share = measured.reshape(shape).mean(axis=(1, 3))
     share[~loaded.reshape(shape).all(axis=(1, 3))] = np.nan
-    return share, x0, y1
+    in_home = None
+    if home is not None and which is not None and land is not None:
+        index = list(comuni).index(home) + 1
+        mine = (which == index).reshape(shape).sum(axis=(1, 3))
+        with np.errstate(invalid="ignore", divide="ignore"):
+            in_home = mine / land.reshape(shape).sum(axis=(1, 3)) >= 0.5
+    return Gaps(share, x0, y1, m.pixel, land, in_home)
 
 
 #: Where a tile is not downloaded yet: grey stripes, not the veil of "not measured".
@@ -680,7 +755,11 @@ STRIPES = (110, 110, 110, 150)
 
 
 def _png(
-    box: tuple[float, float, float, float], tiffs: list[Path], missing: Sequence[str] = ()
+    box: tuple[float, float, float, float],
+    tiffs: list[Path],
+    missing: Sequence[str] = (),
+    comuni: Sequence[boundaries.Comune] = (),
+    home: boundaries.Comune | None = None,
 ) -> bytes:
     import rasterio
     import rasterio.errors
@@ -709,10 +788,13 @@ def _png(
         resampling=Resampling.nearest,
     )
     rgba = picture(out, np.ones(out.shape, dtype=bool))
-    # The data gaps: their unmeasured cells in amber, the measured ones keep their colour.
-    share, gx0, gy1 = gaps(tiffs, laea)
+    # The data gaps: their unmeasured cells on land in amber; measured ones keep their colour.
+    g = gaps(tiffs, laea, comuni, home)
+    share, gx0, gy1 = g.share, g.west, g.north
     n = round(BLOCK_M / m.pixel)
     gap = np.repeat(np.repeat(np.where(np.isnan(share), np.nan, share < GAP_SHARE), n, 0), n, 1)
+    if g.land is not None:
+        gap = np.where(g.land, gap, np.nan)
     on_web = np.full((height, width), np.nan, dtype="float32")
     reproject(
         gap.astype("float32"),
@@ -726,6 +808,19 @@ def _png(
         resampling=Resampling.nearest,
     )
     rgba[(on_web == 1) & np.isnan(out)] = GAP
+    if g.land is not None:
+        # Outside every Comune (the sea): no veil, since EGMS never measures there.
+        land_web = np.zeros((height, width), dtype="float32")
+        reproject(
+            g.land.astype("float32"),
+            land_web,
+            src_transform=rasterio.transform.from_origin(gx0, gy1, m.pixel, m.pixel),
+            src_crs="EPSG:3035",
+            dst_transform=from_bounds(left, bottom, right, top, width, height),
+            dst_crs="EPSG:3857",
+            resampling=Resampling.nearest,
+        )
+        rgba[(land_web == 0) & np.isnan(out)] = 0
     if missing:
         # The pixels of the map back in LAEA: those in a missing tile get stripes.
         xs = np.linspace(left, right, width, endpoint=False) + (right - left) / width / 2
@@ -760,7 +855,8 @@ async def map_png(request: Request) -> Response:
         tiffs, _, _, missing = await source.available(laea, component)
     else:
         tiffs, _, _ = await source.tiffs(laea, component)
-    body = await asyncio.to_thread(_png, box, tiffs, missing)
+    land: Land = request.app.state.land
+    body = await asyncio.to_thread(_png, box, tiffs, missing, land.comuni, land.home)
     headers = {"cache-control": "no-store" if missing else "max-age=3600"}
     if missing:
         headers["x-missing-tiles"] = ",".join(missing)
@@ -854,11 +950,73 @@ STARTUP_RETRY_S = 60.0
 STARTUP_PATIENCE_S = 90.0
 
 
+class Land:
+    """The Comuni of the area, from ISTAT: where the land is, and the Comune of the page."""
+
+    def __init__(self) -> None:
+        self.state = "waiting"  # downloading, ready, none (not here), failed
+        self.received = self.total = 0
+        self.comuni: list[boundaries.Comune] = []
+        self.home: boundaries.Comune | None = None
+        self.error: str | None = None
+
+    @property
+    def busy(self) -> bool:
+        return self.state in ("waiting", "downloading")
+
+    def as_json(self) -> dict[str, Any]:
+        share = (
+            0.0
+            if self.state == "waiting"
+            else self.received / self.total
+            if self.state == "downloading" and self.total
+            else 0.0
+            if self.state == "downloading"
+            else 1.0
+        )
+        return {
+            "state": self.state,
+            "received": self.received,
+            "total": self.total,
+            "share": round(share, 3),
+            "comune": self.home.name if self.home else None,
+            "error": self.error,
+        }
+
+
+async def load_land(land: Land, area: Area, folder: Path, download: bool) -> None:
+    """The Comuni of the area: from the file of ISTAT, downloaded once if allowed."""
+    try:
+        shp = boundaries.path(folder)
+        if not shp.exists():
+            if not download:
+                land.state = "none"
+                return
+            land.state = "downloading"
+
+            def progress(received: int, total: int) -> None:
+                land.received, land.total = received, total
+
+            shp = await boundaries.fetch(folder, progress)
+        land.comuni = await asyncio.to_thread(boundaries.comuni_in, shp, area.box)
+        land.home = boundaries.at(land.comuni, area.lon, area.lat)
+        land.state = "ready"
+        log.info(
+            "boundaries: %d Comuni in the area, the page's is %s",
+            len(land.comuni),
+            land.home.name if land.home else "none",
+        )
+    except Exception as exc:
+        land.state, land.error = "failed", f"{type(exc).__name__}: {exc}"
+        log.warning("the boundaries of ISTAT: %s; the gaps count the sea too", land.error)
+
+
 class Startup:
     """The download of the area at startup, for the loading screen of the page."""
 
-    def __init__(self, source: Any, area: Area) -> None:
+    def __init__(self, source: Any, area: Area, land: Land | None = None) -> None:
         self.source = source
+        self.land = land
         tiles = [tile_id(t) for t in tiles_for_bounds(*lonlat_to_laea(*area.box))]
         self.keys = [(name, c) for c in ("U", "E") for name in tiles]
         # Demo mode reads the crops of the benchmark: nothing to download.
@@ -881,16 +1039,22 @@ class Startup:
                 else 0.0
             )
             tiles.append({"tile": name, "component": component, **s, "share": round(share, 3)})
-        done = 1.0 if self.state == "ready" else sum(t["share"] for t in tiles) / len(tiles)
+        bounds = self.land.as_json() if self.land else None
+        parts = [t["share"] for t in tiles] + ([bounds["share"]] if bounds else [])
+        ready = self.state == "ready" and not (self.land and self.land.busy)
+        done = 1.0 if ready else sum(parts) / len(parts)
         retry = None if self.retry_at is None else max(0, round(self.retry_at - time.monotonic()))
         state, error = self.state, self.error
         stuck = [t for t in tiles if t["state"] in ("waiting", "checking")]
         if state == "running" and stuck and time.monotonic() - self.started > STARTUP_PATIENCE_S:
             state = "slow"
             error = error or "the Copernicus archive does not answer"
+        if state == "ready" and not ready:
+            state = "running"
         return {
             "state": state,
-            "ready": self.state == "ready",
+            "ready": ready,
+            "boundaries": bounds,
             "share": round(done, 3),
             "attempt": self.attempt,
             "error": error,
@@ -989,8 +1153,18 @@ async def lifespan(app: Starlette) -> AsyncIterator[None]:
     log.info("the area of the page: %s", app.state.area.as_json())
     app.state.source = source_from_env()
     warm = None
-    app.state.startup = Startup(app.state.source, app.state.area)
-    if isinstance(app.state.source, Archive):
+    app.state.land = Land()
+    archive_mode = isinstance(app.state.source, Archive)
+    folder = app.state.source.folder if archive_mode else default_directory()
+    app.state.startup = Startup(app.state.source, app.state.area, app.state.land)
+    if archive_mode:
+        # The boundaries come with the tiles; in demo mode only a file already there.
+        boundaries_task = asyncio.create_task(
+            load_land(app.state.land, app.state.area, folder, True)
+        )
+    else:
+        await load_land(app.state.land, app.state.area, folder, False)
+    if archive_mode:
         warm = asyncio.create_task(
             prefetch(app.state.source, app.state.area, startup=app.state.startup)
         )
@@ -1003,6 +1177,8 @@ async def lifespan(app: Starlette) -> AsyncIterator[None]:
     finally:
         if warm is not None:
             warm.cancel()
+        if archive_mode:
+            boundaries_task.cancel()
         await app.state.source.aclose()
 
 
@@ -1014,6 +1190,7 @@ app = Starlette(
         Route("/api/moving", moving),
         Route("/api/map.png", map_png),
         Route("/api/gaps", gap_summary),
+        Route("/api/boundary", boundary),
         Route("/api/sources", sources),
         Route("/api/records", records),
         Route("/api/ingest/{sensor}", ingest, methods=["POST"]),

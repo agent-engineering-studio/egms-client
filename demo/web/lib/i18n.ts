@@ -36,6 +36,18 @@ const it = {
   gapSummary: (pct: number, gaps: number, blocks: number) =>
     `Nell'area della pagina ${gaps} chilometri quadrati su ${blocks} (${pct}%) sono buchi di dati.`,
   gapSummaryPartial: "Conto parziale: alcune tessere EGMS non sono ancora scaricate.",
+  gapComune: (name: string, pct: number, gaps: number, blocks: number) =>
+    `Nel Comune di ${name} ${gaps} chilometri quadrati su ${blocks} (${pct}%) sono buchi di dati.`,
+  gapLandOnly: "Il mare non è contato: i confini dei Comuni sono quelli dell'ISTAT.",
+  gapWithSea: "Attenzione: senza i confini ISTAT anche il mare risulta buco di dati.",
+  loadingBoundaries: "Confini dei Comuni (ISTAT)",
+  loadingBoundaryStates: {
+    waiting: "in attesa",
+    downloading: "scarico",
+    ready: "pronti",
+    none: "non disponibili",
+    failed: "non riusciti",
+  },
   gapHere: "Buco di dati",
   gapHereText: (pct: number) =>
     `In questo chilometro quadrato il satellite misura il ${pct}% delle celle. Qui un dato aperto in più (una livellazione, una stazione GNSS, un sensore, un rilievo del Comune) direbbe che cosa fa il suolo.`,
@@ -109,7 +121,8 @@ const it = {
   openPanel: "Apri il pannello",
   closePanel: "Riduci il pannello",
   notAlert: "Questi dati sono misure, non allerte. Per i rischi la parola ufficiale è della Protezione Civile.",
-  credit: "Dati: EGMS, Copernicus Land Monitoring Service, © Unione europea; le altre fonti come indicato per ciascuna.",
+  credit:
+    "Dati: EGMS, Copernicus Land Monitoring Service, © Unione europea; confini dei Comuni: ISTAT, CC BY 4.0; le altre fonti come indicato per ciascuna.",
   source: "Codice",
 };
 
@@ -145,6 +158,18 @@ const en: typeof it = {
   gapSummary: (pct: number, gaps: number, blocks: number) =>
     `In the area of the page, ${gaps} square kilometres out of ${blocks} (${pct}%) are data gaps.`,
   gapSummaryPartial: "A partial count: some EGMS tiles are not downloaded yet.",
+  gapComune: (name: string, pct: number, gaps: number, blocks: number) =>
+    `In the Comune of ${name}, ${gaps} square kilometres out of ${blocks} (${pct}%) are data gaps.`,
+  gapLandOnly: "The sea is not counted: the boundaries of the Comuni are ISTAT's.",
+  gapWithSea: "Beware: without the ISTAT boundaries the sea counts as a data gap too.",
+  loadingBoundaries: "Boundaries of the Comuni (ISTAT)",
+  loadingBoundaryStates: {
+    waiting: "waiting",
+    downloading: "downloading",
+    ready: "ready",
+    none: "not available",
+    failed: "failed",
+  },
   gapHere: "Data gap",
   gapHereText: (pct: number) =>
     `In this square kilometre the satellite measures ${pct}% of the cells. Here one more open dataset (levelling, a GNSS station, a sensor, a survey of the Comune) would tell what the ground does.`,
@@ -214,7 +239,8 @@ const en: typeof it = {
   openPanel: "Open the panel",
   closePanel: "Shrink the panel",
   notAlert: "These data are measurements, not alerts. For hazards, the official word is the Civil Protection's.",
-  credit: "Data: EGMS, Copernicus Land Monitoring Service, © European Union; the other sources as stated for each.",
+  credit:
+    "Data: EGMS, Copernicus Land Monitoring Service, © European Union; boundaries of the Comuni: ISTAT, CC BY 4.0; the other sources as stated for each.",
   source: "Code",
 };
 

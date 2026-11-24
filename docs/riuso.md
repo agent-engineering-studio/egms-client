@@ -57,10 +57,18 @@ arancione. Il satellite misura solo dove trova riflettori stabili (edifici,
 strade, roccia): nei campi e nei boschi spesso non misura. Un buco di dati
 non è una zona di pericolo. È il posto dove l'amministrazione può pubblicare
 un dato aperto in più: una livellazione, una stazione GNSS, un sensore, un
-rilievo. Il pannello conta i buchi dell'area, e la scheda di un punto dice
+rilievo. Il pannello conta i buchi del Comune, e la scheda di un punto dice
 se il suo quadrato è un buco. Un quadrato di una tessera non ancora
-scaricata non è contato: non sapere non è un buco. Attenzione al mare: lì
-EGMS non misura mai, quindi i quadrati in mare risultano buchi.
+scaricata non è contato: non sapere non è un buco.
+
+**Il mare e i confini del Comune.** EGMS non misura mai il mare, che quindi
+sembrerebbe un buco di dati. Per questo la pagina usa i confini dei Comuni
+dell'ISTAT (versione generalizzata al 1 gennaio 2025, CC BY 4.0, circa
+10 MB): li scarica al primo avvio insieme alle tessere e li tiene sul server.
+Si contano solo i quadrati per almeno il 10% a terra, e solo le loro celle a
+terra; i buchi del Comune sono i quadrati per più di metà dentro i suoi
+confini, disegnati sulla mappa. Se i confini non si possono scaricare la
+pagina funziona lo stesso, e avverte che il mare viene contato.
 
 **La pagina dei dati** (`/dati`) raccoglie la parte tecnica: come è fatta
 ogni fonte, il codice per riusarla, il formato dei record, i template da

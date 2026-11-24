@@ -27,13 +27,15 @@ ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "demo"))
 
 import api  # noqa: E402
+import boundaries  # noqa: E402
 
 PRIVATE = "-----BEGIN PRIVATE KEY-----MARKER-NEVER-LOGGED-----END PRIVATE KEY-----"
 
 
 @pytest.fixture
-def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
+def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[TestClient]:
     """The page of Pozzuoli: its area holds the crop of the benchmark at Rione Terra."""
+    monkeypatch.setattr(api, "default_directory", lambda: tmp_path)  # no boundaries here
     monkeypatch.setenv("EGMS_UI_SOURCE", "demo")
     monkeypatch.setenv("EGMS_UI_LON", "14.1205")
     monkeypatch.setenv("EGMS_UI_LAT", "40.8225")
@@ -316,12 +318,20 @@ def test_prefetch_asks_both_components_and_never_raises(caplog: pytest.LogCaptur
     assert "(attempt 3)" in caplog.text and "trying again" in caplog.text
 
 
-def test_startup_prefetches_only_in_archive_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_startup_prefetches_only_in_archive_mode(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     started: list[tuple[float, str]] = []
+
+    async def offline(*_: object, **__: object) -> Path:
+        raise httpx.ConnectError("no network in the tests")
+
+    monkeypatch.setattr(boundaries, "fetch", offline)
 
     class FakeArchive(api.Archive):
         def __init__(self) -> None:
             self.name = "archive"
+            self.folder = tmp_path
 
         async def tiffs(self, box: tuple[float, ...], component: str, wait: float | None = None):  # type: ignore[no-untyped-def]
             started.append((box[0], component))
@@ -528,12 +538,13 @@ def test_available_lists_what_is_missing_without_raising() -> None:
 
 def test_data_gaps_are_squares_with_few_measured_cells() -> None:
     crop = [ROOT / "benchmarks" / "data" / "murge" / "U.tif"]
-    share, west, north = api.gaps(crop, lonlat_to_laea(16.85, 40.72, 17.0, 40.85))
+    g = api.gaps(crop, lonlat_to_laea(16.85, 40.72, 17.0, 40.85))
+    share, west, north = g.share, g.west, g.north
     assert west % api.BLOCK_M == 0 and north % api.BLOCK_M == 0
     known = share[~np.isnan(share)]
     assert known.size > 100 and 0 < (known < api.GAP_SHARE).mean() < 0.5
     # Not known is not a gap: outside the crop the squares are NaN.
-    outside, _, _ = api.gaps(crop, lonlat_to_laea(17.2, 40.9, 17.25, 40.95))
+    outside = api.gaps(crop, lonlat_to_laea(17.2, 40.9, 17.25, 40.95)).share
     assert np.isnan(outside).all()
     assert api._gap_at(crop, 16.9625, 40.7839) == {
         "block_m": 1000,
@@ -585,6 +596,7 @@ def test_the_startup_reports_the_progress_of_the_download() -> None:
             "attempt": 1,
             "error": None,
             "retry_in_s": None,
+            "boundaries": None,
             "tiles": [],
         }
 
@@ -625,3 +637,76 @@ def test_a_startup_that_waits_too_long_says_so(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(api, "STARTUP_PATIENCE_S", -1)
     now = startup.as_json()
     assert now["state"] == "slow" and "does not answer" in now["error"]
+
+
+# --- The boundaries of ISTAT: gaps on land only --------------------------------------
+
+
+def _comune_file(folder: Path) -> Path:
+    """A shapefile like ISTAT's with one Comune: a rectangle of land near Rione Terra."""
+    import shapefile
+    from pyproj import Transformer
+
+    to_utm = Transformer.from_crs("EPSG:4326", boundaries.CRS, always_xy=True)
+    corners = [(14.08, 40.81), (14.08, 40.86), (14.16, 40.86), (14.16, 40.81), (14.08, 40.81)]
+    ring = [list(to_utm.transform(lon, lat)) for lon, lat in corners]
+    shp = boundaries.path(folder)
+    shp.parent.mkdir(parents=True)
+    with shapefile.Writer(str(shp.with_suffix("")), shapeType=shapefile.POLYGON) as w:
+        w.field("PRO_COM_T", "C")
+        w.field("COMUNE", "C")
+        w.poly([ring])
+        w.record("063060", "Pozzuoli")
+    return shp
+
+
+def test_the_comune_of_a_point(tmp_path: Path) -> None:
+    shp = _comune_file(tmp_path)
+    comuni = boundaries.comuni_in(shp, (14.0, 40.7, 14.3, 40.9))
+    assert [c.name for c in comuni] == ["Pozzuoli"]
+    assert boundaries.at(comuni, 14.1205, 40.8225) == comuni[0]
+    assert boundaries.at(comuni, 14.10, 40.79) is None  # in the sea, south of it
+    assert boundaries.comuni_in(shp, (9.0, 45.0, 9.1, 45.1)) == []
+    outline = boundaries.lonlat(comuni[0].geometry)
+    assert outline["type"] == "Polygon" and abs(outline["coordinates"][0][0][0] - 14.08) < 1e-4
+
+
+def test_with_the_boundaries_the_sea_is_not_a_gap(tmp_path: Path) -> None:
+    crop = [ROOT / "benchmarks" / "data" / "campi-flegrei" / "U.tif"]
+    box = lonlat_to_laea(14.05, 40.78, 14.18, 40.87)
+    comuni = boundaries.comuni_in(_comune_file(tmp_path), (14.0, 40.7, 14.3, 40.9))
+    plain = api.gaps(crop, box)
+    masked = api.gaps(crop, box, comuni, comuni[0])
+    assert plain.land is None and masked.land is not None
+    known = ~np.isnan(masked.share)
+    # Fewer squares are counted: those mostly outside the Comune (the sea) are not.
+    assert 0 < known.sum() < (~np.isnan(plain.share)).sum()
+    assert masked.home is not None and masked.home[known].all()
+
+
+def test_the_gaps_of_the_comune_and_its_outline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _comune_file(tmp_path)
+    monkeypatch.setattr(api, "default_directory", lambda: tmp_path)
+    monkeypatch.setenv("EGMS_UI_SOURCE", "demo")
+    monkeypatch.setenv("EGMS_UI_LON", "14.1205")
+    monkeypatch.setenv("EGMS_UI_LAT", "40.8225")
+    with TestClient(api.app) as c:
+        health = c.get("/api/health").json()["startup"]
+        assert health["ready"] and health["boundaries"]["comune"] == "Pozzuoli"
+        box = {"west": 14.05, "south": 40.78, "east": 14.18, "north": 40.87}
+        g = c.get("/api/gaps", params=box).json()
+        assert g["land_only"] is True and g["comune"]["name"] == "Pozzuoli"
+        assert g["comune"]["blocks"] <= g["blocks"] and "ISTAT" in g["boundaries"]
+        outline = c.get("/api/boundary").json()
+        assert outline["properties"]["name"] == "Pozzuoli"
+        assert outline["geometry"]["type"] == "Polygon"
+
+
+def test_without_the_boundaries_the_page_still_counts(client: TestClient) -> None:
+    g = client.get(
+        "/api/gaps", params={"west": 14.05, "south": 40.78, "east": 14.18, "north": 40.87}
+    )
+    assert g.json()["land_only"] is False and g.json()["comune"] is None
+    assert client.get("/api/boundary").status_code == 404
