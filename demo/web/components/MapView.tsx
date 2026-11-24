@@ -5,7 +5,14 @@ import { useEffect, useRef } from "react";
 import type { Text } from "@/lib/i18n";
 import { centre } from "@/lib/records";
 import { MAX_ZOOM, type Start, type Tiles } from "@/lib/start";
-import type { Area, Box, Filed, MovingCell, OpenRecord } from "@/lib/types";
+import type {
+  Area,
+  Box,
+  Filed,
+  Hotspot,
+  MovingCell,
+  OpenRecord,
+} from "@/lib/types";
 
 type Props = {
   start: Start;
@@ -26,6 +33,12 @@ type Props = {
   onOutside: () => void;
   /** The view changed: for the records. */
   onBounds: (box: Box) => void;
+  /** The squares where the ground moves most, ranked: zones to follow. */
+  hotspots: Hotspot[];
+  /** The element the card of the point is drawn into, over the map (null when closed). */
+  onCard: (element: HTMLElement | null) => void;
+  /** The card was closed on the map (Esc). */
+  onCloseCard: () => void;
   /** The ground map: being loaded, shown, shown without some tiles (still downloading), failed, or off. */
   onGround: (state: GroundState, missing?: string[]) => void;
 };
@@ -44,7 +57,8 @@ const dot = (cell: MovingCell): L.CircleMarkerOptions => ({
   fillOpacity: 0.85,
 });
 
-const boundsOf = (a: Area) => L.latLngBounds([a.south, a.west], [a.north, a.east]);
+const boundsOf = (a: Area) =>
+  L.latLngBounds([a.south, a.west], [a.north, a.east]);
 
 export default function MapView(props: Props) {
   const box = useRef<HTMLDivElement>(null);
@@ -53,6 +67,8 @@ export default function MapView(props: Props) {
   const frame = useRef<L.LayerGroup | null>(null);
   const marker = useRef<L.CircleMarker | null>(null);
   const cells = useRef<L.LayerGroup | null>(null);
+  const hot = useRef<L.LayerGroup | null>(null);
+  const popup = useRef<L.Popup | null>(null);
   const others = useRef<L.LayerGroup | null>(null);
   const area = useRef<Area | null>(null);
   const handlers = useRef(props);
@@ -70,13 +86,22 @@ export default function MapView(props: Props) {
       // Inside the area of the page: it cannot be dragged out of it.
       maxBoundsViscosity: 1,
     });
-    L.tileLayer(props.tiles.url, { attribution: props.tiles.attribution, maxZoom: MAX_ZOOM }).addTo(m);
+    L.tileLayer(props.tiles.url, {
+      attribution: props.tiles.attribution,
+      maxZoom: MAX_ZOOM,
+    }).addTo(m);
     frame.current = L.layerGroup().addTo(m);
+    hot.current = L.layerGroup().addTo(m);
     cells.current = L.layerGroup().addTo(m);
     others.current = L.layerGroup().addTo(m);
     const report = () => {
       const b = m.getBounds();
-      handlers.current.onBounds({ west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() });
+      handlers.current.onBounds({
+        west: b.getWest(),
+        south: b.getSouth(),
+        east: b.getEast(),
+        north: b.getNorth(),
+      });
     };
     m.on("moveend", report);
     m.on("click", (e: L.LeafletMouseEvent) => {
@@ -111,11 +136,19 @@ export default function MapView(props: Props) {
     const fit = m.getBoundsZoom(bounds);
     m.setMaxBounds(bounds.pad(0.05));
     m.setMinZoom(fit);
-    if (props.start.given && bounds.contains([props.start.lat, props.start.lon])) {
-      m.setView([props.start.lat, props.start.lon], Math.max(props.start.zoom, fit));
+    if (
+      props.start.given &&
+      bounds.contains([props.start.lat, props.start.lon])
+    ) {
+      m.setView(
+        [props.start.lat, props.start.lon],
+        Math.max(props.start.zoom, fit),
+      );
     } else {
       // On a phone the sheet covers the bottom third of the map: frame the area above it.
-      const sheet = window.matchMedia("(max-width: 768px)").matches ? m.getSize().y * 0.34 : 0;
+      const sheet = window.matchMedia("(max-width: 768px)").matches
+        ? m.getSize().y * 0.34
+        : 0;
       m.fitBounds(bounds, { paddingBottomRight: [0, sheet] });
     }
     frame.current.clearLayers();
@@ -131,12 +164,19 @@ export default function MapView(props: Props) {
       [a.north, a.east],
       [a.south, a.east],
     ];
-    L.polygon([world, hole], { stroke: false, fillColor: "#17324d", fillOpacity: 0.28, interactive: false }).addTo(
-      frame.current,
-    );
-    L.rectangle(bounds, { color: "#17324d", weight: 2, dashArray: "6 4", fill: false, interactive: false }).addTo(
-      frame.current,
-    );
+    L.polygon([world, hole], {
+      stroke: false,
+      fillColor: "#17324d",
+      fillOpacity: 0.28,
+      interactive: false,
+    }).addTo(frame.current);
+    L.rectangle(bounds, {
+      color: "#17324d",
+      weight: 2,
+      dashArray: "6 4",
+      fill: false,
+      interactive: false,
+    }).addTo(frame.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.area]);
 
@@ -151,7 +191,12 @@ export default function MapView(props: Props) {
       .then((feature) => {
         if (!live || !feature?.geometry) return;
         layer = L.geoJSON(feature, {
-          style: { color: "#5c2d91", weight: 2.5, fill: false, dashArray: "8 5" },
+          style: {
+            color: "#5c2d91",
+            weight: 2.5,
+            fill: false,
+            dashArray: "8 5",
+          },
           interactive: false,
         }).addTo(m);
       })
@@ -184,16 +229,27 @@ export default function MapView(props: Props) {
     const load = async () => {
       if (!overlay.current) handlers.current.onGround("loading");
       try {
-        const answer = await fetch(`/api/map.png?${query}`, { cache: "no-store" });
+        const answer = await fetch(`/api/map.png?${query}`, {
+          cache: "no-store",
+        });
         if (!answer.ok) throw new Error(String(answer.status));
-        const missing = answer.headers.get("x-missing-tiles")?.split(",").filter(Boolean) ?? [];
+        const missing =
+          answer.headers.get("x-missing-tiles")?.split(",").filter(Boolean) ??
+          [];
         const url = URL.createObjectURL(await answer.blob());
         if (stopped) return URL.revokeObjectURL(url);
         if (overlay.current) overlay.current.setUrl(url);
-        else overlay.current = L.imageOverlay(url, boundsOf(a), { opacity: 0.75, interactive: false }).addTo(m);
+        else
+          overlay.current = L.imageOverlay(url, boundsOf(a), {
+            opacity: 0.75,
+            interactive: false,
+          }).addTo(m);
         if (shown) URL.revokeObjectURL(shown);
         shown = url;
-        handlers.current.onGround(missing.length ? "partial" : "ready", missing);
+        handlers.current.onGround(
+          missing.length ? "partial" : "ready",
+          missing,
+        );
         if (missing.length) again = window.setTimeout(load, AGAIN_MS);
       } catch {
         if (stopped) return;
@@ -223,7 +279,66 @@ export default function MapView(props: Props) {
           fillOpacity: 0,
         }).addTo(m)
       : null;
+    // The card of the point: a popup over the map, filled by the page (a portal).
+    if (!props.point) {
+      popup.current?.remove();
+      popup.current = null;
+      handlers.current.onCard(null);
+      return;
+    }
+    if (!popup.current) {
+      const element = document.createElement("div");
+      popup.current = L.popup({
+        className: "egms-popup",
+        maxWidth: Math.min(360, window.innerWidth - 40),
+        minWidth: Math.min(300, window.innerWidth - 40),
+        closeButton: false,
+        closeOnClick: false,
+        autoPanPaddingTopLeft: [16, 16],
+        autoPanPaddingBottomRight: [16, 16],
+      }).setContent(element);
+      popup.current.on("remove", () => {
+        // Closed by the map (Esc), not by a new point: the card goes.
+        if (popup.current && !m.hasLayer(popup.current))
+          handlers.current.onCloseCard();
+      });
+      // The page fills the card after it opens: place it again, and keep it in view, as it grows.
+      new ResizeObserver(() => popup.current?.update()).observe(element);
+      handlers.current.onCard(element);
+    }
+    popup.current.setLatLng([props.point.lat, props.point.lon]).openOn(m);
   }, [props.point]);
+
+  // The squares where the ground moves most: outlined, with their rank.
+  useEffect(() => {
+    const group = hot.current;
+    if (!group) return;
+    group.clearLayers();
+    for (const h of props.hotspots) {
+      const ring = h.square.map(([lon, lat]) => [lat, lon] as L.LatLngTuple);
+      const sign = h.median_mm_per_year > 0 ? "+" : "−";
+      const text = `${h.rank}. ${sign}${Math.abs(h.median_mm_per_year)} mm`;
+      L.polygon(ring, {
+        color: "#5c2d91",
+        weight: 2.5,
+        fillColor: "#5c2d91",
+        fillOpacity: 0.06,
+      })
+        .bindTooltip(text)
+        .on("click", () => handlers.current.onPoint(h.lat, h.lon))
+        .addTo(group);
+      L.marker(ring[0], {
+        icon: L.divIcon({
+          className: "egms-hot-badge",
+          html: `<span>${h.rank}</span>`,
+          iconSize: [22, 22],
+        }),
+        keyboard: false,
+      })
+        .on("click", () => handlers.current.onPoint(h.lat, h.lon))
+        .addTo(group);
+    }
+  }, [props.hotspots]);
 
   useEffect(() => {
     const group = cells.current;
@@ -231,7 +346,9 @@ export default function MapView(props: Props) {
     group.clearLayers();
     for (const cell of props.moving) {
       L.circleMarker([cell.lat, cell.lon], dot(cell))
-        .bindTooltip(`${cell.velocity_mm_per_year > 0 ? "+" : ""}${cell.velocity_mm_per_year} mm`)
+        .bindTooltip(
+          `${cell.velocity_mm_per_year > 0 ? "+" : ""}${cell.velocity_mm_per_year} mm`,
+        )
         .on("click", () => handlers.current.onPoint(cell.lat, cell.lon))
         .addTo(group);
     }
@@ -250,7 +367,10 @@ export default function MapView(props: Props) {
       if (seen.has(key)) continue;
       seen.add(key);
       const colour = props.colour(r);
-      const label = r.kind === "fact" ? r.question : `${r.thing ?? r.source.name} · ${r.property}`;
+      const label =
+        r.kind === "fact"
+          ? r.question
+          : `${r.thing ?? r.source.name} · ${r.property}`;
       const mark =
         r.where.type === "Point"
           ? L.marker([lat, lon], {
@@ -261,7 +381,14 @@ export default function MapView(props: Props) {
               }),
               keyboard: false,
             })
-          : L.geoJSON(r.where as GeoJSON.Geometry, { style: { color: colour, weight: 2, dashArray: "4 4", fill: false } });
+          : L.geoJSON(r.where as GeoJSON.Geometry, {
+              style: {
+                color: colour,
+                weight: 2,
+                dashArray: "4 4",
+                fill: false,
+              },
+            });
       mark
         .bindTooltip(`${r.source.name}: ${label ?? ""}`)
         .on("click", () => handlers.current.onPoint(lat, lon))
@@ -269,5 +396,12 @@ export default function MapView(props: Props) {
     }
   }, [props.records, props.colour]);
 
-  return <div ref={box} className="egms-map" role="region" aria-label={props.text.mapLabel} />;
+  return (
+    <div
+      ref={box}
+      className="egms-map"
+      role="region"
+      aria-label={props.text.mapLabel}
+    />
+  );
 }

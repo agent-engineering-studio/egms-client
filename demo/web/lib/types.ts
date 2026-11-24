@@ -45,6 +45,27 @@ export type PlaceAnswer = {
   gap?: GapAt | null;
 };
 
+/** A 1 km square where the ground moves most: a zone to follow, not an alert. */
+export type Hotspot = {
+  rank: number;
+  lon: number;
+  lat: number;
+  median_mm_per_year: number;
+  largest_mm_per_year: number;
+  measured_share: number;
+  square: [number, number][];
+};
+
+export type HotspotsAnswer = {
+  component: "U";
+  block_m: number;
+  at_least_mm_per_year: number;
+  top: number;
+  release: string;
+  squares: Hotspot[];
+  missing_tiles: string[];
+};
+
 export type GapAt = { block_m: number; measured_share: number; gap: boolean };
 
 /** How much of the area is data gap: squares where EGMS measures less than gap_below of the cells. */

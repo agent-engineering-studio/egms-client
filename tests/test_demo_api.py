@@ -710,3 +710,30 @@ def test_without_the_boundaries_the_page_still_counts(client: TestClient) -> Non
     )
     assert g.json()["land_only"] is False and g.json()["comune"] is None
     assert client.get("/api/boundary").status_code == 404
+
+
+# --- Where the ground moves most ---------------------------------------------------
+
+
+def test_the_squares_that_move_most_are_ranked() -> None:
+    crop = [ROOT / "benchmarks" / "data" / "campi-flegrei" / "U.tif"]
+    found = api.hotspots(crop, lonlat_to_laea(*api.Area(14.1205, 40.8225, 10).box))
+    assert 0 < len(found) <= api.HOT_TOP
+    assert [h["rank"] for h in found] == list(range(1, len(found) + 1))
+    medians = [abs(h["median_mm_per_year"]) for h in found]
+    assert medians == sorted(medians, reverse=True) and medians[-1] >= api.HOT_MIN
+    top = found[0]
+    # The caldera rises: the first square is near Rione Terra, going up by > 100 mm a year.
+    assert top["median_mm_per_year"] > 100 and abs(top["lon"] - 14.12) < 0.03
+    assert top["measured_share"] >= api.GAP_SHARE and len(top["square"]) == 5
+
+
+def test_a_still_area_has_no_squares_to_follow() -> None:
+    crop = [ROOT / "benchmarks" / "data" / "murge" / "U.tif"]
+    assert api.hotspots(crop, lonlat_to_laea(16.85, 40.72, 17.0, 40.85)) == []
+
+
+def test_the_hotspots_of_the_page(client: TestClient) -> None:
+    answer = client.get("/api/hotspots").json()
+    assert answer["component"] == "U" and answer["at_least_mm_per_year"] == api.HOT_MIN
+    assert answer["squares"] and "not an alert" in answer["note"]

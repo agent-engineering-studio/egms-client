@@ -8,6 +8,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- The card of a point opens over the map, slightly see-through: an arrow for the motion, a chart of the point against the median 5 km around, a meter for reliability, the period measured, and a line for the series of other sources nearby.
+- Where the ground moves most: the eight 1 km squares with the largest median vertical velocity (at least 5 mm/year, where EGMS measures at least a quarter of the cells), numbered on the map and ranked in the panel (`/api/hotspots`). Zones to follow, not an alert.
 - The boundaries of the Comuni from ISTAT (generalised, 1 January 2025, CC BY 4.0), downloaded once at startup: data gaps count land only, the Comune of the page gets its own count, and its outline is on the map (`/api/boundary`). The sea is no longer a gap.
 - A loading screen at the first start: a progress bar and the state of each EGMS tile of the area, from `/api/health` (`startup`); the map opens when they are on the disk. If the archive does not answer for 90 s, the visitor can enter with the tiles already there.
 - `EgmsArchive.fetch_tile(..., on_progress=)`: the bytes of a download as they arrive.

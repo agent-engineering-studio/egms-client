@@ -2,9 +2,13 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { TEXT, type Text } from "@/lib/i18n";
 import { near, SOURCE_COLOURS } from "@/lib/records";
-import { groundRow, recordRow, type Row, type TrustKind } from "@/lib/rows";
+import { groundRow, recordRow, type Row } from "@/lib/rows";
+import { MotionIcon } from "./Charts";
+import PointCard from "./PointCard";
+import { Swatch } from "./Rows";
 import type { Lang, Start, Tiles } from "@/lib/start";
 import type { GroundState } from "./MapView";
 import type {
@@ -13,6 +17,7 @@ import type {
   Failed,
   GapSummary,
   Health,
+  HotspotsAnswer,
   MovingAnswer,
   OpenRecord,
   PlaceAnswer,
@@ -23,10 +28,25 @@ import type {
 // Leaflet needs a window: the map is drawn in the browser only.
 const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
 
-const COLOURS = ["#67000d", "#cb181d", "#fb6a4a", "#fcbba1", "#f0f0f0", "#9ecae1", "#4292c6", "#08519c", "#08306b"];
+const COLOURS = [
+  "#67000d",
+  "#cb181d",
+  "#fb6a4a",
+  "#fcbba1",
+  "#f0f0f0",
+  "#9ecae1",
+  "#4292c6",
+  "#08519c",
+  "#08306b",
+];
 
-export async function ask<T>(path: string, params: Record<string, string | number>): Promise<T | Failed> {
-  const query = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]));
+export async function ask<T>(
+  path: string,
+  params: Record<string, string | number>,
+): Promise<T | Failed> {
+  const query = new URLSearchParams(
+    Object.entries(params).map(([k, v]) => [k, String(v)]),
+  );
   try {
     const answer = await fetch(`/api/${path}?${query}`, { cache: "no-store" });
     return (await answer.json()) as T | Failed;
@@ -35,95 +55,19 @@ export async function ask<T>(path: string, params: Record<string, string | numbe
   }
 }
 
-export const failed = (x: unknown): x is Failed => typeof x === "object" && x !== null && "error" in x;
+export const failed = (x: unknown): x is Failed =>
+  typeof x === "object" && x !== null && "error" in x;
 
 /** The records EGMS gives live are its own rows: the files of egms-client are not repeated. */
 const fromEgms = (r: OpenRecord) => r.made_by.name === "egms-client";
 
-function Dot({ trust, t }: { trust: TrustKind; t: Text }) {
-  return (
-    <span className={`egms-dot egms-dot-${trust}`}>
-      <span aria-hidden="true" />
-      {t.trust[trust]}
-    </span>
-  );
-}
-
-function Swatch({ colour }: { colour: string }) {
-  return colour === "egms" ? (
-    <span className="egms-swatch egms-swatch-egms" aria-hidden="true" />
-  ) : (
-    <span className="egms-swatch" style={{ background: colour }} aria-hidden="true" />
-  );
-}
-
-function RowView({ row, t, lang, open, onToggle }: { row: Row; t: Text; lang: Lang; open: boolean; onToggle: () => void }) {
-  const d = row.detail;
-  return (
-    <li className={`egms-row ${open ? "open" : ""}`}>
-      <button type="button" className="egms-row-head" aria-expanded={open} onClick={onToggle}>
-        <Swatch colour={row.colour} />
-        <span className="egms-row-text">
-          <span className="egms-row-title">{row.title}</span>
-          <span className="egms-row-value">{row.value}</span>
-          <span className="egms-row-sub">{row.sub}</span>
-        </span>
-        <Dot trust={row.trust} t={t} />
-      </button>
-      {open && (
-        <div className="egms-row-detail">
-          {d.sentence && <p>{d.sentence}</p>}
-          {d.values && (
-            <table className="egms-values">
-              <tbody>
-                {d.values.map(([name, value]) => (
-                  <tr key={name}>
-                    <th scope="row">{name}</th>
-                    <td>{value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          {d.notes.length > 0 && (
-            <ul className="egms-notes">
-              {d.notes.map((n) => (
-                <li key={n}>{n}</li>
-              ))}
-            </ul>
-          )}
-          <dl className="egms-facts">
-            <dt>{t.sourceLabel}</dt>
-            <dd>
-              {d.source.url ? (
-                <a href={d.source.url} target="_blank" rel="noreferrer">
-                  {d.source.name}
-                </a>
-              ) : (
-                d.source.name
-              )}
-            </dd>
-            <dt>{t.whenLabel}</dt>
-            <dd>{d.when ?? t.noDates}</dd>
-            <dt>{t.trustLabel}</dt>
-            <dd>
-              {t.trust[row.trust]}
-              {d.score !== null ? ` (${t.score(d.score.toLocaleString(t.locale))})` : ""}
-            </dd>
-            <dt>{t.licenceLabel}</dt>
-            <dd>
-              {d.licence}
-              {d.attribution && <span className="text-secondary"> · {d.attribution}</span>}
-            </dd>
-          </dl>
-          <a href={`/dati?lang=${lang}#${d.slug}`}>{t.howMade}</a>
-        </div>
-      )}
-    </li>
-  );
-}
-
-export default function Ground({ start, tiles }: { start: Start; tiles: Tiles }) {
+export default function Ground({
+  start,
+  tiles,
+}: {
+  start: Start;
+  tiles: Tiles;
+}) {
   const [lang, setLang] = useState<Lang>(start.lang);
   const t = TEXT[lang];
   const [point, setPoint] = useState<{ lat: number; lon: number } | null>(
@@ -140,14 +84,16 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
   const [showGround, setShowGround] = useState(true);
   const [showMoving, setShowMoving] = useState(false);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
-  const [open, setOpen] = useState<string | null>(null);
   const [slow, setSlow] = useState(false);
   const [groundState, setGroundState] = useState<GroundState>("none");
   const [groundMissing, setGroundMissing] = useState<string[]>([]);
   const [gapSummary, setGapSummary] = useState<GapSummary | null>(null);
+  const [hotspots, setHotspots] = useState<HotspotsAnswer | null>(null);
+  const [showHot, setShowHot] = useState(true);
+  const [cardEl, setCardEl] = useState<HTMLElement | null>(null);
   const [groundSince, setGroundSince] = useState(0);
   // On a phone the panel is a sheet: low, to see the map, or high, to read.
-  const [sheet, setSheet] = useState<"low" | "high">(start.given ? "high" : "low");
+  const [sheet, setSheet] = useState<"low" | "high">("low");
 
   useEffect(() => {
     document.documentElement.lang = lang;
@@ -157,9 +103,26 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
   useEffect(() => {
     if (!area) return;
     let live = true;
-    const box = { west: area.west, south: area.south, east: area.east, north: area.north };
+    const box = {
+      west: area.west,
+      south: area.south,
+      east: area.east,
+      north: area.north,
+    };
     ask<GapSummary>("gaps", box).then((g) => {
       if (live && !failed(g)) setGapSummary(g);
+    });
+    return () => {
+      live = false;
+    };
+  }, [area, groundState]);
+
+  // Where the ground moves most: asked again when the map gets new tiles.
+  useEffect(() => {
+    if (!area) return;
+    let live = true;
+    ask<HotspotsAnswer>("hotspots", {}).then((h) => {
+      if (live && !failed(h)) setHotspots(h);
     });
     return () => {
       live = false;
@@ -173,7 +136,13 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
       if (!live || failed(h)) return;
       setArea(h.area);
       setPoint((p) =>
-        p && p.lon >= h.area.west && p.lon <= h.area.east && p.lat >= h.area.south && p.lat <= h.area.north ? p : null,
+        p &&
+        p.lon >= h.area.west &&
+        p.lon <= h.area.east &&
+        p.lat >= h.area.south &&
+        p.lat <= h.area.north
+          ? p
+          : null,
       );
     });
     return () => {
@@ -198,7 +167,11 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
     setSlow(false);
     // The first answer in an area may wait for a download from the archive: say so.
     const wait = window.setTimeout(() => live && setSlow(true), 2000);
-    ask<PlaceAnswer>("place", { lat: point.lat.toFixed(5), lon: point.lon.toFixed(5), lang }).then((a) => {
+    ask<PlaceAnswer>("place", {
+      lat: point.lat.toFixed(5),
+      lon: point.lon.toFixed(5),
+      lang,
+    }).then((a) => {
       if (live) setPlace(a);
       window.clearTimeout(wait);
     });
@@ -246,9 +219,11 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
     }
     let live = true;
     const { west, south, east, north } = area;
-    ask<MovingAnswer>("moving", { west, south, east, north, lang }).then((a) => {
-      if (live) setMoving(a);
-    });
+    ask<MovingAnswer>("moving", { west, south, east, north, lang }).then(
+      (a) => {
+        if (live) setMoving(a);
+      },
+    );
     return () => {
       live = false;
     };
@@ -258,11 +233,16 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
   const onPoint = useCallback((lat: number, lon: number) => {
     setOutside(false);
     setPoint({ lat, lon });
-    setOpen(null);
-    setSheet("high");
+    // On a phone the card is over the map: the panel goes down to show it.
+    setSheet("low");
   }, []);
+  const onCloseCard = useCallback(() => setPoint(null), []);
+  const mm = (v: number) =>
+    `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toLocaleString(t.locale, { maximumFractionDigits: 1 })}`;
 
-  const names = (sources?.sources ?? []).filter((s) => !s.made_by.every((m) => m === "egms-client")).map((s) => s.name);
+  const names = (sources?.sources ?? [])
+    .filter((s) => !s.made_by.every((m) => m === "egms-client"))
+    .map((s) => s.name);
   const colourOf = useCallback(
     (name: string) => {
       const i = names.indexOf(name);
@@ -271,17 +251,26 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [names.join("|")],
   );
-  const colour = useCallback((r: OpenRecord) => colourOf(r.source.name), [colourOf]);
-  const shown = (records?.records ?? []).filter((i) => !fromEgms(i.record) && !hidden.has(i.record.source.name));
+  const colour = useCallback(
+    (r: OpenRecord) => colourOf(r.source.name),
+    [colourOf],
+  );
+  const shown = (records?.records ?? []).filter(
+    (i) => !fromEgms(i.record) && !hidden.has(i.record.source.name),
+  );
 
   const ground: Row[] =
     place && !failed(place)
-      ? [groundRow("U", place.vertical, t, lang), ...(place.east ? [groundRow("E", place.east, t, lang)] : [])]
+      ? [
+          groundRow("U", place.vertical, t, lang),
+          ...(place.east ? [groundRow("E", place.east, t, lang)] : []),
+        ]
       : [];
   const others: Row[] = point
-    ? near(shown, point.lon, point.lat, fromEgms).map((g) => recordRow(g, colourOf(g.items[0].record.source.name), t, lang))
+    ? near(shown, point.lon, point.lat, fromEgms).map((g) =>
+        recordRow(g, colourOf(g.items[0].record.source.name), t, lang),
+      )
     : [];
-  const toggle = (key: string) => setOpen((o) => (o === key ? null : key));
 
   return (
     <div className={start.embed ? "egms embed" : "egms"}>
@@ -315,7 +304,9 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
             text={t}
             point={point}
             showGround={showGround}
-            moving={showMoving && moving && !failed(moving) ? moving.facts.cells : []}
+            moving={
+              showMoving && moving && !failed(moving) ? moving.facts.cells : []
+            }
             records={shown}
             colour={colour}
             onPoint={onPoint}
@@ -323,7 +314,25 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
             onOutside={onOutside}
             onBounds={setBounds}
             onGround={onGround}
+            hotspots={showHot && hotspots ? hotspots.squares : []}
+            onCard={setCardEl}
+            onCloseCard={onCloseCard}
           />
+          {point &&
+            cardEl &&
+            createPortal(
+              <PointCard
+                point={point}
+                place={place}
+                loadingText={slow && archive ? t.downloading : t.loading}
+                ground={ground}
+                others={others}
+                t={t}
+                lang={lang}
+                onClose={onCloseCard}
+              />,
+              cardEl,
+            )}
 
           {groundState !== "ready" && groundState !== "none" && (
             <div className={`egms-map-state ${groundState}`} role="status">
@@ -338,16 +347,25 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
           )}
 
           <div className={`egms-layers ${layersOpen ? "open" : ""}`}>
-            <button type="button" className="egms-layers-toggle" aria-expanded={layersOpen} onClick={() => {
+            <button
+              type="button"
+              className="egms-layers-toggle"
+              aria-expanded={layersOpen}
+              onClick={() => {
                 setLayersOpen((o) => !o);
                 setSheet("low");
-              }}>
+              }}
+            >
               {t.layers}
             </button>
             {layersOpen && (
               <div className="egms-layers-body">
                 <label className="egms-check">
-                  <input type="checkbox" checked={showGround} onChange={(e) => setShowGround(e.target.checked)} />
+                  <input
+                    type="checkbox"
+                    checked={showGround}
+                    onChange={(e) => setShowGround(e.target.checked)}
+                  />
                   <Swatch colour="egms" /> {t.layerGround}
                 </label>
                 {showGround && (
@@ -379,8 +397,28 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
                   </div>
                 )}
                 <label className="egms-check">
-                  <input type="checkbox" checked={showMoving} onChange={(e) => setShowMoving(e.target.checked)} />
-                  <span className="egms-swatch egms-swatch-moving" aria-hidden="true" /> {t.layerMoving}
+                  <input
+                    type="checkbox"
+                    checked={showHot}
+                    onChange={(e) => setShowHot(e.target.checked)}
+                  />
+                  <span
+                    className="egms-swatch egms-swatch-hot"
+                    aria-hidden="true"
+                  />{" "}
+                  {t.hotLayer}
+                </label>
+                <label className="egms-check">
+                  <input
+                    type="checkbox"
+                    checked={showMoving}
+                    onChange={(e) => setShowMoving(e.target.checked)}
+                  />
+                  <span
+                    className="egms-swatch egms-swatch-moving"
+                    aria-hidden="true"
+                  />{" "}
+                  {t.layerMoving}
                 </label>
                 {names.map((name) => (
                   <label className="egms-check" key={name}>
@@ -414,82 +452,92 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
             <span />
           </button>
           <div className="egms-panel-body">
-            {outside && area && <p className="egms-warning">{t.outsideArea(area.radius_km)}</p>}
-            {!point && (
-              <section className="egms-purpose">
-                <h2 className="egms-place">{t.purposeTitle}</h2>
-                <p>{t.purpose}</p>
-                <p>
-                  <span className="egms-gap-swatch" /> {t.purposeGaps}
+            {outside && area && (
+              <p className="egms-warning">{t.outsideArea(area.radius_km)}</p>
+            )}
+            <section className="egms-purpose">
+              <h2 className="egms-place">{t.purposeTitle}</h2>
+              <p>{t.purpose}</p>
+              <p>
+                <span className="egms-gap-swatch" /> {t.purposeGaps}
+              </p>
+              {gapSummary?.gap_share != null && (
+                <p className="egms-gap-count">
+                  {gapSummary.comune?.gap_share != null
+                    ? t.gapComune(
+                        gapSummary.comune.name,
+                        Math.round(gapSummary.comune.gap_share * 100),
+                        gapSummary.comune.gaps,
+                        gapSummary.comune.blocks,
+                      )
+                    : t.gapSummary(
+                        Math.round(gapSummary.gap_share * 100),
+                        gapSummary.gaps,
+                        gapSummary.blocks,
+                      )}
+                  {gapSummary.missing_tiles.length > 0 && (
+                    <span className="egms-small"> {t.gapSummaryPartial}</span>
+                  )}
+                  <span className="egms-small d-block fw-normal">
+                    {gapSummary.land_only ? t.gapLandOnly : t.gapWithSea}
+                  </span>
                 </p>
-                {gapSummary?.gap_share != null && (
-                  <p className="egms-gap-count">
-                    {gapSummary.comune?.gap_share != null
-                      ? t.gapComune(
-                          gapSummary.comune.name,
-                          Math.round(gapSummary.comune.gap_share * 100),
-                          gapSummary.comune.gaps,
-                          gapSummary.comune.blocks,
-                        )
-                      : t.gapSummary(Math.round(gapSummary.gap_share * 100), gapSummary.gaps, gapSummary.blocks)}
-                    {gapSummary.missing_tiles.length > 0 && <span className="egms-small"> {t.gapSummaryPartial}</span>}
-                    <span className="egms-small d-block fw-normal">
-                      {gapSummary.land_only ? t.gapLandOnly : t.gapWithSea}
-                    </span>
-                  </p>
-                )}
-                <p className="egms-hint">{t.hint}</p>
-                <a href="/dati#aggiungi">{t.addData}</a>
-              </section>
-            )}
-            {point && (
-              <>
-                <h2 className="egms-place">
-                  {t.here} · {point.lat.toFixed(4)}° N, {point.lon.toFixed(4)}° E
-                </h2>
-                {!place && <p className="text-secondary">{slow && archive ? t.downloading : t.loading}</p>}
-                {place && failed(place) && (
-                  <p className="egms-warning">
-                    {place.missing_tiles
-                      ? t.missingTiles(place.missing_tiles)
-                      : place.not_measured === false
-                        ? t.outside
-                        : `${t.failed}: ${place.error}`}
-                  </p>
-                )}
-                <ul className="egms-rows">
-                  {ground.map((row) => (
-                    <RowView key={row.key} row={row} t={t} lang={lang} open={open === row.key} onToggle={() => toggle(row.key)} />
-                  ))}
-                </ul>
-                {place && !failed(place) && place.gap && (
-                  <div className={place.gap.gap ? "egms-gap" : "egms-small text-secondary mb-2"}>
-                    {place.gap.gap ? (
-                      <>
-                        <strong>
-                          <span className="egms-gap-swatch" /> {t.gapHere}
-                        </strong>
-                        <p className="mb-1">{t.gapHereText(Math.round(place.gap.measured_share * 100))}</p>
-                        <a href="/dati#aggiungi">{t.addData}</a>
-                      </>
-                    ) : (
-                      t.gapCovered(Math.round(place.gap.measured_share * 100))
+              )}
+              <p className="egms-hint">{t.hint}</p>
+              <a href={`/dati?lang=${lang}#aggiungi`}>{t.addData}</a>
+            </section>
+            <section className="egms-hot">
+              <h2 className="egms-place">{t.hotTitle}</h2>
+              {hotspots && (
+                <>
+                  <p className="egms-small">
+                    {t.hotIntro(
+                      hotspots.block_m / 1000,
+                      hotspots.at_least_mm_per_year,
                     )}
-                  </div>
-                )}
-                {place && !failed(place) && place.source === "demo" && <p className="egms-small text-secondary">{t.demo}</p>}
-
-                <h2 className="egms-place mt-3">{t.near}</h2>
-                {others.length === 0 && <p className="egms-small text-secondary">{t.noneNear}</p>}
-                <ul className="egms-rows">
-                  {others.map((row) => (
-                    <RowView key={row.key} row={row} t={t} lang={lang} open={open === row.key} onToggle={() => toggle(row.key)} />
-                  ))}
-                </ul>
-                {others.length > 0 && <p className="egms-small text-secondary">{t.trustHelp}</p>}
-              </>
+                  </p>
+                  {hotspots.squares.length === 0 ? (
+                    <p className="egms-small text-secondary">
+                      {t.hotNone(hotspots.at_least_mm_per_year)}
+                    </p>
+                  ) : (
+                    <ol className="egms-hot-list">
+                      {hotspots.squares.map((h) => (
+                        <li key={h.rank}>
+                          <button
+                            type="button"
+                            onClick={() => onPoint(h.lat, h.lon)}
+                          >
+                            <span className="egms-hot-rank">{h.rank}</span>
+                            <MotionIcon
+                              value={h.median_mm_per_year}
+                              component="U"
+                            />
+                            <span className="egms-hot-text">
+                              <strong>
+                                {mm(h.median_mm_per_year)} mm/
+                                {lang === "it" ? "anno" : "year"}
+                              </strong>
+                              <span className="egms-small text-secondary d-block">
+                                {t.hotRow(
+                                  mm(h.median_mm_per_year),
+                                  mm(h.largest_mm_per_year),
+                                )}
+                              </span>
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </>
+              )}
+            </section>
+            {area && (
+              <p className="egms-small text-secondary mt-3 mb-0">
+                {t.areaNote(area.radius_km)}
+              </p>
             )}
-            {area && <p className="egms-small text-secondary mt-3 mb-0">{t.areaNote(area.radius_km)}</p>}
             <p className="egms-small egms-alert-note">{t.notAlert}</p>
           </div>
         </aside>
@@ -498,7 +546,11 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
       {!start.embed && (
         <footer className="egms-footer">
           {t.credit}{" "}
-          <a href="https://github.com/agent-engineering-studio/egms-client" target="_blank" rel="noreferrer">
+          <a
+            href="https://github.com/agent-engineering-studio/egms-client"
+            target="_blank"
+            rel="noreferrer"
+          >
             {t.source}
           </a>
         </footer>

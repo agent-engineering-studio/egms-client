@@ -32,12 +32,21 @@ Serve una chiave di servizio gratuita del Copernicus Land Monitoring Service
 
 ## La pagina per il sito del Comune
 
-Una mappa del territorio a tutto schermo. Si clicca un punto, e il pannello
-mostra una riga per ogni fonte: che cosa misura, il numero in parole («sale
-di 145,2 mm/anno», «27,1 mm») e un pallino per quanto fidarsi (affidabile,
-poco affidabile, non misurato, affidabilità non indicata). Toccando una riga
-si aprono fonte, date, licenza e note. Sul telefono il pannello è un foglio
-che sale dal basso.
+Una mappa del territorio a tutto schermo. Si clicca un punto, e sulla mappa
+si apre una scheda, leggermente trasparente: il movimento del suolo in parole
+(«sale di 145,2 mm/anno») con una freccia, un grafico che lo confronta con la
+mediana dei 5 km intorno, una barra per l'affidabilità, il periodo misurato e,
+più sotto, le altre fonti vicine (una serie, come un pluviometro, ha la sua
+linea). «Dettagli e fonte» apre fonte, date, licenza e note. Il pannello a
+lato spiega a che cosa serve la mappa; sul telefono è un foglio che sale dal
+basso.
+
+**Dove il suolo si muove di più.** Sulla mappa, numerati, gli otto quadrati
+di 1 km con la velocità verticale mediana più alta (almeno 5 mm/anno), contati
+solo dove EGMS misura almeno un quarto delle celle; il pannello li elenca in
+classifica, e un clic apre la scheda del punto. Sono le zone da seguire con
+più attenzione. Non sono un'allerta: la parola sui rischi resta della
+Protezione Civile.
 
 Le fonti restano una accanto all'altra: la pagina non le mescola in un
 punteggio e non è un sistema di allerta. Mostra i dati e i loro limiti.
