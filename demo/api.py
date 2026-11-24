@@ -631,20 +631,40 @@ async def _failed(_: Request, exc: Exception) -> JSONResponse:
     )
 
 
-async def prefetch(source: Archive, area: Area) -> None:
+async def prefetch(
+    source: Archive, area: Area, wait: float = RETRY_S, tries: int | None = None
+) -> bool:
     """The tiles of the area of the page, at startup: no visitor waits for a download.
 
     One L3 tile is about 60 MB, and the archive takes about a minute for it.
-    In the background, and only in archive mode; a failure is logged, not raised:
-    the page then downloads on the first click.
+    In the background, and only in archive mode. A failure is logged, not
+    raised, and tried again after ``wait`` seconds until every tile is on the
+    disk (``tries`` limits the attempts; None: until it works). True when ready.
     """
-    for component in ("U", "E"):
-        try:
-            await source.tiffs(lonlat_to_laea(*area.box), component)
-        except Exception as exc:
-            log.warning("prefetch %s of the area: %s: %s", component, type(exc).__name__, exc)
-            return
-    log.info("prefetch: the tiles of the area %s are ready", area.box)
+    left = ["U", "E"]
+    attempt = 0
+    while True:
+        attempt += 1
+        for component in list(left):
+            try:
+                await source.tiffs(lonlat_to_laea(*area.box), component)
+                left.remove(component)
+            except Exception as exc:
+                log.warning(
+                    "prefetch %s of the area (attempt %d): %s: %s; trying again in %g s",
+                    component,
+                    attempt,
+                    type(exc).__name__,
+                    exc,
+                    wait,
+                )
+                break
+        if not left:
+            log.info("prefetch: the tiles of the area %s are ready", area.box)
+            return True
+        if tries is not None and attempt >= tries:
+            return False
+        await asyncio.sleep(wait)
 
 
 #: Where the page opens when no place is set: Gioia del Colle (demo/web/lib/start.ts).

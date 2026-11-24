@@ -280,12 +280,27 @@ def test_prefetch_asks_both_components_and_never_raises(caplog: pytest.LogCaptur
         async def tiffs(self, box: tuple[float, ...], component: str) -> None:
             raise EgmsError("the archive is busy")
 
+    class Late:
+        """The archive answers U, then fails E once, then answers."""
+
+        failed = False
+
+        async def tiffs(self, box: tuple[float, ...], component: str) -> None:
+            asked.append(component)
+            if component == "E" and not self.failed:
+                self.failed = True
+                raise EgmsError("ConnectTimeout")
+
     with caplog.at_level(logging.INFO, logger="egms-client.api"):
         area = api.Area(14.12, 40.82, 10)
-        asyncio.run(api.prefetch(Fake(), area))  # type: ignore[arg-type]
-        asyncio.run(api.prefetch(Broken(), area))  # type: ignore[arg-type]
-    assert asked == ["U", "E"]
+        assert asyncio.run(api.prefetch(Fake(), area))  # type: ignore[arg-type]
+        assert not asyncio.run(api.prefetch(Broken(), area, wait=0, tries=3))  # type: ignore[arg-type]
+        assert asked == ["U", "E"]
+        asked.clear()
+        assert asyncio.run(api.prefetch(Late(), area, wait=0))  # type: ignore[arg-type]
+    assert asked == ["U", "E", "E"]  # U is not asked again
     assert "are ready" in caplog.text and "the archive is busy" in caplog.text
+    assert "(attempt 3)" in caplog.text and "trying again" in caplog.text
 
 
 def test_startup_prefetches_only_in_archive_mode(monkeypatch: pytest.MonkeyPatch) -> None:
