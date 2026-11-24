@@ -79,7 +79,7 @@ rilievo. Il pannello conta i buchi del Comune, e la scheda di un punto dice
 se il suo quadrato è un buco. Un quadrato di una tessera non ancora
 scaricata non è contato: non sapere non è un buco.
 
-![Un buco di dati al cratere degli Astroni, a Pozzuoli: in questo chilometro quadrato il satellite misura l'1% delle celle](images/ui-buco-di-dati.jpg)
+![Un buco di dati al bordo del cratere degli Astroni, nel Comune di Pozzuoli: in questo chilometro quadrato il satellite misura l'1% delle celle](images/ui-buco-di-dati.jpg)
 
 **Il mare e i confini del Comune.** EGMS non misura mai il mare, che quindi
 sembrerebbe un buco di dati. Per questo la pagina usa i confini dei Comuni

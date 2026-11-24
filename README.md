@@ -318,7 +318,7 @@ are missing.
   says so and lets the visitor in with what is already on the disk.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/agent-engineering-studio/egms-client/main/docs/images/ui-buco-di-dati.jpg" alt="A data gap at the Astroni crater, in Pozzuoli: the satellite measures 1% of the cells of this square kilometre" width="49%">
+  <img src="https://raw.githubusercontent.com/agent-engineering-studio/egms-client/main/docs/images/ui-buco-di-dati.jpg" alt="A data gap by the Astroni crater, on the edge of Pozzuoli: the satellite measures 1% of the cells of this square kilometre" width="49%">
   <img src="https://raw.githubusercontent.com/agent-engineering-studio/egms-client/main/docs/images/ui-territorio-telefono.jpg" alt="The page on a phone: the card over the map" width="24%">
 </p>
 
