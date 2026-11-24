@@ -66,7 +66,8 @@ export type MovingAnswer = {
   text: string;
 };
 
-export type Failed = { error: string; not_measured?: boolean };
+/** missing_tiles: tiles not on the disk yet (503): the page waits, it does not answer with part of the data. */
+export type Failed = { error: string; not_measured?: boolean; missing_tiles?: string[] };
 
 export type Box = { west: number; south: number; east: number; north: number };
 

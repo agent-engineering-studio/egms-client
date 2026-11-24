@@ -2,19 +2,25 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import math
 import sys
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
+import httpx
 import pytest
 
 pytest.importorskip("starlette")
 pytest.importorskip("rasterio")
 
 from starlette.testclient import TestClient
+
+from egms_client import tile_id
+from egms_client.mosaic import lonlat_to_laea
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "demo"))
@@ -273,11 +279,15 @@ def test_prefetch_asks_both_components_and_never_raises(caplog: pytest.LogCaptur
     asked: list[str] = []
 
     class Fake:
-        async def tiffs(self, box: tuple[float, ...], component: str) -> None:
+        async def tiffs(
+            self, box: tuple[float, ...], component: str, wait: float | None = None
+        ) -> None:
             asked.append(component)
 
     class Broken:
-        async def tiffs(self, box: tuple[float, ...], component: str) -> None:
+        async def tiffs(
+            self, box: tuple[float, ...], component: str, wait: float | None = None
+        ) -> None:
             raise EgmsError("the archive is busy")
 
     class Late:
@@ -285,7 +295,9 @@ def test_prefetch_asks_both_components_and_never_raises(caplog: pytest.LogCaptur
 
         failed = False
 
-        async def tiffs(self, box: tuple[float, ...], component: str) -> None:
+        async def tiffs(
+            self, box: tuple[float, ...], component: str, wait: float | None = None
+        ) -> None:
             asked.append(component)
             if component == "E" and not self.failed:
                 self.failed = True
@@ -310,7 +322,7 @@ def test_startup_prefetches_only_in_archive_mode(monkeypatch: pytest.MonkeyPatch
         def __init__(self) -> None:
             self.name = "archive"
 
-        async def tiffs(self, box: tuple[float, ...], component: str):  # type: ignore[no-untyped-def]
+        async def tiffs(self, box: tuple[float, ...], component: str, wait: float | None = None):  # type: ignore[no-untyped-def]
             started.append((box[0], component))
             return [], "2020-2025", []
 
@@ -410,3 +422,65 @@ def test_a_silent_archive_falls_back_to_the_latest_known_release(
     source.retry_at = 0.0
     assert asyncio.run(source.latest()) == "2020-2026"  # asked again, and it answered
     assert source.confirmed
+
+
+# --- A tile not on the disk yet -------------------------------------------------------
+
+
+def _archive(fetch: Any) -> api.Archive:
+    """An Archive whose release is known and whose downloads are ``fetch``."""
+    source = object.__new__(api.Archive)
+    source.release, source.confirmed, source.retry_at = "2020-2025", True, 0.0
+    source.lock, source.downloads, source.folder = asyncio.Lock(), {}, Path("/nowhere")
+    source.archive = type("Fake", (), {"fetch_tile": staticmethod(fetch)})()
+    return source
+
+
+def test_an_answer_waits_a_little_and_the_download_goes_on() -> None:
+    finished: list[str] = []
+
+    async def slow(tile: Any, component: str, release: str, folder: Path) -> Path:
+        await asyncio.sleep(0.2)
+        finished.append(tile_id(tile))
+        return Path(f"/{tile_id(tile)}.tiff")
+
+    async def run() -> None:
+        source = _archive(slow)
+        box = lonlat_to_laea(16.90, 40.79, 16.95, 40.81)
+        with pytest.raises(api.MissingTilesError, match="downloading") as caught:
+            await source.tiffs(box, "U", wait=0.01)
+        assert caught.value.tiles == ["E49N19"]
+        await asyncio.sleep(0.3)  # the download went on without the answer
+        assert finished == ["E49N19"]
+        tiffs, _, absent = await source.tiffs(box, "U", wait=0.01)
+        assert [t.name for t in tiffs] == ["E49N19.tiff"] and absent == []
+
+    asyncio.run(run())
+
+
+def test_an_archive_that_does_not_answer_is_said_not_hidden() -> None:
+    async def down(tile: Any, component: str, release: str, folder: Path) -> Path:
+        raise httpx.ConnectTimeout("")
+
+    async def run() -> None:
+        source = _archive(down)
+        box = lonlat_to_laea(16.90, 40.79, 16.95, 40.81)
+        with pytest.raises(api.MissingTilesError, match="did not answer: ConnectTimeout"):
+            await source.tiffs(box, "U", wait=1)
+
+    asyncio.run(run())
+
+
+def test_missing_tiles_are_a_503_not_not_measured(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def missing(*_: object, **__: object) -> None:
+        raise api.MissingTilesError(["E48N20"], "downloading from the EGMS archive")
+
+    monkeypatch.setenv("EGMS_UI_SOURCE", "demo")
+    monkeypatch.setenv("EGMS_UI_LON", "14.1205")
+    monkeypatch.setenv("EGMS_UI_LAT", "40.8225")
+    with TestClient(api.app) as c:
+        monkeypatch.setattr(c.app.state.source, "tiffs", missing)  # type: ignore[attr-defined]
+        answer = c.get("/api/place", params={"lon": 14.1205, "lat": 40.8225})
+    assert answer.status_code == 503 and answer.headers["retry-after"] == "60"
+    body = answer.json()
+    assert body["missing_tiles"] == ["E48N20"] and body["not_measured"] is False
