@@ -566,7 +566,10 @@ def test_the_startup_reports_the_progress_of_the_download() -> None:
         startup = api.Startup(source, area)
         assert startup.as_json()["state"] == "running" and startup.as_json()["share"] == 0
         task = asyncio.create_task(api.prefetch(source, area, startup=startup))
-        await asyncio.sleep(0.05)
+        for _ in range(200):
+            await asyncio.sleep(0.01)
+            if startup.as_json()["share"] == 0.5:
+                break
         now = startup.as_json()
         assert not now["ready"] and now["share"] == 0.5
         assert {(t["tile"], t["component"], t["state"]) for t in now["tiles"]} == {
@@ -597,7 +600,10 @@ def test_a_failed_startup_says_when_it_tries_again() -> None:
         area = api.Area(14.1205, 40.8225, 10)
         startup = api.Startup(source, area)
         task = asyncio.create_task(api.prefetch(source, area, wait=30, startup=startup))
-        await asyncio.sleep(0.05)
+        for _ in range(200):  # until the attempt has failed, whatever the speed of the machine
+            await asyncio.sleep(0.01)
+            if startup.state == "waiting":
+                break
         now = startup.as_json()
         assert now["state"] == "waiting" and 0 < now["retry_in_s"] <= 30
         assert "ConnectTimeout" in now["error"]
