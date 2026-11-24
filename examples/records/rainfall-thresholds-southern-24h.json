@@ -1,0 +1,46 @@
+{
+  "schema": "opendata-record/v1",
+  "kind": "fact",
+  "id": "italica-t5-southern-24h",
+  "question": "How much rain in 24 hours is like the rain that triggered landslides in southern Italy?",
+  "values": {
+    "cumulated": {
+      "value": 27.1,
+      "unit": "mm"
+    },
+    "intensity": {
+      "value": 1.13,
+      "unit": "mm/h"
+    },
+    "duration": {
+      "value": 24,
+      "unit": "h"
+    }
+  },
+  "source": {
+    "name": "e-ITALICA v4, threshold ITALICA_T5 (southern)",
+    "url": "https://doi.org/10.5281/zenodo.14204473",
+    "licence": "CC BY 4.0",
+    "attribution": "Brunetti et al. 2024, e-ITALICA v4"
+  },
+  "made_by": {
+    "name": "rainfall-thresholds",
+    "version": "0.3.0"
+  },
+  "time": null,
+  "where": {
+    "type": "Point",
+    "coordinates": [
+      16.6044,
+      40.6664
+    ]
+  },
+  "reliability": {
+    "method": "5th percentile of 1,425 rainfall events that triggered landslides in southern Italy",
+    "reasons": []
+  },
+  "notes": [
+    "Fitted on e-ITALICA rain gauges; the record does not give the dates of the catalogue.",
+    "A threshold exceeded is not an alert. The official alert is the criticality bulletin of the Dipartimento della Protezione Civile."
+  ]
+}
