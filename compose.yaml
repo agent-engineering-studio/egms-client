@@ -33,12 +33,46 @@ services:
       <<: *env
       EGMS_UI_SOURCE: ${EGMS_UI_SOURCE:-}
       EGMS_UI_MAX_TILES: ${EGMS_UI_MAX_TILES:-4}
-      # The records of the other sources: the examples, and the files of ./records.
+      # The place of the page: its tiles are downloaded at startup (archive mode).
+      EGMS_UI_LAT: ${EGMS_UI_LAT:-}
+      EGMS_UI_LON: ${EGMS_UI_LON:-}
+      # The records of the other sources: the examples, the files of ./records,
+      # and what the back office and the sensors write (egms-incoming).
       EGMS_UI_RECORDS: /app/examples/records:/srv/records
+      EGMS_UI_INCOMING: /srv/incoming
+      EGMS_UI_STATE: /srv/state
     volumes:
       - egms-data:/data
       - ${EGMS_SECRETS_DIR:-./secrets}:/run/secrets/egms:ro
       - ${EGMS_RECORDS_DIR:-./records}:/srv/records:ro
+      - egms-incoming:/srv/incoming
+      # The registry of the sensors: written by the back office, only read here.
+      - egms-state:/srv/state:ro
+    restart: unless-stopped
+
+  # The back office: files and sensors, with the administrator of .env. Its own
+  # port, on 127.0.0.1 only: the public proxy publishes the page, not this.
+  admin:
+    image: egms-client:local
+    container_name: egms-client-admin
+    command: ["uvicorn", "--app-dir", "demo", "admin:app", "--host", "0.0.0.0", "--port", "8020"]
+    environment:
+      EGMS_ADMIN_USER: ${EGMS_ADMIN_USER:-}
+      EGMS_ADMIN_PASSWORD_HASH: ${EGMS_ADMIN_PASSWORD_HASH:-}
+      EGMS_UI_PUBLIC_URL: ${EGMS_UI_PUBLIC_URL:-}
+      EGMS_UI_RECORDS: /app/examples/records:/srv/records
+      EGMS_UI_INCOMING: /srv/incoming
+      EGMS_UI_STATE: /srv/state
+    volumes:
+      - ${EGMS_RECORDS_DIR:-./records}:/srv/records:ro
+      - egms-incoming:/srv/incoming
+      - egms-state:/srv/state
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8020/health', timeout=4)"]
+    depends_on:
+      - api
+    ports:
+      - "127.0.0.1:${EGMS_ADMIN_PORT:-3004}:8020"
     restart: unless-stopped
 
   # The page: a map of the Comune, and a card for the place clicked (demo/web).
@@ -98,3 +132,7 @@ services:
 volumes:
   # The L3 tiles, kept between one run and the next (~60 MB each).
   egms-data:
+  # The files uploaded in the back office, and the readings of the sensors.
+  egms-incoming:
+  # The registry of the sensors (token hashes only) and the log of the back office.
+  egms-state:

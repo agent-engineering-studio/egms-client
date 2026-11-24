@@ -24,6 +24,8 @@ type Props = {
   onView: (box: Box | null) => void;
   /** The view changed, at any size: for the records. */
   onBounds: (box: Box) => void;
+  /** The ground map: being loaded, shown, failed, or not asked (too wide, or off). */
+  onGround: (state: "loading" | "ready" | "failed" | "none") => void;
   /** The records in view, from every source but EGMS (which is the map). */
   records: Filed[];
   colour: (r: OpenRecord) => string;
@@ -46,10 +48,20 @@ export default function MapView(props: Props) {
   const marker = useRef<L.CircleMarker | null>(null);
   const cells = useRef<L.LayerGroup | null>(null);
   const others = useRef<L.LayerGroup | null>(null);
-  const handlers = useRef({ onPoint: props.onPoint, onView: props.onView, onBounds: props.onBounds });
+  const handlers = useRef({
+    onPoint: props.onPoint,
+    onView: props.onView,
+    onBounds: props.onBounds,
+    onGround: props.onGround,
+  });
   const ground = useRef(props.showGround);
   useEffect(() => {
-    handlers.current = { onPoint: props.onPoint, onView: props.onView, onBounds: props.onBounds };
+    handlers.current = {
+      onPoint: props.onPoint,
+      onView: props.onView,
+      onBounds: props.onBounds,
+      onGround: props.onGround,
+    };
   });
 
   useEffect(() => {
@@ -74,16 +86,21 @@ export default function MapView(props: Props) {
         overlay.current.remove();
         overlay.current = null;
       }
+      if (!small || !ground.current) handlers.current.onGround("none");
       if (small && ground.current) {
         const url = `/api/map.png?${new URLSearchParams(Object.entries(view).map(([k, v]) => [k, v.toFixed(5)]))}`;
         const bounds: L.LatLngBoundsExpression = [
           [view.south, view.west],
           [view.north, view.east],
         ];
+        handlers.current.onGround("loading");
         if (overlay.current) {
           overlay.current.setUrl(url).setBounds(L.latLngBounds(bounds));
         } else {
-          overlay.current = L.imageOverlay(url, bounds, { opacity: 0.75, interactive: false }).addTo(m);
+          overlay.current = L.imageOverlay(url, bounds, { opacity: 0.75, interactive: false })
+            .on("load", () => handlers.current.onGround("ready"))
+            .on("error", () => handlers.current.onGround("failed"))
+            .addTo(m);
         }
       }
     };

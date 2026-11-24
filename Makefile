@@ -51,12 +51,16 @@ bench: ## Score the known cases and the fidelity set offline, as CI does
 up: ## The page, the notebooks and the MCP server in Docker (http://127.0.0.1:3003)
 	docker compose --profile notebook --profile mcp up -d --build
 	@echo "page:      http://127.0.0.1:$${EGMS_UI_PORT:-3003}"
+	@echo "back office: http://127.0.0.1:$${EGMS_ADMIN_PORT:-3004} (EGMS_ADMIN_* in .env)"
 	@echo "notebooks: http://127.0.0.1:$${EGMS_NOTEBOOK_PORT:-8889} (token: make logs)"
 	@echo "MCP:       http://127.0.0.1:$${EGMS_MCP_PORT:-8768}/mcp"
 
 demo: ## Only the page, on the crops of the benchmark: no key needed
 	EGMS_UI_SOURCE=demo docker compose up -d --build api ui
 	@echo "page: http://127.0.0.1:$${EGMS_UI_PORT:-3003}"
+
+admin-password: ## The hash of the administrator's password, for EGMS_ADMIN_PASSWORD_HASH in .env
+	@uv run --group demo python demo/admin.py hash
 
 down: ## Stop the containers (the downloaded tiles stay in the volume)
 	docker compose --profile notebook --profile mcp --profile tools down

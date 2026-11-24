@@ -34,6 +34,8 @@ Where the data come from (``EGMS_UI_SOURCE``):
     /api/sources                      the sources of the records, and the files refused
     /api/records?west=&south=&east=&north=
                                       the records in a box
+    POST /api/ingest/{sensor}         the readings of a sensor (demo/sensors.py), with
+                                      its token: SenML or records
 """
 
 from __future__ import annotations
@@ -43,6 +45,7 @@ import json
 import logging
 import math
 import os
+import sys
 import warnings
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
@@ -64,10 +67,15 @@ from egms_client.facts import area, moving_points, to_records, velocity
 from egms_client.mosaic import lonlat_to_laea, mosaic
 from egms_client.records import RecordError, read
 
+sys.path.insert(0, str(Path(__file__).parent))
+import sensors
+
 log = logging.getLogger("egms-client.api")
 
 #: The crops of the benchmark: the data of the demo mode.
-CROPS = Path(os.environ.get("EGMS_UI_CROPS", Path(__file__).parent.parent / "benchmarks" / "data"))
+CROPS = Path(
+    os.environ.get("EGMS_UI_CROPS") or Path(__file__).parent.parent / "benchmarks" / "data"
+)
 #: The folders of the records, separated by ":" (os.pathsep).
 RECORDS = [
     Path(folder)
@@ -76,6 +84,10 @@ RECORDS = [
     ).split(os.pathsep)
     if folder.strip()
 ]
+#: Where the back office and the sensors write: uploads/ and sensors/ (a Docker volume).
+INCOMING = Path(os.environ["EGMS_UI_INCOMING"]) if os.environ.get("EGMS_UI_INCOMING") else None
+#: The registry of the sensors, written by the back office (demo/admin.py).
+SENSORS = Path(os.environ.get("EGMS_UI_STATE") or "/srv/state") / "sensors.json"
 #: Records one answer gives at most.
 MAX_RECORDS = 1000
 #: Tiles one answer may download at most (about 60 MB each).
@@ -464,6 +476,34 @@ async def records(request: Request) -> JSONResponse:
     return JSONResponse({"records": found, "limit": MAX_RECORDS})
 
 
+async def ingest(request: Request) -> JSONResponse:
+    """The readings of a sensor: SenML or records, with the sensor's own token."""
+    sensor_id = request.path_params["sensor"]
+    if INCOMING is None:
+        return JSONResponse({"error": "this page takes no sensors"}, status_code=404)
+    host = request.client.host if request.client else "?"
+    if not request.app.state.pace.allow(f"{sensor_id}|{host}"):
+        return JSONResponse({"error": "too many requests: one a second at most"}, status_code=429)
+    if int(request.headers.get("content-length") or 0) > sensors.MAX_BODY:
+        return JSONResponse({"error": f"at most {sensors.MAX_BODY} bytes"}, status_code=413)
+    scheme, _, token = request.headers.get("authorization", "").partition(" ")
+    sensor = request.app.state.registry.check(sensor_id, token) if scheme == "Bearer" else None
+    if sensor is None:
+        return JSONResponse({"error": "unknown sensor, or a wrong token"}, status_code=401)
+    body = await request.body()
+    if len(body) > sensors.MAX_BODY:
+        return JSONResponse({"error": f"at most {sensors.MAX_BODY} bytes"}, status_code=413)
+    try:
+        loaded = json.loads(body)
+    except ValueError:
+        return JSONResponse({"error": "the body is not JSON (SenML or records)"}, status_code=400)
+    records, refused = sensors.read_body(sensor, loaded)
+    folder = INCOMING / "sensors"
+    await asyncio.to_thread(sensors.append, folder, sensor, records)
+    await asyncio.to_thread(sensors.remember_refused, folder, sensor.id, refused)
+    return JSONResponse({"accepted": len(records), "refused": refused}, status_code=202)
+
+
 async def _refused(_: Request, exc: Exception) -> JSONResponse:
     if isinstance(exc, OutsideDataError):
         return JSONResponse({"error": str(exc), "not_measured": False}, status_code=404)
@@ -481,13 +521,58 @@ async def _failed(_: Request, exc: Exception) -> JSONResponse:
     )
 
 
+async def prefetch(source: Archive, lon: float, lat: float) -> None:
+    """The tiles around the place of the page, at startup: the first visitor does not wait.
+
+    One L3 tile is about 60 MB, and the archive takes about a minute for it.
+    In the background, and only in archive mode; a failure is logged, not raised.
+    """
+    for component in ("U", "E"):
+        try:
+            await source.tiffs(_around(lon, lat), component)
+        except Exception as exc:  # the page still works: it downloads on the first click
+            log.warning("prefetch %s at %.4f, %.4f: %s", component, lon, lat, exc)
+            return
+    log.info("prefetch: the tiles around %.4f, %.4f are ready", lon, lat)
+
+
+#: Where the page opens when no place is set: Rione Terra, Pozzuoli (demo/web/lib/start.ts).
+DEFAULT_PLACE = (14.1205, 40.8225)
+
+
+def _place_from_env() -> tuple[float, float] | None:
+    lon_text, lat_text = os.environ.get("EGMS_UI_LON") or "", os.environ.get("EGMS_UI_LAT") or ""
+    if not lon_text.strip() and not lat_text.strip():
+        return DEFAULT_PLACE
+    try:
+        lon, lat = float(lon_text.replace(",", ".")), float(lat_text.replace(",", "."))
+    except ValueError:
+        return None
+    return (lon, lat) if -32 <= lon <= 45 and 27 <= lat <= 72 else None
+
+
 @asynccontextmanager
 async def lifespan(app: Starlette) -> AsyncIterator[None]:
+    # uvicorn sets up its own loggers only: ours too, so the mode and the prefetch show.
+    if not log.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("%(levelname)s:     %(message)s"))
+        log.addHandler(handler)
+        log.setLevel(logging.INFO)
     app.state.source = source_from_env()
-    app.state.shelf = Shelf(RECORDS)
+    place = _place_from_env()
+    warm = None
+    if isinstance(app.state.source, Archive) and place is not None:
+        warm = asyncio.create_task(prefetch(app.state.source, *place))
+    incoming = [INCOMING / "uploads", INCOMING / "sensors"] if INCOMING else []
+    app.state.shelf = Shelf([*RECORDS, *incoming])
+    app.state.registry = sensors.Registry(SENSORS)
+    app.state.pace = sensors.Pace()
     try:
         yield
     finally:
+        if warm is not None:
+            warm.cancel()
         await app.state.source.aclose()
 
 
@@ -500,6 +585,7 @@ app = Starlette(
         Route("/api/map.png", map_png),
         Route("/api/sources", sources),
         Route("/api/records", records),
+        Route("/api/ingest/{sensor}", ingest, methods=["POST"]),
     ],
     middleware=[Middleware(GZipMiddleware, minimum_size=1000)],
     exception_handlers={

@@ -295,6 +295,12 @@ moves; next to it, the radar rain of the Protezione Civile, a landslide
 threshold, a rain gauge. A row opens on its source, dates, licence and
 notes. On a phone the panel is a sheet that slides up.
 
+Whoever runs the page has a back office on another port (`127.0.0.1:3004`,
+not published): upload a file, connect a sensor that sends SenML to
+`POST /api/ingest/{id}` with its own token, and see what was refused and
+why. It is off until `.env` names the administrator and the hash of the
+password (`make admin-password`).
+
 The technical side is on its own page, `/dati`: how each source is made,
 the code to reuse it, the [records of open data](https://agentengineering.it/egms-client/api/records/),
 and templates to download (JSON and CSV). A source joins without code: its
@@ -314,6 +320,7 @@ make up                   # or: make demo, with no key, on the crops of the benc
 | Container | Address (127.0.0.1 only) | What |
 |---|---|---|
 | `egms-client-ui` | http://127.0.0.1:3003 | the page (Next.js, Bootstrap Italia, Leaflet) |
+| `egms-client-admin` | http://127.0.0.1:3004 | the back office: files and sensors, with the administrator of `.env` (off without it) |
 | `egms-client-api` | inside Docker, port 8010 | `demo/api.py`: `facts` and `words` behind a few URLs |
 | `egms-client-notebook` | http://127.0.0.1:8889 | JupyterLab on the notebooks (`--profile notebook`) |
 | `egms-client-mcp` | http://127.0.0.1:8768/mcp | the MCP server over HTTP (`--profile mcp`) |

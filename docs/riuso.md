@@ -52,11 +52,10 @@ scaricare (JSON e CSV) e le regole.
 come [record](api/records.md), un formato JSON aperto, oppure come tabella
 CSV con le colonne del template (`tempo, lon, lat, grandezza, valore, unità,
 fonte, licenza`, più `sensore`, `etichetta` e `significato` facoltative).
-Chi gestisce la pagina mette il file nella cartella `records/` (o in quella
-di `EGMS_RECORDS_DIR`); la pagina lo legge alla richiesta successiva. Un file
-con un record non valido è rifiutato per intero. Il file si controlla prima
-con `egms records FILE`. Il caricamento dal backoffice, con utente e
-password dell'amministratore, arriva nel prossimo rilascio.
+Chi gestisce la pagina lo carica dal backoffice (sotto), oppure lo mette
+nella cartella `records/` del server (o in quella di `EGMS_RECORDS_DIR`); la
+pagina lo legge alla richiesta successiva. Un file con un record non valido
+è rifiutato per intero. Il file si controlla prima con `egms records FILE`.
 
 **Installarla.** Serve Docker. Dal repository:
 
@@ -78,6 +77,9 @@ computer stesso: per pubblicarla serve un proxy con HTTPS davanti.
 | `EGMS_UI_FRAME_ANCESTORS` | i siti che possono mostrarla in un iframe |
 | `EGMS_UI_TILES`, `EGMS_UI_TILES_CREDIT` | la mappa di sfondo (di base OpenStreetMap) |
 | `EGMS_RECORDS_DIR` | la cartella dei record delle altre fonti (di base `records/`), in sola lettura |
+| `EGMS_ADMIN_USER`, `EGMS_ADMIN_PASSWORD_HASH` | l'amministratore del backoffice (senza, il backoffice è spento) |
+| `EGMS_ADMIN_PORT` | la porta del backoffice su 127.0.0.1 (di base 3004) |
+| `EGMS_UI_PUBLIC_URL` | l'indirizzo pubblico della pagina, per l'esempio dei sensori |
 
 Gli stessi valori si possono dare nell'indirizzo:
 `?lat=40.82&lon=14.12&place=Comune%20di%20Pozzuoli&lang=it`.
@@ -91,6 +93,38 @@ Gli stessi valori si possono dare nell'indirizzo:
 
 Con `embed=1` la pagina toglie intestazione e piè di pagina. La mappa
 riempie l'iframe e si ingrandisce con la rotella del mouse.
+
+**Il backoffice** è per chi gestisce la pagina: caricare file, collegare
+sensori, vedere che cosa è stato rifiutato e perché. Risponde su
+`http://127.0.0.1:3004`, una porta diversa da quella della pagina, che il
+proxy pubblico non deve pubblicare: ci si arriva dalla rete dell'ente o con
+un tunnel SSH. È spento finché nel `.env` non ci sono l'utente e l'hash
+della password dell'amministratore:
+
+```bash
+make admin-password            # chiede la password e stampa l'hash
+# nel file .env:
+EGMS_ADMIN_USER=ente
+EGMS_ADMIN_PASSWORD_HASH=scrypt:32768:8:1:...
+EGMS_UI_PUBLIC_URL=https://territorio.comune.example.it
+```
+
+La password non è mai nel `.env`, solo il suo hash. Dopo 5 tentativi
+sbagliati dallo stesso indirizzo il backoffice aspetta 15 minuti; la sessione
+dura 8 ore. Il registro tiene ogni accesso, caricamento e modifica, mai
+password o token.
+
+- **Carica un file**: un `.json`, `.jsonl` o `.csv`; il backoffice lo
+  controlla, mostra i record e lo salva solo se si conferma.
+- **Sensori**: si registra un sensore (che cosa misura, dove, fonte,
+  licenza, valori ammessi) e il backoffice dà il suo token, una volta sola.
+  Il sensore invia le letture a `POST /api/ingest/ID` della pagina pubblica,
+  in SenML (RFC 8428, il formato dei sensori di Limen) o come record, con
+  `Authorization: Bearer TOKEN`; al massimo una richiesta al secondo e 64
+  KB. Un sensore si spegne, riceve un nuovo token o si elimina con un clic.
+- **Fonti**: tutti i file da cui la mappa si alimenta, con i record e i
+  motivi dei rifiuti; quelli caricati e quelli dei sensori si possono
+  eliminare.
 
 **La chiave CLMS** va nella cartella `secrets/` (montata in sola lettura, mai
 copiata nell'immagine). Senza chiave la pagina parte in **modalità
@@ -123,8 +157,9 @@ Il progetto dà il software. Queste cose sono di chi lo usa.
 - **La chiave CLMS.** È personale e non scade: va tenuta come una password,
   fuori dal codice e dai repository, in una variabile d'ambiente o in un
   segreto di Docker.
-- **Dati personali.** Il software non ne raccoglie: niente account, niente
-  cookie. Su disco restano solo i file scaricati dall'archivio.
+- **Dati personali.** La pagina pubblica non ne raccoglie: niente account,
+  niente cookie. Il backoffice usa un cookie tecnico di sessione, solo per
+  l'amministratore, e registra l'indirizzo IP di chi accede. Su disco restano solo i file scaricati dall'archivio.
 
 ## Intelligenza artificiale
 
