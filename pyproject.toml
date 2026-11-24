@@ -90,6 +90,7 @@ examples = [
 ]
 # The API behind the page of a Comune (demo/api.py).
 demo = [
+    "python-multipart>=0.0.20",
     "starlette>=0.46",
     "uvicorn>=0.34",
 ]
@@ -105,6 +106,8 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "ARG", "PTH", "RUF"]
 "tests/**" = ["ARG", "B018"]
 # Notebooks favour readable plotting calls over the line limit.
 "notebooks/**" = ["E501"]
+# The back office writes its pages as HTML and CSS strings: lines of markup.
+"demo/admin.py" = ["E501"]
 
 [tool.mypy]
 strict = true

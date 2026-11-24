@@ -119,11 +119,14 @@ def test_env_example_names_every_setting_and_quotes_spaces() -> None:
     example = (ROOT / ".env.example").read_text()
     names = set(re.findall(r"^([A-Z_]+)=", example, re.M))
     used = set(re.findall(r"\$\{([A-Z_]+)", (ROOT / "compose.yaml").read_text()))
-    used |= set(re.findall(r"environ\.get\(\"([A-Z_]+)\"", (ROOT / "demo" / "api.py").read_text()))
+    for script in ("api.py", "admin.py"):
+        text = (ROOT / "demo" / script).read_text()
+        used |= set(re.findall(r"environ\.get\(\"([A-Z_]+)\"", text))
     for path in (ROOT / "demo" / "web").glob("**/*.ts*"):
         if "node_modules" not in path.parts and ".next" not in path.parts:
             used |= set(re.findall(r"(?:process\.)?env\.(EGMS_[A-Z_]+)", path.read_text()))
-    used.discard("EGMS_UI_API")  # set by compose itself, between two containers
+    # Set by compose itself: the address between two containers, and paths inside them.
+    used -= {"EGMS_UI_API", "EGMS_UI_INCOMING", "EGMS_UI_STATE", "EGMS_UI_RECORDS"}
     assert used - names == set()
     for line in example.splitlines():
         if re.match(r"^[A-Z_]+=", line):

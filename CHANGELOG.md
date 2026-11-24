@@ -8,6 +8,24 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- A back office (`demo/admin.py`, container `egms-client-admin`, on
+  127.0.0.1:3004 only), off until `.env` names the administrator:
+  `EGMS_ADMIN_USER` and `EGMS_ADMIN_PASSWORD_HASH` (scrypt, made by
+  `make admin-password`). Upload a JSON, JSON Lines or CSV file, checked and
+  shown before it is saved; register sensors, each with its own token
+  (shown once, kept as a SHA-256 hash), turn them off, renew or remove
+  them; list every file the page reads with the reasons of a refusal; a log
+  of logins and changes, never a password or a token. Sessions in memory
+  for 8 hours, cookie `HttpOnly` and `SameSite=Strict` (`Secure` behind
+  HTTPS), a token on every form, 15 minutes of wait after 5 wrong
+  passwords.
+- Sensors (`demo/sensors.py`): `POST /api/ingest/{id}` on the public page,
+  with `Authorization: Bearer TOKEN`, takes SenML (RFC 8428, as Limen's v2
+  sensors) or records; at most one request a second and 64 KB. A reading
+  with another name or unit, ahead of the clock, not a number or outside
+  the range of the sensor is refused with its reason. The readings become
+  records, one JSON Lines file per sensor and day, in the volume
+  `egms-incoming`; the registry is in `egms-state`.
 - A simpler page. The map fills the screen and zooms with the mouse wheel.
   The panel has one row per source: its name, its number in words, and a
   dot for how far to trust it; a row opens on its source, dates, licence

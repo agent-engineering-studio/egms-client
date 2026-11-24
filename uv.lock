@@ -852,6 +852,7 @@ xarray = [
 
 [package.dev-dependencies]
 demo = [
+    { name = "python-multipart" },
     { name = "starlette" },
     { name = "uvicorn" },
 ]
@@ -901,6 +902,7 @@ provides-extras = ["raster", "tables", "xarray", "records", "mcp"]
 
 [package.metadata.requires-dev]
 demo = [
+    { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "starlette", specifier = ">=0.46" },
     { name = "uvicorn", specifier = ">=0.34" },
 ]
