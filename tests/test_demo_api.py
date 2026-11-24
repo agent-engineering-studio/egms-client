@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import sys
 from collections.abc import Iterator
 from pathlib import Path
@@ -30,8 +31,23 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
         yield c
 
 
-def test_health_says_where_the_data_come_from(client: TestClient) -> None:
-    assert client.get("/api/health").json() == {"ok": True, "source": "demo"}
+@pytest.fixture
+def bologna(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
+    """The page of a Comune near Bologna: its area holds the crop of the benchmark."""
+    monkeypatch.setenv("EGMS_UI_SOURCE", "demo")
+    monkeypatch.setenv("EGMS_UI_LON", "11.425")
+    monkeypatch.setenv("EGMS_UI_LAT", "44.55")
+    monkeypatch.setenv("EGMS_UI_RADIUS_KM", "12")
+    with TestClient(api.app) as c:
+        yield c
+
+
+def test_health_says_where_the_data_come_from_and_the_area(client: TestClient) -> None:
+    answer = client.get("/api/health").json()
+    assert answer["ok"] is True and answer["source"] == "demo"
+    area = answer["area"]
+    assert (area["lon"], area["lat"], area["radius_km"]) == (14.1205, 40.8225, 10.0)
+    assert area["west"] < 14.1205 < area["east"] and area["south"] < 40.8225 < area["north"]
 
 
 def test_a_place_in_italian_with_its_facts(client: TestClient) -> None:
@@ -45,11 +61,25 @@ def test_a_place_in_italian_with_its_facts(client: TestClient) -> None:
     assert "+145.2 mm/year" in english.json()["vertical"]["text"]
 
 
-def test_outside_the_demo_data_is_not_not_measured(client: TestClient) -> None:
+def test_outside_the_area_is_not_not_measured(client: TestClient) -> None:
     answer = client.get("/api/place", params={"lon": 9.19, "lat": 45.46})
     assert answer.status_code == 404
     assert answer.json()["not_measured"] is False
+    assert "outside the area of this page" in answer.json()["error"]
     assert "not 'not measured'" in answer.json()["error"]
+    far = {"west": 11.30, "south": 44.50, "east": 11.55, "north": 44.60}
+    for path in ("/api/area", "/api/moving", "/api/map.png"):
+        assert client.get(path, params=far).status_code == 404
+
+
+def test_outside_the_demo_data_but_inside_the_area(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("EGMS_UI_SOURCE", "demo")
+    monkeypatch.setenv("EGMS_UI_LON", "9.19")
+    monkeypatch.setenv("EGMS_UI_LAT", "45.46")
+    with TestClient(api.app) as c:
+        answer = c.get("/api/place", params={"lon": 9.19, "lat": 45.46})
+    assert answer.status_code == 404
+    assert "demo mode: no data loaded here" in answer.json()["error"]
 
 
 def test_the_sea_is_not_measured(client: TestClient) -> None:
@@ -58,13 +88,13 @@ def test_the_sea_is_not_measured(client: TestClient) -> None:
     assert "non misurato" in answer["vertical"]["text"]
 
 
-def test_area_moving_and_the_map(client: TestClient) -> None:
+def test_area_moving_and_the_map(bologna: TestClient) -> None:
     box = {"west": 11.30, "south": 44.50, "east": 11.55, "north": 44.60}
-    summary = client.get("/api/area", params=box).json()
+    summary = bologna.get("/api/area", params=box).json()
     assert summary["facts"]["median"] == -6.3
-    moving = client.get("/api/moving", params={**box, "threshold": 10}).json()
+    moving = bologna.get("/api/moving", params={**box, "threshold": 10}).json()
     assert moving["facts"]["moving"] > 0 and len(moving["facts"]["cells"]) <= 20
-    png = client.get("/api/map.png", params=box)
+    png = bologna.get("/api/map.png", params=box)
     assert png.headers["content-type"] == "image/png"
     assert png.content.startswith(b"\x89PNG")
 
@@ -245,8 +275,9 @@ def test_prefetch_asks_both_components_and_never_raises(caplog: pytest.LogCaptur
             raise EgmsError("the archive is busy")
 
     with caplog.at_level(logging.INFO, logger="egms-client.api"):
-        asyncio.run(api.prefetch(Fake(), 14.12, 40.82))  # type: ignore[arg-type]
-        asyncio.run(api.prefetch(Broken(), 14.12, 40.82))  # type: ignore[arg-type]
+        area = api.Area(14.12, 40.82, 10)
+        asyncio.run(api.prefetch(Fake(), area))  # type: ignore[arg-type]
+        asyncio.run(api.prefetch(Broken(), area))  # type: ignore[arg-type]
     assert asked == ["U", "E"]
     assert "are ready" in caplog.text and "the archive is busy" in caplog.text
 
@@ -271,3 +302,90 @@ def test_startup_prefetches_only_in_archive_mode(monkeypatch: pytest.MonkeyPatch
     with TestClient(api.app) as c:
         c.get("/api/health")
     assert [component for _, component in started] == ["U", "E"]
+
+
+# --- The area of the page -----------------------------------------------------------
+
+
+def test_the_area_is_a_box_of_the_radius() -> None:
+    area = api.Area(14.1205, 40.8225, 10)
+    west, south, east, north = area.box
+    assert round((north - south) * 111.32 / 2, 2) == 10.0
+    assert round((east - west) * 111.32 * math.cos(math.radians(40.8225)) / 2, 1) == 10.0
+    assert area.contains(14.1205, 40.8225) and not area.contains(14.5, 40.8225)
+    assert area.clip((14.0, 40.7, 15.0, 41.0)) == (west, south, east, north)
+    assert area.clip((14.1, 40.8, 14.2, 40.85)) == (14.1, 40.8, 14.2, 40.85)
+    with pytest.raises(api.OutsideAreaError, match=r"10 km around 14\.1205, 40\.8225"):
+        area.clip((15.0, 41.0, 15.1, 41.1))
+
+
+def test_the_area_comes_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("EGMS_UI_LON", raising=False)
+    monkeypatch.delenv("EGMS_UI_LAT", raising=False)
+    monkeypatch.delenv("EGMS_UI_RADIUS_KM", raising=False)
+    assert api.area_from_env() == api.Area(14.1205, 40.8225, 10.0)
+    monkeypatch.setenv("EGMS_UI_RADIUS_KM", "5,5")
+    assert api.area_from_env().radius_km == 5.5
+    monkeypatch.setenv("EGMS_UI_RADIUS_KM", "50")
+    with pytest.raises(ValueError, match="between 1 and 20"):
+        api.area_from_env()
+    monkeypatch.setenv("EGMS_UI_RADIUS_KM", "")
+    monkeypatch.setenv("EGMS_UI_LON", "14.1")
+    with pytest.raises(ValueError, match="both"):
+        api.area_from_env()
+
+
+def test_the_widest_area_fits_one_map(monkeypatch: pytest.MonkeyPatch) -> None:
+    west, south, east, north = api.Area(14.1, 60.0, api.MAX_RADIUS_KM).box
+    assert east - west <= api.MAX_DEGREES and north - south <= api.MAX_DEGREES
+
+
+def test_a_point_near_the_edge_reads_no_tile_beyond_it() -> None:
+    area = api.Area(14.1205, 40.8225, 2)
+    from egms_client.mosaic import lonlat_to_laea
+
+    inner = lonlat_to_laea(*area.box)
+    cut = api._inside(api._around(14.1205, 40.8225), area)
+    assert cut == inner  # 5 km around the centre is wider than the area: cut to it
+
+
+# --- An archive that does not answer must not stop the page --------------------------
+
+
+def _archive_with(releases: object) -> api.Archive:
+    import asyncio
+
+    source = object.__new__(api.Archive)
+    source.archive = type("A", (), {"releases": releases})()
+    source.release, source.confirmed, source.retry_at = None, False, 0.0
+    source.lock = asyncio.Lock()
+    return source
+
+
+def test_a_silent_archive_falls_back_to_the_latest_known_release(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    import asyncio
+
+    from egms_client.releases import KNOWN_RELEASES
+
+    monkeypatch.setattr(api, "ARCHIVE_WAIT_S", 0.05)
+
+    async def silent(self: object) -> list[str]:
+        await asyncio.sleep(10)
+        return []
+
+    source = _archive_with(silent)
+    with caplog.at_level(logging.WARNING, logger="egms-client.api"):
+        assert asyncio.run(source.latest()) == KNOWN_RELEASES[-1]
+    assert "TimeoutError" in caplog.text and "the latest known" in caplog.text
+    assert not source.confirmed and source.retry_at > 0
+
+    async def listed(self: object) -> list[str]:
+        return ["2020-2024", "2020-2026"]
+
+    source.archive = type("A", (), {"releases": listed})()
+    assert asyncio.run(source.latest()) == KNOWN_RELEASES[-1]  # not asked again yet
+    source.retry_at = 0.0
+    assert asyncio.run(source.latest()) == "2020-2026"  # asked again, and it answered
+    assert source.confirmed

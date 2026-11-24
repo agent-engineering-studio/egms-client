@@ -6,7 +6,17 @@ import { TEXT, type Text } from "@/lib/i18n";
 import { near, SOURCE_COLOURS } from "@/lib/records";
 import { groundRow, recordRow, type Row, type TrustKind } from "@/lib/rows";
 import type { Lang, Start, Tiles } from "@/lib/start";
-import type { Box, Failed, MovingAnswer, OpenRecord, PlaceAnswer, RecordsAnswer, SourcesAnswer } from "@/lib/types";
+import type {
+  Area,
+  Box,
+  Failed,
+  Health,
+  MovingAnswer,
+  OpenRecord,
+  PlaceAnswer,
+  RecordsAnswer,
+  SourcesAnswer,
+} from "@/lib/types";
 
 // Leaflet needs a window: the map is drawn in the browser only.
 const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
@@ -118,7 +128,8 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
     start.given ? { lat: start.lat, lon: start.lon } : null,
   );
   const [place, setPlace] = useState<PlaceAnswer | Failed | null>(null);
-  const [view, setView] = useState<Box | null>(null);
+  const [area, setArea] = useState<Area | null>(null);
+  const [outside, setOutside] = useState(false);
   const [bounds, setBounds] = useState<Box | null>(null);
   const [records, setRecords] = useState<RecordsAnswer | null>(null);
   const [sources, setSources] = useState<SourcesAnswer | null>(null);
@@ -137,6 +148,21 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
   useEffect(() => {
     document.documentElement.lang = lang;
   }, [lang]);
+
+  // The area of the page: the map stays in it, and a point given outside it is dropped.
+  useEffect(() => {
+    let live = true;
+    ask<Health>("health", {}).then((h) => {
+      if (!live || failed(h)) return;
+      setArea(h.area);
+      setPoint((p) =>
+        p && p.lon >= h.area.west && p.lon <= h.area.east && p.lat >= h.area.south && p.lat <= h.area.north ? p : null,
+      );
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -196,20 +222,23 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
   }, [bounds]);
 
   useEffect(() => {
-    if (!showMoving || !view) {
+    if (!showMoving || !area) {
       setMoving(null);
       return;
     }
     let live = true;
-    ask<MovingAnswer>("moving", { ...view, lang }).then((a) => {
+    const { west, south, east, north } = area;
+    ask<MovingAnswer>("moving", { west, south, east, north, lang }).then((a) => {
       if (live) setMoving(a);
     });
     return () => {
       live = false;
     };
-  }, [showMoving, view, lang]);
+  }, [showMoving, area, lang]);
 
+  const onOutside = useCallback(() => setOutside(true), []);
   const onPoint = useCallback((lat: number, lon: number) => {
+    setOutside(false);
     setPoint({ lat, lon });
     setOpen(null);
     setSheet("high");
@@ -272,7 +301,8 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
             records={shown}
             colour={colour}
             onPoint={onPoint}
-            onView={setView}
+            area={area}
+            onOutside={onOutside}
             onBounds={setBounds}
             onGround={onGround}
           />
@@ -314,11 +344,10 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
                       </span>
                       <span>{t.legendUp}</span>
                     </div>
-                    {!view && <div className="text-secondary">{t.zoomIn}</div>}
                   </div>
                 )}
                 <label className="egms-check">
-                  <input type="checkbox" checked={showMoving} disabled={!view} onChange={(e) => setShowMoving(e.target.checked)} />
+                  <input type="checkbox" checked={showMoving} onChange={(e) => setShowMoving(e.target.checked)} />
                   <span className="egms-swatch egms-swatch-moving" aria-hidden="true" /> {t.layerMoving}
                 </label>
                 {names.map((name) => (
@@ -353,6 +382,7 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
             <span />
           </button>
           <div className="egms-panel-body">
+            {outside && area && <p className="egms-warning">{t.outsideArea(area.radius_km)}</p>}
             {!point && <p className="egms-hint">{t.hint}</p>}
             {point && (
               <>
@@ -378,6 +408,7 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
                 {others.length > 0 && <p className="egms-small text-secondary">{t.trustHelp}</p>}
               </>
             )}
+            {area && <p className="egms-small text-secondary mt-3 mb-0">{t.areaNote(area.radius_km)}</p>}
             <p className="egms-small egms-alert-note">{t.notAlert}</p>
           </div>
         </aside>

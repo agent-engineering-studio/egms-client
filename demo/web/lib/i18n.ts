@@ -57,7 +57,9 @@ const it = {
   layers: "Livelli",
   layerGround: "Movimento del suolo (EGMS)",
   layerMoving: "Celle che si muovono",
-  zoomIn: "Avvicinati per vedere la mappa del suolo.",
+  outsideArea: (km: number) =>
+    `Fuori dall'area della pagina: mostra ${km.toLocaleString("it-IT")} km intorno al Comune, e lì fuori non legge dati.`,
+  areaNote: (km: number) => `Area della pagina: ${km.toLocaleString("it-IT")} km intorno al Comune.`,
   legendDown: "scende",
   legendUp: "sale",
   legendNone: "nessuna misura",
@@ -118,7 +120,9 @@ const en: typeof it = {
   layers: "Layers",
   layerGround: "Ground motion (EGMS)",
   layerMoving: "Cells that move",
-  zoomIn: "Zoom in to see the ground map.",
+  outsideArea: (km: number) =>
+    `Outside the area of the page: it shows ${km.toLocaleString("en-GB")} km around the Comune, and reads no data beyond it.`,
+  areaNote: (km: number) => `Area of the page: ${km.toLocaleString("en-GB")} km around the Comune.`,
   legendDown: "down",
   legendUp: "up",
   legendNone: "no measurement",

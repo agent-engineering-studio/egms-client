@@ -288,7 +288,9 @@ Five stories with real data, from download to figure, in [`notebooks/`](https://
   <img src="https://raw.githubusercontent.com/agent-engineering-studio/egms-client/main/docs/images/ui-territorio.jpg" alt="The page for the Comune di Pozzuoli: the map of vertical velocity, the EGMS card of the point clicked, and the cards of the other sources" width="100%">
 </p>
 
-A page that shows how to reuse open data. The map fills the screen; click a
+A page that shows how to reuse open data, for one area: the Comune and a
+radius around it (`EGMS_UI_RADIUS_KM`, 10 km by default). Its EGMS tiles are
+downloaded once, at startup, and the map stays inside it. The map fills the screen; click a
 point and the panel gives one row per source: what it measures, its number
 in words, and a dot for how far to trust it. EGMS says how much the ground
 moves; next to it, the radar rain of the Protezione Civile, a landslide
