@@ -6,7 +6,14 @@ tutta Europa, e li rende usabili da chiunque. Questa pagina è per un ente che
 vuole usarlo: che cosa trova pronto, che cosa resta a lui, e come il progetto
 entra nel Catalogo del software di Developers Italia.
 
-![La pagina per il Comune di Pozzuoli: la mappa della velocità verticale, la scheda EGMS del punto e le schede delle altre fonti](images/ui-territorio.jpg)
+![La pagina per il Comune di Pozzuoli: la scheda di un punto sulla mappa, che sale di 153,6 mm/anno, con il grafico rispetto alla mediana dei dintorni; i quadrati numerati dove il suolo si muove di più; a destra, a che cosa serve la mappa](images/ui-territorio.jpg)
+
+<video controls preload="none" poster="../images/ui-territorio-video.jpg" width="100%">
+  <source src="../images/ui-territorio.mp4" type="video/mp4">
+  <a href="../images/ui-territorio.mp4">Il video della pagina, 30 secondi</a>
+</video>
+
+*Trenta secondi sulla pagina: la classifica delle zone, la scheda di un punto, un buco di dati, la versione inglese.*
 
 ## Che cosa trova pronto
 
@@ -59,6 +66,8 @@ apre subito. Se l'archivio Copernicus non risponde per più di un minuto e
 mezzo, la schermata lo dice e permette di entrare con i dati già scaricati;
 intanto il download continua a riprovare da solo.
 
+![La schermata del primo avvio: la barra di avanzamento e lo stato di ogni tessera; qui su Gioia del Colle, con l'archivio Copernicus che non risponde](images/ui-caricamento.jpg)
+
 **I buchi di dati.** La mappa mostra anche dove i dati mancano. L'area è
 divisa in quadrati di 1 km sulla griglia europea (EPSG:3035). Un quadrato
 dove EGMS misura meno di un quarto delle celle di 100 m è un buco di dati, in
@@ -69,6 +78,8 @@ un dato aperto in più: una livellazione, una stazione GNSS, un sensore, un
 rilievo. Il pannello conta i buchi del Comune, e la scheda di un punto dice
 se il suo quadrato è un buco. Un quadrato di una tessera non ancora
 scaricata non è contato: non sapere non è un buco.
+
+![Un buco di dati al bordo del cratere degli Astroni, nel Comune di Pozzuoli: in questo chilometro quadrato il satellite misura l'1% delle celle](images/ui-buco-di-dati.jpg)
 
 **Il mare e i confini del Comune.** EGMS non misura mai il mare, che quindi
 sembrerebbe un buco di dati. Per questo la pagina usa i confini dei Comuni

@@ -51,7 +51,7 @@ function Motion({
         </div>
         <Dot trust={row.trust} t={t} />
       </div>
-      {around && (v !== null || median !== null) && (
+      {around && v !== null && (
         <CompareBars
           label={t.cardCompare}
           unit={t.cardYear}
@@ -131,24 +131,8 @@ export default function PointCard({
 
       {ok && (
         <>
-          <h3 className="egms-card-section">{t.cardGround}</h3>
-          <Motion w={ok.vertical} row={ground[0]} t={t} around />
-          {ok.east && ground[1] && (
-            <Motion w={ok.east} row={ground[1]} t={t} around={false} />
-          )}
-          {window_?.first && window_.last && (
-            <div className="egms-card-trust">
-              <span>
-                {t.cardPeriod}: {ground[0].sub.split(" · ").pop()}
-              </span>
-              <Period
-                first={window_.first}
-                last={window_.last}
-                label={t.cardPeriod}
-              />
-            </div>
-          )}
-          {ok.gap && (
+          {/* A data gap first: it is what the card has to say here. */}
+          {ok.gap?.gap && (
             <div
               className={
                 ok.gap.gap ? "egms-gap" : "egms-small text-secondary mb-2"
@@ -167,6 +151,28 @@ export default function PointCard({
               ) : (
                 t.gapCovered(Math.round(ok.gap.measured_share * 100))
               )}
+            </div>
+          )}
+          <h3 className="egms-card-section">{t.cardGround}</h3>
+          <Motion w={ok.vertical} row={ground[0]} t={t} around />
+          {ok.east && ground[1] && (
+            <Motion w={ok.east} row={ground[1]} t={t} around={false} />
+          )}
+          {ok.gap && !ok.gap.gap && (
+            <p className="egms-small text-secondary mb-2">
+              {t.gapCovered(Math.round(ok.gap.measured_share * 100))}
+            </p>
+          )}
+          {window_?.first && window_.last && (
+            <div className="egms-card-trust">
+              <span>
+                {t.cardPeriod}: {ground[0].sub.split(" · ").pop()}
+              </span>
+              <Period
+                first={window_.first}
+                last={window_.last}
+                label={t.cardPeriod}
+              />
             </div>
           )}
           <details className="egms-card-more">

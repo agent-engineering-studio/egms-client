@@ -664,7 +664,12 @@ def hotspots(
         x0, y1 = g.west + c * BLOCK_M, g.north - r * BLOCK_M
         xs, ys = [x0, x0 + BLOCK_M, x0 + BLOCK_M, x0, x0], [y1, y1, y1 - BLOCK_M, y1 - BLOCK_M, y1]
         lons, lats = to_lonlat.transform(xs, ys)
-        lon, lat = to_lonlat.transform(x0 + BLOCK_M / 2, y1 - BLOCK_M / 2)
+        # The point of the square: its measured cell nearest the middle, so that a click
+        # on it opens a card with a value, not the "not measured" of a gap between cells.
+        cells = values[r * n : (r + 1) * n, c * n : (c + 1) * n]
+        rr, cc = np.nonzero(~np.isnan(cells))
+        k = int(np.argmin((rr - (n - 1) / 2) ** 2 + (cc - (n - 1) / 2) ** 2))
+        lon, lat = to_lonlat.transform(x0 + (cc[k] + 0.5) * m.pixel, y1 - (rr[k] + 0.5) * m.pixel)
         out.append(
             {
                 "rank": len(out) + 1,
