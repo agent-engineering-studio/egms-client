@@ -8,7 +8,6 @@ releaseDate: "2026-11-24"
 softwareVersion: "0.8.0"
 platforms: [linux, mac, windows]
 categories: [geographic-information-systems, data-analytics, data-collection]
-usedBy: []
 developmentStatus: beta
 softwareType: library
 intendedAudience:
