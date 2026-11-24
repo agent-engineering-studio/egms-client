@@ -68,6 +68,10 @@ All notable changes to this project are documented here. The format follows
   The examples now sit at Pozzuoli: the dpc-radar reliability recomputed
   there (0.81) and the simulated rain gauge.
 
+### Changed
+
+- The page opens on Gioia del Colle when no Comune is set (it was Pozzuoli).
+
 ## [0.8.0] - 2026-11-24
 
 How far to trust the data, and an AI layer that cannot invent numbers.

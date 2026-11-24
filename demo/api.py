@@ -647,8 +647,8 @@ async def prefetch(source: Archive, area: Area) -> None:
     log.info("prefetch: the tiles of the area %s are ready", area.box)
 
 
-#: Where the page opens when no place is set: Rione Terra, Pozzuoli (demo/web/lib/start.ts).
-DEFAULT_PLACE = (14.1205, 40.8225)
+#: Where the page opens when no place is set: Gioia del Colle (demo/web/lib/start.ts).
+DEFAULT_PLACE = (16.9233, 40.7996)
 
 
 def area_from_env() -> Area:
