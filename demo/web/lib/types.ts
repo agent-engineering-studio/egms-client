@@ -163,4 +163,24 @@ export type Area = {
   north: number;
 };
 
-export type Health = { ok: boolean; source: "archive" | "demo"; area: Area };
+/** The download of the area at startup: the page opens when it is ready. */
+export type StartupTile = {
+  tile: string;
+  component: "U" | "E";
+  state: "waiting" | "checking" | "downloading" | "ready" | "absent" | "failed";
+  received: number;
+  total: number;
+  share: number;
+};
+
+export type StartupState = {
+  state: "running" | "slow" | "waiting" | "ready" | "failed";
+  ready: boolean;
+  share: number;
+  attempt: number;
+  error: string | null;
+  retry_in_s: number | null;
+  tiles: StartupTile[];
+};
+
+export type Health = { ok: boolean; source: "archive" | "demo"; area: Area; startup: StartupState };

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import Ground from "@/components/Ground";
+import Startup from "@/components/Startup";
 import { startFrom, tilesFrom } from "@/lib/start";
 
 type Params = Promise<Record<string, string | string[] | undefined>>;
@@ -22,5 +22,5 @@ export default async function Page({ searchParams }: { searchParams: Params }) {
     { lat: one("lat"), lon: one("lon"), zoom: one("zoom"), place: one("place"), lang: one("lang"), embed: one("embed") },
     { lat: env.EGMS_UI_LAT, lon: env.EGMS_UI_LON, zoom: env.EGMS_UI_ZOOM, place: env.EGMS_UI_PLACE, lang: env.EGMS_UI_LANG },
   );
-  return <Ground start={start} tiles={tilesFrom(env.EGMS_UI_TILES, env.EGMS_UI_TILES_CREDIT)} />;
+  return <Startup start={start} tiles={tilesFrom(env.EGMS_UI_TILES, env.EGMS_UI_TILES_CREDIT)} />;
 }

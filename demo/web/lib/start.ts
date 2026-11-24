@@ -27,8 +27,8 @@ export type Asked = {
   embed?: string;
 };
 
-// Gioia del Colle, in the Murge: the Comune the page opens on when none is set.
-const DEFAULT = { lat: 40.7996, lon: 16.9233 };
+// Pozzuoli, Rione Terra: the ground rises there, and EGMS measures much of the town.
+const DEFAULT = { lat: 40.8225, lon: 14.1205 };
 const DEFAULT_ZOOM = 13;
 export const MIN_ZOOM = 6;
 export const MAX_ZOOM = 17;

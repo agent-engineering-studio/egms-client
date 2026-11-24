@@ -316,6 +316,7 @@ class EgmsArchive:
         directory: Path | None = None,
         *,
         keep: Iterable[TileKeep] = ("tiff",),
+        on_progress: Progress | None = None,
     ) -> Path | None:
         """The tile's mean-velocity GeoTIFF in ``directory``, downloaded if missing.
 
@@ -331,7 +332,8 @@ class EgmsArchive:
         again. The CSV of a tile is about 250 MB.
 
         A search id that expired before the download (HTTP 401) is searched
-        again, once.
+        again, once. ``on_progress(hit, received, total)`` is called as the
+        bytes of a download arrive (not for a tile already on the disk).
         """
         directory = directory or default_directory()
         others = tuple(dict.fromkeys(k for k in keep if k != "tiff"))
@@ -358,12 +360,12 @@ class EgmsArchive:
             if (path := cached()) is not None:
                 return path
             try:
-                archive = await self._download(search.id, hit, directory)
+                archive = await self._download(search.id, hit, directory, on_progress)
             except _ExpiredError:
                 search, hit = await self._tile_hit(tile, component, release, prefix)
                 if search is None or hit is None:
                     raise EgmsError(f"{prefix}: no longer in the archive") from None
-                archive = await self._download(search.id, hit, directory)
+                archive = await self._download(search.id, hit, directory, on_progress)
             if archive is None:
                 marker.touch()
                 return None

@@ -42,6 +42,14 @@ che sale dal basso.
 Le fonti restano una accanto all'altra: la pagina non le mescola in un
 punteggio e non è un sistema di allerta. Mostra i dati e i loro limiti.
 
+**Il primo avvio.** All'avvio l'API scarica le tessere EGMS dell'area (circa
+60 MB l'una). Finché non sono pronte, la pagina mostra una schermata di
+caricamento con una barra di avanzamento e lo stato di ogni tessera; alla fine
+si apre la mappa. Le volte dopo le tessere sono già sul server e la pagina si
+apre subito. Se l'archivio Copernicus non risponde per più di un minuto e
+mezzo, la schermata lo dice e permette di entrare con i dati già scaricati;
+intanto il download continua a riprovare da solo.
+
 **I buchi di dati.** La mappa mostra anche dove i dati mancano. L'area è
 divisa in quadrati di 1 km sulla griglia europea (EPSG:3035). Un quadrato
 dove EGMS misura meno di un quarto delle celle di 100 m è un buco di dati, in
@@ -83,7 +91,7 @@ computer stesso: per pubblicarla serve un proxy con HTTPS davanti.
 
 | Variabile | Che cosa fa |
 |---|---|
-| `EGMS_UI_LAT`, `EGMS_UI_LON` | il Comune: il centro dell'area della pagina (di base Gioia del Colle, 40,7996 N 16,9233 E) |
+| `EGMS_UI_LAT`, `EGMS_UI_LON` | il Comune: il centro dell'area della pagina (di base Pozzuoli, Rione Terra: 40,8225 N 14,1205 E) |
 | `EGMS_UI_RADIUS_KM` | il raggio dell'area, da 1 a 20 km (di base 10) |
 | `EGMS_UI_ZOOM` | lo zoom con cui si apre su un punto dato nell'indirizzo |
 | `EGMS_UI_PLACE` | il nome nell'intestazione, per esempio `"Comune di Pozzuoli"` |
