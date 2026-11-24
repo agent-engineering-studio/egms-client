@@ -33,6 +33,12 @@ services:
       <<: *env
       EGMS_UI_SOURCE: ${EGMS_UI_SOURCE:-}
       EGMS_UI_MAX_TILES: ${EGMS_UI_MAX_TILES:-4}
+      # The records of the other sources: the examples, and the files of ./records.
+      EGMS_UI_RECORDS: /app/examples/records:/srv/records
+    volumes:
+      - egms-data:/data
+      - ${EGMS_SECRETS_DIR:-./secrets}:/run/secrets/egms:ro
+      - ${EGMS_RECORDS_DIR:-./records}:/srv/records:ro
     restart: unless-stopped
 
   # The page: a map of the Comune, and a card for the place clicked (demo/web).

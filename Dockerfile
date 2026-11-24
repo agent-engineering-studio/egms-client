@@ -39,6 +39,7 @@ RUN python -c "import rasterio, pyproj, pandas, mcp, starlette, uvicorn, egms_cl
 
 COPY demo/api.py demo/notebook.sh demo/
 COPY benchmarks benchmarks
+COPY examples examples
 COPY notebooks notebooks
 
 RUN useradd --create-home egms && mkdir /data && chown egms /data /app/notebooks

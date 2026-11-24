@@ -14,7 +14,7 @@ export default async function Page({ searchParams }: { searchParams: Params }) {
   };
   const env = process.env;
   const start = startFrom(
-    { lat: one("lat"), lon: one("lon"), zoom: one("zoom"), place: one("place"), lang: one("lang"), embed: one("embed") },
+    { lat: one("lat"), lon: one("lon"), zoom: one("zoom"), place: one("place"), lang: one("lang"), embed: one("embed"), tab: one("tab") },
     { lat: env.EGMS_UI_LAT, lon: env.EGMS_UI_LON, zoom: env.EGMS_UI_ZOOM, place: env.EGMS_UI_PLACE, lang: env.EGMS_UI_LANG },
   );
   return <Ground start={start} tiles={tilesFrom(env.EGMS_UI_TILES, env.EGMS_UI_TILES_CREDIT)} />;

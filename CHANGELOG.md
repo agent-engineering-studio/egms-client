@@ -8,6 +8,15 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- The page of a Comune shows open data side by side. Next to EGMS, it reads
+  records from folders (`EGMS_UI_RECORDS`; in Docker the examples and
+  `records/`, set by `EGMS_RECORDS_DIR`, read-only) and shows the sources
+  near the point clicked, each with its source, time, reliability, licence
+  and «how it is made». Tabs «Sources» (with the files refused and why) and
+  «Add a source»; `?tab=fonti|aggiungi` opens on them. New API routes
+  `/api/sources` and `/api/records`; `/api/place` also gives the records.
+  The examples now sit at Pozzuoli: the dpc-radar reliability recomputed
+  there (0.81) and the simulated rain gauge.
 - Records of open data (`egms_client.records`, extra `records`): one JSON
   Schema, `opendata-record/v1`, for observations, facts and map layers from
   any source, with checks a schema cannot make (not measured is null, a

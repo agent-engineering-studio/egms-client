@@ -35,7 +35,7 @@ export type Velocity = {
   notes: string[];
 };
 
-export type Worded<F> = { facts: F; text: string };
+export type Worded<F> = { facts: F; text: string; records?: OpenRecord[] };
 
 export type PlaceAnswer = {
   source: "archive" | "demo";
@@ -69,3 +69,67 @@ export type MovingAnswer = {
 export type Failed = { error: string; not_measured?: boolean };
 
 export type Box = { west: number; south: number; east: number; north: number };
+
+// Records of open data (egms_client.records, opendata-record/v1): any source, one shape.
+
+export type Geometry =
+  | { type: "Point"; coordinates: [number, number] | [number, number, number] }
+  | { type: "Polygon"; coordinates: number[][][] }
+  | { type: "MultiPolygon"; coordinates: number[][][][] };
+
+export type RecordTime = { instant: string } | { first: string; last: string; exact: boolean } | null;
+
+export type RecordReliability = {
+  score?: number | null;
+  reliable?: boolean | null;
+  method: string;
+  reasons?: string[];
+} | null;
+
+export type Quantity = { value: number | null; unit: string; meaning?: string };
+
+export type OpenRecord = {
+  schema: "opendata-record/v1";
+  kind: "observation" | "fact" | "layer";
+  id?: string;
+  source: { name: string; url?: string; licence: string; attribution?: string };
+  made_by: { name: string; version?: string };
+  time: RecordTime;
+  where: Geometry;
+  reliability: RecordReliability;
+  notes?: string[];
+  thing?: string;
+  property?: string;
+  value?: number | null;
+  unit?: string;
+  meaning?: string;
+  quality?: { flags: string[] };
+  question?: string;
+  values?: Record<string, Quantity>;
+  href?: string;
+  no_data?: string;
+};
+
+/** A record and the file it was read from. */
+export type Filed = { file: string; record: OpenRecord };
+
+export type RecordsAnswer = { records: Filed[]; limit: number };
+
+export type Source = {
+  name: string;
+  url?: string;
+  licence: string;
+  attribution?: string;
+  made_by: string[];
+  records: number;
+  kinds: string[];
+  properties: string[];
+  files: string[];
+};
+
+export type SourcesAnswer = {
+  egms: "archive" | "demo";
+  folders: string[];
+  sources: Source[];
+  refused: { file: string; problems: string[] }[];
+};

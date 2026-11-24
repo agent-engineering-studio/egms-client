@@ -31,8 +31,8 @@
   "where": {
     "type": "Point",
     "coordinates": [
-      16.6044,
-      40.6664
+      14.1205,
+      40.8225
     ]
   },
   "reliability": {
@@ -40,6 +40,7 @@
     "reasons": []
   },
   "notes": [
+    "Asked at Pozzuoli: Campania is in the southern macroregion of ITALICA.",
     "Fitted on e-ITALICA rain gauges; the record does not give the dates of the catalogue.",
     "A threshold exceeded is not an alert. The official alert is the criticality bulletin of the Dipartimento della Protezione Civile."
   ]

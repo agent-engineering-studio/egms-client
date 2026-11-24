@@ -1,4 +1,4 @@
-"""The API behind the page of a Comune: EGMS ground motion as JSON and PNG.
+"""The API behind the page of a Comune: open data side by side, as JSON and PNG.
 
     uvicorn --app-dir demo api:app --port 8010
 
@@ -6,6 +6,13 @@ Every answer is built with :mod:`egms_client.facts` and worded with
 :func:`egms_client.check.words`, in Italian or English: a number on the page
 is a number of the facts, with its release, its window and how far to trust
 it. Nothing here is an alert service: a velocity is a measurement.
+
+Next to EGMS, the page shows any other source that writes **records of open
+data** (:mod:`egms_client.records`): a rain gauge, a threshold, the radar.
+They are files in the folders of ``EGMS_UI_RECORDS`` (``.json`` or
+``.jsonl``; several folders separated by ``:``), read again when a file
+changes. A file with an invalid record is refused whole, and the page says
+why. Nothing is imported from the libraries that wrote them.
 
 Where the data come from (``EGMS_UI_SOURCE``):
 
@@ -24,6 +31,9 @@ Where the data come from (``EGMS_UI_SOURCE``):
     /api/moving?west=&south=&east=&north=&lang=&component=&threshold=
     /api/map.png?west=&south=&east=&north=&component=
                                       the velocity as a picture in EPSG:3857, for the map
+    /api/sources                      the sources of the records, and the files refused
+    /api/records?west=&south=&east=&north=
+                                      the records in a box
 """
 
 from __future__ import annotations
@@ -34,7 +44,7 @@ import logging
 import math
 import os
 import warnings
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -50,13 +60,24 @@ from starlette.routing import Route
 from egms_client import EgmsArchive, EgmsError, ServiceKey, tile_id, tiles_for_bounds
 from egms_client.check import words
 from egms_client.client import default_directory
-from egms_client.facts import area, moving_points, velocity
+from egms_client.facts import area, moving_points, to_records, velocity
 from egms_client.mosaic import lonlat_to_laea, mosaic
+from egms_client.records import RecordError, read
 
 log = logging.getLogger("egms-client.api")
 
 #: The crops of the benchmark: the data of the demo mode.
 CROPS = Path(os.environ.get("EGMS_UI_CROPS", Path(__file__).parent.parent / "benchmarks" / "data"))
+#: The folders of the records, separated by ":" (os.pathsep).
+RECORDS = [
+    Path(folder)
+    for folder in os.environ.get(
+        "EGMS_UI_RECORDS", str(Path(__file__).parent.parent / "examples" / "records")
+    ).split(os.pathsep)
+    if folder.strip()
+]
+#: Records one answer gives at most.
+MAX_RECORDS = 1000
 #: Tiles one answer may download at most (about 60 MB each).
 MAX_TILES = int(os.environ.get("EGMS_UI_MAX_TILES") or 4)
 #: A box at most this wide, in degrees, on either side.
@@ -159,6 +180,94 @@ class Archive:
         await self.archive.aclose()
 
 
+class Shelf:
+    """The records in the folders, read again when a file is added, changed or removed."""
+
+    def __init__(self, folders: list[Path]) -> None:
+        self.folders = folders
+        self.seen: dict[Path, int] = {}
+        self.items: list[dict[str, Any]] = []
+        self.refused: list[dict[str, Any]] = []
+
+    def files(self) -> list[Path]:
+        return sorted(
+            path
+            for folder in self.folders
+            if folder.is_dir()
+            for path in folder.iterdir()
+            if path.suffix in (".json", ".jsonl") and path.is_file()
+        )
+
+    def load(self) -> None:
+        files = self.files()
+        stamp = {path: path.stat().st_mtime_ns for path in files}
+        if stamp == self.seen:
+            return
+        items, refused = [], []
+        for path in files:
+            try:
+                records = read(path)
+            except RecordError as exc:
+                refused.append({"file": path.name, "problems": exc.problems[:10]})
+            except (OSError, ValueError) as exc:
+                refused.append({"file": path.name, "problems": [f"not JSON: {exc}"]})
+            else:
+                items += [{"file": path.name, "record": r} for r in records]
+        self.items, self.refused, self.seen = items, refused, stamp
+
+    def sources(self) -> list[dict[str, Any]]:
+        self.load()
+        found: dict[str, dict[str, Any]] = {}
+        for item in self.items:
+            r = item["record"]
+            s = found.setdefault(
+                r["source"]["name"],
+                {
+                    **r["source"],
+                    "made_by": [],
+                    "records": 0,
+                    "kinds": [],
+                    "properties": [],
+                    "files": [],
+                },
+            )
+            s["records"] += 1
+            for key, value in (
+                ("made_by", r["made_by"]["name"]),
+                ("kinds", r["kind"]),
+                ("properties", r.get("property") or r.get("question")),
+                ("files", item["file"]),
+            ):
+                if value and value not in s[key]:
+                    s[key].append(value)
+        return sorted(found.values(), key=lambda s: str(s["name"]))
+
+    def within(self, box: tuple[float, float, float, float]) -> list[dict[str, Any]]:
+        self.load()
+        west, south, east, north = box
+        out = []
+        for item in self.items:
+            w, s, e, n = bounds(item["record"]["where"])
+            if w <= east and e >= west and s <= north and n >= south:
+                out.append(item)
+        return out[:MAX_RECORDS]
+
+
+def bounds(geometry: dict[str, Any]) -> tuple[float, float, float, float]:
+    """West, south, east, north of a GeoJSON Point, Polygon or MultiPolygon."""
+    points = list(_positions(geometry["coordinates"]))
+    lons, lats = [p[0] for p in points], [p[1] for p in points]
+    return min(lons), min(lats), max(lons), max(lats)
+
+
+def _positions(coordinates: Any) -> Iterator[list[float]]:
+    if isinstance(coordinates[0], (int, float)):
+        yield coordinates
+        return
+    for part in coordinates:
+        yield from _positions(part)
+
+
 def source_from_env() -> Crops | Archive:
     """The source the environment asks for; the key is read, never logged."""
     wanted = os.environ.get("EGMS_UI_SOURCE", "").strip().lower()
@@ -235,7 +344,11 @@ async def place(request: Request) -> JSONResponse:
         facts = await asyncio.to_thread(
             velocity, tiffs, lon, lat, component=component, release=release
         )
-        out[name] = {"facts": facts, "text": words(facts, lang)}  # type: ignore[arg-type]
+        out[name] = {
+            "facts": facts,
+            "text": words(facts, lang),  # type: ignore[arg-type]
+            "records": to_records(facts),
+        }
     return JSONResponse(out)
 
 
@@ -324,6 +437,31 @@ async def map_png(request: Request) -> Response:
     return Response(body, media_type="image/png", headers={"cache-control": "max-age=3600"})
 
 
+async def sources(request: Request) -> JSONResponse:
+    shelf: Shelf = request.app.state.shelf
+    found = await asyncio.to_thread(shelf.sources)
+    return JSONResponse(
+        {
+            "egms": request.app.state.source.name,
+            "folders": [str(folder) for folder in shelf.folders],
+            "sources": found,
+            "refused": shelf.refused,
+        }
+    )
+
+
+async def records(request: Request) -> JSONResponse:
+    west = _number(request, "west", -180, 180)
+    south = _number(request, "south", -90, 90)
+    east = _number(request, "east", -180, 180)
+    north = _number(request, "north", -90, 90)
+    if not (west < east and south < north):
+        raise ValueError("the box is west < east, south < north")
+    shelf: Shelf = request.app.state.shelf
+    found = await asyncio.to_thread(shelf.within, (west, south, east, north))
+    return JSONResponse({"records": found, "limit": MAX_RECORDS})
+
+
 async def _refused(_: Request, exc: Exception) -> JSONResponse:
     if isinstance(exc, OutsideDataError):
         return JSONResponse({"error": str(exc), "not_measured": False}, status_code=404)
@@ -344,6 +482,7 @@ async def _failed(_: Request, exc: Exception) -> JSONResponse:
 @asynccontextmanager
 async def lifespan(app: Starlette) -> AsyncIterator[None]:
     app.state.source = source_from_env()
+    app.state.shelf = Shelf(RECORDS)
     try:
         yield
     finally:
@@ -357,6 +496,8 @@ app = Starlette(
         Route("/api/area", summary),
         Route("/api/moving", moving),
         Route("/api/map.png", map_png),
+        Route("/api/sources", sources),
+        Route("/api/records", records),
     ],
     middleware=[Middleware(GZipMiddleware, minimum_size=1000)],
     exception_handlers={
