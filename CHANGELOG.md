@@ -72,6 +72,10 @@ All notable changes to this project are documented here. The format follows
 
 - The page opens on Gioia del Colle when no Comune is set (it was Pozzuoli).
 
+### Fixed
+
+- A tile not on the disk yet no longer holds an answer for minutes: the API waits 20 s, then answers 503 with the missing tiles, and the download goes on in the background. The page says so (it is not «not measured»).
+
 ## [0.8.0] - 2026-11-24
 
 How far to trust the data, and an AI layer that cannot invent numbers.

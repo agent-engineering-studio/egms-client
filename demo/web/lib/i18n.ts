@@ -23,6 +23,8 @@ const it = {
   noneNear: "Nessun'altra fonte ha dati entro 2 km.",
   outside: "Qui la pagina non ha dati EGMS caricati (non vuol dire «non misurato»).",
   failed: "La richiesta non è riuscita",
+  missingTiles: (tiles: string[]) =>
+    `I dati EGMS di questa zona (${tiles.join(", ")}) non sono ancora stati scaricati dall'archivio Copernicus: la pagina continua a provare da sola. Riprova tra qualche minuto. Non vuol dire «non misurato».`,
   // The ground, from EGMS.
   groundU: "Suolo, movimento verticale",
   groundE: "Suolo, movimento est-ovest",
@@ -90,6 +92,8 @@ const en: typeof it = {
   noneNear: "No other source has data within 2 km.",
   outside: "The page has no EGMS data loaded here (that is not «not measured»).",
   failed: "The request failed",
+  missingTiles: (tiles: string[]) =>
+    `The EGMS data of this area (${tiles.join(", ")}) are not downloaded from the Copernicus archive yet: the page keeps trying by itself. Try again in a few minutes. That is not «not measured».`,
   groundU: "Ground, vertical motion",
   groundE: "Ground, east-west motion",
   up: (v: string) => `rises by ${v} mm/year`,

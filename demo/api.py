@@ -100,6 +100,9 @@ SENSORS = Path(os.environ.get("EGMS_UI_STATE") or "/srv/state") / "sensors.json"
 MAX_RECORDS = 1000
 #: How long to wait for the archive's list of releases, and when to ask again, in seconds.
 ARCHIVE_WAIT_S, RETRY_S = 15.0, 600.0
+#: How long one answer waits for a tile that is not on the disk yet, in seconds.
+#: The download goes on in the background; the page is told which tiles are missing.
+TILE_WAIT_S = 20.0
 #: Tiles one answer may download at most (about 60 MB each).
 MAX_TILES = int(os.environ.get("EGMS_UI_MAX_TILES") or 4)
 #: A box at most this wide, in degrees, on either side.
@@ -173,6 +176,17 @@ class Area:
         }
 
 
+class MissingTilesError(Exception):
+    """Tiles needed for the answer are not on the disk yet. Not "not measured"."""
+
+    def __init__(self, tiles: list[str], reason: str) -> None:
+        self.tiles = tiles
+        super().__init__(
+            f"the tiles {', '.join(tiles)} are not on the disk yet ({reason}). "
+            "The page does not answer with part of the data. This is not 'not measured'."
+        )
+
+
 class OutsideAreaError(LookupError):
     """Outside the area of the page: not read, so not downloaded. Not "not measured"."""
 
@@ -244,19 +258,46 @@ class Archive:
         self.confirmed = False
         self.retry_at = 0.0
         self.lock = asyncio.Lock()
+        #: One download per tile, shared by the answers that need it, and kept
+        #: going when an answer stops waiting.
+        self.downloads: dict[tuple[str, str, str], asyncio.Task[Path | None]] = {}
+
+    def _fetch(self, tile: Any, component: str, release: str) -> asyncio.Task[Path | None]:
+        key = (tile_id(tile), component, release)
+        task = self.downloads.get(key)
+        if task is None or (task.done() and (task.cancelled() or task.exception())):
+            # A failed download is tried again; a finished one is reused.
+            task = asyncio.create_task(
+                self.archive.fetch_tile(tile, component, release, self.folder)  # type: ignore[arg-type]
+            )
+            self.downloads[key] = task
+        return task
 
     async def tiffs(
-        self, box: tuple[float, ...], component: str
+        self, box: tuple[float, ...], component: str, wait: float | None = TILE_WAIT_S
     ) -> tuple[list[Path], str, list[str]]:
+        """The GeoTIFFs over the box. MissingTilesError when one is not there after ``wait`` s."""
         release = await self.latest()
         tiles = tiles_for_bounds(*box)
         if len(tiles) > MAX_TILES:
             raise ValueError(f"the box touches {len(tiles)} tiles; at most {MAX_TILES}")
+        tasks = {tile_id(tile): self._fetch(tile, component, release) for tile in tiles}
+        _, pending = await asyncio.wait(tasks.values(), timeout=wait)
+        if pending:
+            late = [name for name, task in tasks.items() if task in pending]
+            raise MissingTilesError(late, "downloading from the EGMS archive")
+        broken = {name: task.exception() for name, task in tasks.items() if task.exception()}
+        if broken:
+            name, exc = next(iter(broken.items()))
+            log.warning("tile %s %s: %s: %s", name, component, type(exc).__name__, exc)
+            raise MissingTilesError(
+                list(broken), f"the EGMS archive did not answer: {type(exc).__name__}"
+            )
         tiffs, absent = [], []
-        for tile in tiles:
-            tiff = await self.archive.fetch_tile(tile, component, release, self.folder)  # type: ignore[arg-type]
+        for name, task in tasks.items():
+            tiff = task.result()
             if tiff is None:
-                absent.append(tile_id(tile))
+                absent.append(name)
             else:
                 tiffs.append(tiff)
         return tiffs, release, absent
@@ -285,6 +326,8 @@ class Archive:
             return self.release
 
     async def aclose(self) -> None:
+        for task in self.downloads.values():
+            task.cancel()
         await self.archive.aclose()
 
 
@@ -622,6 +665,15 @@ async def _refused(_: Request, exc: Exception) -> JSONResponse:
     return JSONResponse({"error": str(exc)}, status_code=400)
 
 
+async def _missing(_: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, MissingTilesError)
+    return JSONResponse(
+        {"error": str(exc), "not_measured": False, "missing_tiles": exc.tiles},
+        status_code=503,
+        headers={"Retry-After": "60"},
+    )
+
+
 async def _failed(_: Request, exc: Exception) -> JSONResponse:
     """Anything else: a short message for the page; the traceback stays in the server's log."""
     log.error("unexpected error: %s: %s", type(exc).__name__, exc)
@@ -647,7 +699,7 @@ async def prefetch(
         attempt += 1
         for component in list(left):
             try:
-                await source.tiffs(lonlat_to_laea(*area.box), component)
+                await source.tiffs(lonlat_to_laea(*area.box), component, wait=None)
                 left.remove(component)
             except Exception as exc:
                 log.warning(
@@ -735,6 +787,7 @@ app = Starlette(
     exception_handlers={
         OutsideDataError: _refused,
         OutsideAreaError: _refused,
+        MissingTilesError: _missing,
         EgmsError: _refused,
         ValueError: _refused,
         LookupError: _refused,

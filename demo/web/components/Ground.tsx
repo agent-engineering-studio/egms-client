@@ -390,7 +390,15 @@ export default function Ground({ start, tiles }: { start: Start; tiles: Tiles })
                   {t.here} · {point.lat.toFixed(4)}° N, {point.lon.toFixed(4)}° E
                 </h2>
                 {!place && <p className="text-secondary">{slow && archive ? t.downloading : t.loading}</p>}
-                {place && failed(place) && <p className="egms-warning">{place.not_measured === false ? t.outside : `${t.failed}: ${place.error}`}</p>}
+                {place && failed(place) && (
+                  <p className="egms-warning">
+                    {place.missing_tiles
+                      ? t.missingTiles(place.missing_tiles)
+                      : place.not_measured === false
+                        ? t.outside
+                        : `${t.failed}: ${place.error}`}
+                  </p>
+                )}
                 <ul className="egms-rows">
                   {ground.map((row) => (
                     <RowView key={row.key} row={row} t={t} lang={lang} open={open === row.key} onToggle={() => toggle(row.key)} />
