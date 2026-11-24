@@ -41,6 +41,20 @@ export type PlaceAnswer = {
   source: "archive" | "demo";
   vertical: Worded<Velocity>;
   east: Worded<Velocity> | null;
+  /** The square kilometre of the point: the share of cells EGMS measures, and if it is a data gap. */
+  gap?: GapAt | null;
+};
+
+export type GapAt = { block_m: number; measured_share: number; gap: boolean };
+
+/** How much of the area is data gap: squares where EGMS measures less than gap_below of the cells. */
+export type GapSummary = {
+  block_m: number;
+  gap_below: number;
+  blocks: number;
+  gaps: number;
+  gap_share: number | null;
+  missing_tiles: string[];
 };
 
 export type MovingCell = {

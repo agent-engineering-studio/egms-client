@@ -519,3 +519,29 @@ def test_available_lists_what_is_missing_without_raising() -> None:
             await source.tiffs(box, "U", wait=1)
 
     asyncio.run(run())
+
+
+def test_data_gaps_are_squares_with_few_measured_cells() -> None:
+    crop = [ROOT / "benchmarks" / "data" / "murge" / "U.tif"]
+    share, west, north = api.gaps(crop, lonlat_to_laea(16.85, 40.72, 17.0, 40.85))
+    assert west % api.BLOCK_M == 0 and north % api.BLOCK_M == 0
+    known = share[~np.isnan(share)]
+    assert known.size > 100 and 0 < (known < api.GAP_SHARE).mean() < 0.5
+    # Not known is not a gap: outside the crop the squares are NaN.
+    outside, _, _ = api.gaps(crop, lonlat_to_laea(17.2, 40.9, 17.25, 40.95))
+    assert np.isnan(outside).all()
+    assert api._gap_at(crop, 16.9625, 40.7839) == {
+        "block_m": 1000,
+        "measured_share": 0.6,
+        "gap": False,
+    }
+
+
+def test_the_gaps_of_the_area_and_of_a_point(client: TestClient) -> None:
+    g = client.get(
+        "/api/gaps", params={"west": 14.0, "south": 40.75, "east": 14.25, "north": 40.9}
+    ).json()
+    assert g["block_m"] == 1000 and g["gap_below"] == api.GAP_SHARE
+    assert g["blocks"] > 0 and 0 <= g["gaps"] <= g["blocks"] and g["missing_tiles"] == []
+    place = client.get("/api/place", params={"lon": 14.1205, "lat": 40.8225}).json()
+    assert place["gap"]["gap"] is False and place["gap"]["measured_share"] >= api.GAP_SHARE

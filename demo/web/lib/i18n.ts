@@ -7,7 +7,20 @@ import type { Lang } from "./start";
 const it = {
   locale: "it-IT",
   title: "Il territorio nei dati aperti",
-  tagline: "Fonti aperte una accanto all'altra: che cosa dicono, e quanto fidarsi",
+  tagline: "Che cosa dicono i dati aperti del territorio, quanto fidarsi, e dove mancano",
+  purposeTitle: "A cosa serve questa mappa",
+  purpose:
+    "Mette una accanto all'altra le fonti aperte su questo territorio: il movimento del suolo misurato dai satelliti (EGMS, Copernicus) e le altre fonti pubblicate. Per ogni punto dice che cosa sanno, e quanto fidarsi.",
+  purposeGaps:
+    "Mostra anche dove i dati mancano. In arancione i buchi di dati: chilometri quadrati dove il satellite misura meno di un quarto delle celle. Non sono zone di pericolo: sono i posti dove un'amministrazione può pubblicare nuovi dati aperti, come livellazioni, stazioni GNSS, rilievi o sensori.",
+  gapSummary: (pct: number, gaps: number, blocks: number) =>
+    `Nell'area della pagina ${gaps} chilometri quadrati su ${blocks} (${pct}%) sono buchi di dati.`,
+  gapSummaryPartial: "Conto parziale: alcune tessere EGMS non sono ancora scaricate.",
+  gapHere: "Buco di dati",
+  gapHereText: (pct: number) =>
+    `In questo chilometro quadrato il satellite misura il ${pct}% delle celle. Qui un dato aperto in più (una livellazione, una stazione GNSS, un sensore, un rilievo del Comune) direbbe che cosa fa il suolo.`,
+  gapCovered: (pct: number) => `In questo chilometro quadrato il satellite misura il ${pct}% delle celle.`,
+  addData: "Come aggiungere una fonte",
   language: "Lingua",
   dataLink: "I dati e come riusarli",
   mapLabel: "Mappa del territorio con le fonti di dati aperti",
@@ -71,6 +84,7 @@ const it = {
   legendUp: "sale",
   legendNone: "nessuna misura",
   legendMissing: "non ancora scaricato",
+  legendGap: "buco di dati",
   close: "Chiudi",
   openPanel: "Apri il pannello",
   closePanel: "Riduci il pannello",
@@ -82,7 +96,20 @@ const it = {
 const en: typeof it = {
   locale: "en-GB",
   title: "Your area in open data",
-  tagline: "Open sources side by side: what they say, and how far to trust them",
+  tagline: "What the open data of the area say, how far to trust them, and where they are missing",
+  purposeTitle: "What this map is for",
+  purpose:
+    "It puts the open sources on this area side by side: the ground motion measured by satellites (EGMS, Copernicus) and the other published sources. For each point it says what they know, and how far to trust them.",
+  purposeGaps:
+    "It also shows where data are missing. In amber, the data gaps: square kilometres where the satellite measures less than a quarter of the cells. They are not dangerous places: they are where an administration can publish new open data, such as levelling, GNSS stations, surveys or sensors.",
+  gapSummary: (pct: number, gaps: number, blocks: number) =>
+    `In the area of the page, ${gaps} square kilometres out of ${blocks} (${pct}%) are data gaps.`,
+  gapSummaryPartial: "A partial count: some EGMS tiles are not downloaded yet.",
+  gapHere: "Data gap",
+  gapHereText: (pct: number) =>
+    `In this square kilometre the satellite measures ${pct}% of the cells. Here one more open dataset (levelling, a GNSS station, a sensor, a survey of the Comune) would tell what the ground does.`,
+  gapCovered: (pct: number) => `In this square kilometre the satellite measures ${pct}% of the cells.`,
+  addData: "How to add a source",
   language: "Language",
   dataLink: "The data and how to reuse them",
   mapLabel: "Map of the area with the open data sources",
@@ -142,6 +169,7 @@ const en: typeof it = {
   legendUp: "up",
   legendNone: "no measurement",
   legendMissing: "not downloaded yet",
+  legendGap: "data gap",
   close: "Close",
   openPanel: "Open the panel",
   closePanel: "Shrink the panel",

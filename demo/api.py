@@ -124,6 +124,11 @@ COLOURS = [
 ]
 #: Where there is no measurement: a light veil, because not measured is not still.
 VEIL = (90, 96, 110, 70)
+#: A data gap: a square of BLOCK_M where EGMS measures less than GAP_SHARE of the
+#: 100 m cells. A place where open data on the ground are missing, for the Comune
+#: to think about; not a danger. Amber, not red: it is not an alert.
+BLOCK_M, GAP_SHARE = 1000, 0.25
+GAP = (214, 140, 0, 130)
 
 
 @dataclass(frozen=True)
@@ -518,12 +523,49 @@ async def place(request: Request) -> JSONResponse:
         facts = await asyncio.to_thread(
             velocity, tiffs, lon, lat, component=component, release=release
         )
+        if component == "U":
+            out["gap"] = await asyncio.to_thread(_gap_at, tiffs, lon, lat)
         out[name] = {
             "facts": facts,
             "text": words(facts, lang),  # type: ignore[arg-type]
             "records": to_records(facts),
         }
     return JSONResponse(out)
+
+
+def _gap_at(tiffs: list[Path], lon: float, lat: float) -> dict[str, Any] | None:
+    """The BLOCK_M square of a point: the share of its cells EGMS measures, and if it is a gap."""
+    x, y = lonlat_to_laea(lon, lat, lon, lat)[:2]
+    share, _, _ = gaps(tiffs, (x, y, x + 1, y + 1))
+    value = float(share[0, 0])
+    if math.isnan(value):
+        return None
+    return {"block_m": BLOCK_M, "measured_share": round(value, 3), "gap": value < GAP_SHARE}
+
+
+async def gap_summary(request: Request) -> JSONResponse:
+    """How much of a box is data gap: squares of BLOCK_M with less than GAP_SHARE measured."""
+    box = request.app.state.area.clip(_box(request))
+    laea = lonlat_to_laea(*box)
+    source = request.app.state.source
+    missing: list[str] = []
+    if isinstance(source, Archive):
+        tiffs, _, _, missing = await source.available(laea, "U")
+    else:
+        tiffs, _, _ = await source.tiffs(laea, "U")
+    share, _, _ = await asyncio.to_thread(gaps, tiffs, laea)
+    known = share[~np.isnan(share)]
+    found = int((known < GAP_SHARE).sum())
+    return JSONResponse(
+        {
+            "block_m": BLOCK_M,
+            "gap_below": GAP_SHARE,
+            "blocks": int(known.size),
+            "gaps": found,
+            "gap_share": round(found / known.size, 3) if known.size else None,
+            "missing_tiles": missing,
+        }
+    )
 
 
 async def summary(request: Request) -> JSONResponse:
@@ -567,6 +609,35 @@ def picture(values: Any, inside: Any) -> Any:
     return rgba
 
 
+def gaps(tiffs: list[Path], laea: tuple[float, ...]) -> tuple[Any, float, float]:
+    """The share of measured cells in each BLOCK_M square over a box in EPSG:3035.
+
+    Squares on the LAEA grid; NaN where no tile on the disk covers the square
+    (not downloaded, or no tile in the archive): not known is not a gap.
+    Returns the shares (rows from north) and the west and north edges.
+    """
+    import rasterio
+
+    x0 = math.floor(laea[0] / BLOCK_M) * BLOCK_M
+    y0 = math.floor(laea[1] / BLOCK_M) * BLOCK_M
+    x1 = math.ceil(laea[2] / BLOCK_M) * BLOCK_M
+    y1 = math.ceil(laea[3] / BLOCK_M) * BLOCK_M
+    m = mosaic(tiffs, minx=x0, miny=y0, maxx=x1, maxy=y1)
+    n = round(BLOCK_M / m.pixel)
+    rows, cols = m.values.shape
+    loaded = np.zeros((rows, cols), dtype=bool)
+    for path in tiffs:
+        with rasterio.open(path) as src:
+            b = src.bounds
+        c0, c1 = round((b.left - x0) / m.pixel), round((b.right - x0) / m.pixel)
+        r0, r1 = round((y1 - b.top) / m.pixel), round((y1 - b.bottom) / m.pixel)
+        loaded[max(0, r0) : max(0, r1), max(0, c0) : max(0, c1)] = True
+    shape = (rows // n, n, cols // n, n)
+    share = (~np.isnan(m.values)).reshape(shape).mean(axis=(1, 3))
+    share[~loaded.reshape(shape).all(axis=(1, 3))] = np.nan
+    return share, x0, y1
+
+
 #: Where a tile is not downloaded yet: grey stripes, not the veil of "not measured".
 STRIPES = (110, 110, 110, 150)
 
@@ -601,6 +672,23 @@ def _png(
         resampling=Resampling.nearest,
     )
     rgba = picture(out, np.ones(out.shape, dtype=bool))
+    # The data gaps: their unmeasured cells in amber, the measured ones keep their colour.
+    share, gx0, gy1 = gaps(tiffs, laea)
+    n = round(BLOCK_M / m.pixel)
+    gap = np.repeat(np.repeat(np.where(np.isnan(share), np.nan, share < GAP_SHARE), n, 0), n, 1)
+    on_web = np.full((height, width), np.nan, dtype="float32")
+    reproject(
+        gap.astype("float32"),
+        on_web,
+        src_transform=rasterio.transform.from_origin(gx0, gy1, m.pixel, m.pixel),
+        src_crs="EPSG:3035",
+        src_nodata=np.nan,
+        dst_transform=from_bounds(left, bottom, right, top, width, height),
+        dst_crs="EPSG:3857",
+        dst_nodata=np.nan,
+        resampling=Resampling.nearest,
+    )
+    rgba[(on_web == 1) & np.isnan(out)] = GAP
     if missing:
         # The pixels of the map back in LAEA: those in a missing tile get stripes.
         xs = np.linspace(left, right, width, endpoint=False) + (right - left) / width / 2
@@ -817,6 +905,7 @@ app = Starlette(
         Route("/api/area", summary),
         Route("/api/moving", moving),
         Route("/api/map.png", map_png),
+        Route("/api/gaps", gap_summary),
         Route("/api/sources", sources),
         Route("/api/records", records),
         Route("/api/ingest/{sensor}", ingest, methods=["POST"]),

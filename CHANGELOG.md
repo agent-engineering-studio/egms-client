@@ -8,6 +8,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Data gaps: the page marks in amber the 1 km squares where EGMS measures less than a quarter of the cells, counts them for the area (`/api/gaps`), and says on the card of a point if its square is one. They are where a Comune can publish more open data; not a danger. The page now says what it is for.
 - The page works on one area: the Comune (`EGMS_UI_LON`, `EGMS_UI_LAT`) and
   a radius around it (`EGMS_UI_RADIUS_KM`, 1 to 20, 10 by default). At
   startup the API downloads all the tiles of the area, both components; the
