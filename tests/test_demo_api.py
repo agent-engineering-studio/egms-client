@@ -26,7 +26,11 @@ PRIVATE = "-----BEGIN PRIVATE KEY-----MARKER-NEVER-LOGGED-----END PRIVATE KEY---
 
 @pytest.fixture
 def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
+    """The page of Pozzuoli: its area holds the crop of the benchmark at Rione Terra."""
     monkeypatch.setenv("EGMS_UI_SOURCE", "demo")
+    monkeypatch.setenv("EGMS_UI_LON", "14.1205")
+    monkeypatch.setenv("EGMS_UI_LAT", "40.8225")
+    monkeypatch.delenv("EGMS_UI_RADIUS_KM", raising=False)
     with TestClient(api.app) as c:
         yield c
 
@@ -169,6 +173,8 @@ def test_an_unexpected_error_is_json_for_the_page(monkeypatch: pytest.MonkeyPatc
         raise RuntimeError("boom")
 
     monkeypatch.setenv("EGMS_UI_SOURCE", "demo")
+    monkeypatch.setenv("EGMS_UI_LON", "14.1205")
+    monkeypatch.setenv("EGMS_UI_LAT", "40.8225")
     with TestClient(api.app, raise_server_exceptions=False) as c:
         monkeypatch.setattr(c.app.state.source, "tiffs", broken)  # type: ignore[attr-defined]
         answer = c.get("/api/place", params={"lon": 14.1205, "lat": 40.8225})
@@ -274,12 +280,27 @@ def test_prefetch_asks_both_components_and_never_raises(caplog: pytest.LogCaptur
         async def tiffs(self, box: tuple[float, ...], component: str) -> None:
             raise EgmsError("the archive is busy")
 
+    class Late:
+        """The archive answers U, then fails E once, then answers."""
+
+        failed = False
+
+        async def tiffs(self, box: tuple[float, ...], component: str) -> None:
+            asked.append(component)
+            if component == "E" and not self.failed:
+                self.failed = True
+                raise EgmsError("ConnectTimeout")
+
     with caplog.at_level(logging.INFO, logger="egms-client.api"):
         area = api.Area(14.12, 40.82, 10)
-        asyncio.run(api.prefetch(Fake(), area))  # type: ignore[arg-type]
-        asyncio.run(api.prefetch(Broken(), area))  # type: ignore[arg-type]
-    assert asked == ["U", "E"]
+        assert asyncio.run(api.prefetch(Fake(), area))  # type: ignore[arg-type]
+        assert not asyncio.run(api.prefetch(Broken(), area, wait=0, tries=3))  # type: ignore[arg-type]
+        assert asked == ["U", "E"]
+        asked.clear()
+        assert asyncio.run(api.prefetch(Late(), area, wait=0))  # type: ignore[arg-type]
+    assert asked == ["U", "E", "E"]  # U is not asked again
     assert "are ready" in caplog.text and "the archive is busy" in caplog.text
+    assert "(attempt 3)" in caplog.text and "trying again" in caplog.text
 
 
 def test_startup_prefetches_only_in_archive_mode(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -323,7 +344,7 @@ def test_the_area_comes_from_the_environment(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.delenv("EGMS_UI_LON", raising=False)
     monkeypatch.delenv("EGMS_UI_LAT", raising=False)
     monkeypatch.delenv("EGMS_UI_RADIUS_KM", raising=False)
-    assert api.area_from_env() == api.Area(14.1205, 40.8225, 10.0)
+    assert api.area_from_env() == api.Area(16.9233, 40.7996, 10.0)  # Gioia del Colle
     monkeypatch.setenv("EGMS_UI_RADIUS_KM", "5,5")
     assert api.area_from_env().radius_km == 5.5
     monkeypatch.setenv("EGMS_UI_RADIUS_KM", "50")

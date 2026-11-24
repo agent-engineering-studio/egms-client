@@ -71,7 +71,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: docker compose build
-      - run: EGMS_UI_SOURCE=demo docker compose up -d api ui
+      # Pozzuoli: the demo crops hold Rione Terra (the default Comune is Gioia del Colle).
+      - run: EGMS_UI_SOURCE=demo EGMS_UI_LAT=40.8225 EGMS_UI_LON=14.1205 docker compose up -d api ui
       - name: The page and the API answer
         run: |
           for i in $(seq 1 30); do curl -fs http://127.0.0.1:3003/api/health && break; sleep 2; done
