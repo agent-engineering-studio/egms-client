@@ -306,7 +306,9 @@ def check_download(status_code: int, body: bytes) -> bytes:
     """The ZIP, or :class:`EgmsError` (401 means the search id expired: search again)."""
     if status_code != 200:
         text = body[:200].decode("utf-8", "replace")
-        raise EgmsError(f"EGMS download refused (HTTP {status_code}): {text}")
+        raise EgmsError(
+            f"EGMS download refused (HTTP {status_code}): {text}", status_code=status_code
+        )
     return body
 
 
