@@ -188,8 +188,11 @@ def test_fetch_needs_something_to_keep(service_key: ServiceKey, tmp_path: Path) 
 
 def test_the_default_directory_is_configurable(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("EGMS_DATA_DIR", "/data/egms")
+    monkeypatch.setenv("DATA_ROOT", "/srv/data")
     assert default_directory() == Path("/data/egms")
     monkeypatch.delenv("EGMS_DATA_DIR")
+    assert default_directory() == Path("/srv/data/egms-client")
+    monkeypatch.delenv("DATA_ROOT")
     monkeypatch.setenv("XDG_CACHE_HOME", "/cache")
     assert default_directory() == Path("/cache/egms-client")
 

@@ -48,6 +48,7 @@ from egms_client.auth import (
 )
 from egms_client.client import (
     ENV_DATA_DIR,
+    ENV_DATA_ROOT,
     MAX_DOWNLOADS,
     EgmsArchive,
     Keep,
@@ -56,6 +57,7 @@ from egms_client.client import (
     default_directory,
 )
 from egms_client.errors import EgmsError
+from egms_client.offline import InitResult, TileOutcome, init
 
 __version__ = version("egms-client")
 
@@ -63,6 +65,7 @@ __all__ = [
     "ARCHIVE_URL",
     "COMPONENTS",
     "ENV_DATA_DIR",
+    "ENV_DATA_ROOT",
     "ENV_KEY",
     "ENV_KEY_FILE",
     "LEVELS",
@@ -75,6 +78,7 @@ __all__ = [
     "EgmsArchive",
     "EgmsError",
     "Hit",
+    "InitResult",
     "Keep",
     "Level",
     "LonLatBounds",
@@ -84,6 +88,7 @@ __all__ = [
     "ServiceKey",
     "Tile",
     "TileKeep",
+    "TileOutcome",
     "Token",
     "__version__",
     "api_release",
@@ -94,6 +99,7 @@ __all__ = [
     "extract",
     "extract_tiff",
     "file_release",
+    "init",
     "latest_hit",
     "latest_hits",
     "parse_names",

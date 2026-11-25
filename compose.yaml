@@ -8,6 +8,10 @@
 # Every setting is in .env (copy .env.example). The ports listen on 127.0.0.1
 # only: to publish the page, put a proxy with HTTPS in front of it.
 #
+# The tiles are kept in ${DATA_ROOT:-./data}/egms-client on the host (DATA_ROOT
+# in .env, the root shared with Limen): `make up` creates the folder, so that it
+# belongs to you and not to root.
+#
 # The CLMS key: put the JSON in ./secrets (or EGMS_SECRETS_DIR), mounted
 # read-only, never copied into an image. Without a key the page runs on the
 # crops of the benchmark (demo mode).
@@ -17,7 +21,7 @@ x-egms: &egms
   image: egms-client:local
   build: .
   volumes:
-    - egms-data:/data
+    - ${DATA_ROOT:-./data}/egms-client:/data
     - ${EGMS_SECRETS_DIR:-./secrets}:/run/secrets/egms:ro
   environment: &env
     EGMS_SERVICE_KEY_FILE: /run/secrets/egms/${EGMS_SERVICE_KEY_NAME:-clms_service_key.json}
@@ -44,7 +48,7 @@ services:
       EGMS_UI_INCOMING: /srv/incoming
       EGMS_UI_STATE: /srv/state
     volumes:
-      - egms-data:/data
+      - ${DATA_ROOT:-./data}/egms-client:/data
       - ${EGMS_SECRETS_DIR:-./secrets}:/run/secrets/egms:ro
       - ${EGMS_RECORDS_DIR:-./records}:/srv/records:ro
       - egms-incoming:/srv/incoming
@@ -132,8 +136,6 @@ services:
       disable: true
 
 volumes:
-  # The L3 tiles, kept between one run and the next (~60 MB each).
-  egms-data:
   # The files uploaded in the back office, and the readings of the sensors.
   egms-incoming:
   # The registry of the sensors (token hashes only) and the log of the back office.

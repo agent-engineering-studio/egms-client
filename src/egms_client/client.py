@@ -72,20 +72,27 @@ Progress = Callable[[Hit, int, int], None]
 #: be performed simultaneously" (seen on 2026-11-03).
 MAX_DOWNLOADS = 2
 
-#: The environment variable :func:`default_directory` reads.
+#: The folder of this library alone: still read, but ``DATA_ROOT`` is the way.
 ENV_DATA_DIR = "EGMS_DATA_DIR"
+#: The root shared with Limen and the other libraries of agent-engineering-studio:
+#: each keeps its data in ``$DATA_ROOT/<package>``.
+ENV_DATA_ROOT = "DATA_ROOT"
+#: The folder of this library under ``DATA_ROOT`` and under the user cache.
+PACKAGE_DIR = "egms-client"
 
 
 def default_directory() -> Path:
     """Where downloads go when no directory is given.
 
-    ``EGMS_DATA_DIR`` if set, else ``egms-client`` in the user cache
-    (``$XDG_CACHE_HOME``, or ``~/.cache``).
+    ``EGMS_DATA_DIR`` if set; else ``$DATA_ROOT/egms-client``; else
+    ``egms-client`` in the user cache (``$XDG_CACHE_HOME``, or ``~/.cache``).
     """
     if configured := os.environ.get(ENV_DATA_DIR, "").strip():
         return Path(configured).expanduser()
+    if root := os.environ.get(ENV_DATA_ROOT, "").strip():
+        return Path(root).expanduser() / PACKAGE_DIR
     cache = os.environ.get("XDG_CACHE_HOME", "").strip() or "~/.cache"
-    return Path(cache).expanduser() / "egms-client"
+    return Path(cache).expanduser() / PACKAGE_DIR
 
 
 @dataclasses.dataclass(frozen=True, slots=True)

@@ -15,3 +15,4 @@ demo/web/.next
 .pytest_cache
 .mypy_cache
 .ruff_cache
+data

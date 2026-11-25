@@ -48,7 +48,14 @@ bench: ## Score the known cases and the fidelity set offline, as CI does
 	uv run python -m benchmarks.faithful score --check
 
 # Docker: every setting is in .env (cp .env.example .env). Ports on 127.0.0.1 only.
+# The tiles go to $DATA_ROOT/egms-client (./data/egms-client without it), with
+# DATA_ROOT from the shell or from .env, as compose reads it. Made here, so that
+# Docker does not create the folder as root.
+MKDATA = root="$${DATA_ROOT:-$$(sed -n 's/^DATA_ROOT=//p' .env 2>/dev/null | tail -n 1 | tr -d '"')}"; \
+	mkdir -p "$${root:-./data}/egms-client"
+
 up: ## The page, the notebooks and the MCP server in Docker (http://127.0.0.1:3003)
+	@$(MKDATA)
 	docker compose --profile notebook --profile mcp up -d --build
 	@echo "page:      http://127.0.0.1:$${EGMS_UI_PORT:-3003}"
 	@echo "back office: http://127.0.0.1:$${EGMS_ADMIN_PORT:-3004} (EGMS_ADMIN_* in .env)"
@@ -56,13 +63,14 @@ up: ## The page, the notebooks and the MCP server in Docker (http://127.0.0.1:30
 	@echo "MCP:       http://127.0.0.1:$${EGMS_MCP_PORT:-8768}/mcp"
 
 demo: ## Only the page, on the crops of the benchmark: no key needed
+	@$(MKDATA)
 	EGMS_UI_SOURCE=demo docker compose up -d --build api ui
 	@echo "page: http://127.0.0.1:$${EGMS_UI_PORT:-3003}"
 
 admin-password: ## The hash of the administrator's password, for EGMS_ADMIN_PASSWORD_HASH in .env
 	@uv run --group demo python demo/admin.py hash
 
-down: ## Stop the containers (the downloaded tiles stay in the volume)
+down: ## Stop the containers (the downloaded tiles stay in DATA_ROOT)
 	docker compose --profile notebook --profile mcp --profile tools down
 
 logs: ## Follow the logs of the containers
