@@ -72,6 +72,7 @@ nav:
   - API reference:
       - Client: api/client.md
       - Client without async: api/sync.md
+      - Offline (init): api/offline.md
       - Archive (pure functions): api/archive.md
       - Authentication: api/auth.md
       - Mosaics and maps: api/mosaic.md

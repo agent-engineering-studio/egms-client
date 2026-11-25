@@ -18,7 +18,7 @@ Where the data come from (``EGMS_UI_SOURCE``):
 
 * ``archive`` (the default when a key is set): the L3 tiles from the EGMS
   archive, with the CLMS key of ``EGMS_SERVICE_KEY_FILE`` or
-  ``EGMS_SERVICE_KEY``, kept in ``EGMS_DATA_DIR`` after the first download
+  ``EGMS_SERVICE_KEY``, kept in the data folder after the first download
   (~60 MB a tile). The key is read here and never written anywhere.
 The page reads one **area**: ``EGMS_UI_RADIUS_KM`` (10 by default, 1 to 20)
 around ``EGMS_UI_LON``, ``EGMS_UI_LAT`` (Rione Terra when unset). In archive

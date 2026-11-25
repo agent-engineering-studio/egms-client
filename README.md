@@ -376,27 +376,57 @@ are kept, because they show that a still place is not at zero east-west
 In the directory you pass (`directory` in Python, `--out` on the command
 line). If you pass none:
 
-1. `EGMS_DATA_DIR`, if set;
+1. `$DATA_ROOT/egms-client`, if `DATA_ROOT` is set: the root shared with
+   [Limen](https://github.com/agent-engineering-studio/limen) and the other
+   libraries of agent-engineering-studio, each in its own folder;
 2. otherwise `~/.cache/egms-client` (or `$XDG_CACHE_HOME/egms-client`).
+
+(`EGMS_DATA_DIR`, the folder of this library alone, is still read and wins
+over both, for compatibility.)
 
 The directory is also the cache: whatever is already there is **not
 downloaded again**, so the next run with the same request only asks the
 archive for the list of files (a few KB) and returns.
 
-In **Docker**, point it at a volume so the data survives the container:
+### Everything for an area, once: `init`
+
+To work offline (a server with no key at run time, a laptop on a train),
+download the tiles of an area once:
+
+```bash
+egms init --bbox 15.3,40.0,16.9,41.3 --release 2020-2025   # both components, the GeoTIFFs
+egms init --tile E47N19 --component U --keep tiff --keep csv
+```
+
+```python
+from egms_client import init
+
+result = await init(bbox=(15.3, 40.0, 16.9, 41.3), release="2020-2025")
+print(len(result.downloaded), len(result.skipped), len(result.absent), result.failed)
+```
+
+Each tile goes through `fetch_tile`, so `velocity_at`, the MCP server and the
+page find it there. Run it again and a tile already on the disk costs nothing,
+not even a search: with `release` given, the second run asks the archive
+nothing. At most two files download at once (the archive's limit per
+account). A tile that fails is in `result.failed`, not raised, and the next
+run fetches only what is missing; a disk error raises. `init` takes your
+`httpx.AsyncClient`, and `retries=0` to leave every retry to you. `egms init`
+exits 1 if a tile failed.
+
+In **Docker**, point it at a folder of the host so the data survive the
+container (`compose.yaml` mounts `${DATA_ROOT:-./data}/egms-client`):
 
 ```yaml
 services:
   app:
     environment:
-      EGMS_DATA_DIR: /data/egms
+      DATA_ROOT: /data
       EGMS_SERVICE_KEY_FILE: /run/secrets/clms_service_key
     volumes:
-      - egms-data:/data/egms
+      - ${DATA_ROOT:-./data}:/data
     secrets:
       - clms_service_key
-volumes:
-  egms-data:
 secrets:
   clms_service_key:
     file: ./clms-service-key.json
@@ -584,6 +614,8 @@ for component in ("U", "E"):  # vertical, east-west
 ```
 
 Stop it and start it again whenever you like: finished tiles are skipped.
+`init(tiles=..., release=...)` does the same in one call, two downloads at a
+time, and says what it did (see [Where downloads are saved](#where-downloads-are-saved)).
 
 ### Measurement points (L2A, L2B) over an area
 
@@ -881,7 +913,8 @@ All checked against the live archive on 3 November 2026.
 | `tile_for_point(x, y)` | The tile containing a point (EPSG:3035 m). |
 | `tile_id((e, n))` / `parse_tile_id(text)` | `(47, 19)` ↔ `"E47N19"`. |
 | `hit.covers(lon, lat)` / `hit.footprint` | Whether a file's real outline contains a point (bursts are tilted, their bbox is larger). |
-| `default_directory()` | Where downloads go when no directory is given. |
+| `default_directory()` | Where downloads go when no directory is given: `$DATA_ROOT/egms-client`, else the user cache. |
+| `init(dir, bbox=\|tiles=, release=, components=, keep=, client=, retries=)` | The L3 tiles of an area, once, to work offline; an `InitResult` (`egms init`). |
 | `mosaic(tiffs, minx=, miny=, maxx=, maxy=)` | One float32 array, NaN where no data. |
 | `decompose.grid_los(points, minx=, ...)` / `decompose.decompose(asc, desc)` | L2 points on a grid; ascending + descending into vertical and east-west `Mosaic`s. |
 | `to_cog(mosaic, path)` / `lonlat_to_laea(w, s, e, n)` | A mosaic as Cloud-Optimized GeoTIFF; a box in degrees as EPSG:3035 metres. |

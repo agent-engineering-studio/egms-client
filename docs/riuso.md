@@ -188,8 +188,8 @@ si allontana oltre, e fuori è velata. Fuori dall'area la pagina non legge
 dati: ogni zona nuova vorrebbe dire scaricare dall'archivio.
 
 **Che cosa scarica.** All'avvio, le tessere L3 che coprono l'area (circa 60
-MB l'una, verticale ed est-ovest), in background. Restano nel volume
-`egms-data`: le volte dopo non scarica niente. Se l'archivio Copernicus non
+MB l'una, verticale ed est-ovest), in background. Restano in
+`$DATA_ROOT/egms-client` (`./data/egms-client` senza `DATA_ROOT`): le volte dopo non scarica niente. Se l'archivio Copernicus non
 risponde, la pagina usa i file già scaricati e l'ultima release nota, e
 riprova dopo dieci minuti.
 

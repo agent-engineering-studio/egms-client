@@ -5,10 +5,11 @@
     egms download --tile E47N19 --component U --keep tiff --out egms
     egms convert  egms/EGMS_L2b_124_0835_IW3_VV_2020_2025_1.csv
     egms mosaic   --bbox 13.9,40.7,14.6,41.0 --component U --out naples-U.tif
+    egms init     --bbox 15.3,40.0,16.9,41.3 --release 2020-2025
 
 The key comes from ``--key-file``, else from ``EGMS_SERVICE_KEY`` or
 ``EGMS_SERVICE_KEY_FILE``. Downloads go to ``--out``, else to
-``EGMS_DATA_DIR``, else to the user cache. A download larger than
+``$DATA_ROOT/egms-client``, else to the user cache. A download larger than
 ``--max-gb`` (10 by default) stops before the first byte.
 """
 
@@ -22,10 +23,21 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TextIO, cast
 
-from egms_client.archive import LEVELS, PRODUCT_TYPES, Hit, Level, Query, parse_tile_id
+from egms_client.archive import (
+    COMPONENTS,
+    LEVELS,
+    PRODUCT_TYPES,
+    Component,
+    Hit,
+    Level,
+    Query,
+    parse_tile_id,
+    tile_id,
+)
 from egms_client.auth import ServiceKey
-from egms_client.client import EgmsArchive, Keep, default_directory
+from egms_client.client import EgmsArchive, Keep, TileKeep, default_directory
 from egms_client.errors import EgmsError
+from egms_client.offline import TileOutcome, init
 from egms_client.releases import new_releases
 
 if TYPE_CHECKING:
@@ -45,12 +57,14 @@ def main(argv: Sequence[str] | None = None, *, client: httpx.AsyncClient | None 
         if args.command == "records":
             return _records(args)
         key = ServiceKey.from_file(args.key_file) if args.key_file else ServiceKey.from_env()
+        if args.command == "init":
+            return asyncio.run(_init(args, key, client))
         return asyncio.run(_run(args, key, client))
     except (EgmsError, LookupError, ValueError, OSError) as exc:
         print(f"egms: {exc}", file=sys.stderr)
         return 1
     except ImportError as exc:
-        extra = {"mosaic": "raster", "mcp": "mcp"}.get(args.command, "tables")
+        extra = {"mosaic": "raster", "init": "raster", "mcp": "mcp"}.get(args.command, "tables")
         print(f"egms: {exc} (pip install 'egms-client[{extra}]')", file=sys.stderr)
         return 1
 
@@ -85,6 +99,38 @@ async def _run(args: argparse.Namespace, key: ServiceKey, client: httpx.AsyncCli
         paths = await _fetch(args, archive, query, out, cast("list[Keep]", args.keep or ["zip"]))
         print(f"{len(paths)} files in {out}", file=sys.stderr)
         return 0
+
+
+async def _init(args: argparse.Namespace, key: ServiceKey, client: httpx.AsyncClient | None) -> int:
+    if not (args.bbox or args.tile):
+        raise ValueError("init needs an area: --bbox west,south,east,north or --tile")
+    bbox: Any = _bbox(args.bbox) if args.bbox else None
+    tiles = [parse_tile_id(t) for t in args.tile] if args.tile else None
+
+    def report(t: TileOutcome) -> None:
+        name = f"{tile_id(t.tile)} {t.component}"
+        detail = {"downloaded": f"{t.bytes / 1e6:.0f} MB", "failed": t.error}.get(t.status, "")
+        print(f"{name}: {t.status} {detail}".rstrip(), file=sys.stderr)
+
+    result = await init(
+        Path(args.out) if args.out else None,
+        bbox=bbox,
+        tiles=tiles,
+        release=args.release,
+        components=cast("list[Component]", args.component or list(COMPONENTS)),
+        keep=cast("list[TileKeep]", args.keep or ["tiff"]),
+        client=client,
+        key=key,
+        concurrency=args.concurrency,
+        on_tile=report,
+    )
+    print(
+        f"{result.release} in {result.directory}: {len(result.downloaded)} downloaded "
+        f"({result.bytes / 1e9:.2f} GB), {len(result.skipped)} already there, "
+        f"{len(result.absent)} absent, {len(result.failed)} failed",
+        file=sys.stderr,
+    )
+    return 0 if result.complete else 1
 
 
 async def _fetch(
@@ -222,12 +268,7 @@ def _mcp(args: argparse.Namespace) -> int:
 
 
 def _query(args: argparse.Namespace, release: str) -> Query:
-    bbox: Any = None
-    if args.bbox:
-        parts = [float(v) for v in args.bbox.split(",")]
-        if len(parts) != 4:
-            raise ValueError("--bbox is west,south,east,north in degrees")
-        bbox = tuple(parts)
+    bbox: Any = _bbox(args.bbox) if args.bbox else None
     return Query(
         levels=tuple(cast("list[Level]", getattr(args, "level", None) or ["L3"])),
         release=release,
@@ -239,6 +280,13 @@ def _query(args: argparse.Namespace, release: str) -> Query:
         direction=args.direction,
         product_type=PRODUCT_TYPES[args.component] if args.component else None,
     )
+
+
+def _bbox(text: str) -> tuple[float, ...]:
+    parts = tuple(float(v) for v in text.split(","))
+    if len(parts) != 4:
+        raise ValueError("--bbox is west,south,east,north in degrees")
+    return parts
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -276,7 +324,9 @@ def _parser() -> argparse.ArgumentParser:
         sub.add_argument("--swath", choices=["IW1", "IW2", "IW3"], help="L2: sub-swath")
         sub.add_argument("--direction", choices=["ascending", "descending"])
         if name == "download":
-            sub.add_argument("--out", help="directory (default: EGMS_DATA_DIR or user cache)")
+            sub.add_argument(
+                "--out", help="directory (default: $DATA_ROOT/egms-client or user cache)"
+            )
             sub.add_argument(
                 "--keep",
                 action="append",
@@ -287,16 +337,42 @@ def _parser() -> argparse.ArgumentParser:
             sub.add_argument(
                 "--out", help="the .tif to write (default: egms-<component>-<release>.tif)"
             )
-            sub.add_argument("--data-dir", help="tile cache (default: EGMS_DATA_DIR or user cache)")
+            sub.add_argument(
+                "--data-dir", help="tile cache (default: $DATA_ROOT/egms-client or user cache)"
+            )
         if name != "search":
             sub.add_argument(
                 "--concurrency", type=int, default=2, help="the archive allows 2 per account"
             )
             sub.add_argument("--max-gb", type=float, default=10.0, help="0: no limit")
+    offline = commands.add_parser(
+        "init", help="download the L3 tiles of an area once, to work offline (bbox: extra raster)"
+    )
+    offline.add_argument("--bbox", help="west,south,east,north in degrees")
+    offline.add_argument("--tile", action="append", help="L3 tile, e.g. E47N19; repeatable")
+    offline.add_argument("--release", help="e.g. 2020-2025 (default: the latest)")
+    offline.add_argument(
+        "--component",
+        action="append",
+        choices=sorted(PRODUCT_TYPES),
+        help="repeatable; U and E if none",
+    )
+    offline.add_argument(
+        "--keep",
+        action="append",
+        choices=["tiff", "csv", "xml"],
+        help="repeatable; tiff if none (the CSV is ~250 MB a tile)",
+    )
+    offline.add_argument("--out", help="directory (default: $DATA_ROOT/egms-client or user cache)")
+    offline.add_argument(
+        "--concurrency", type=int, default=2, help="the archive allows 2 per account"
+    )
     server = commands.add_parser(
         "mcp", help="serve EGMS as tools for AI agents, over stdio (extra mcp)"
     )
-    server.add_argument("--data-dir", help="tile cache (default: EGMS_DATA_DIR or user cache)")
+    server.add_argument(
+        "--data-dir", help="tile cache (default: $DATA_ROOT/egms-client or user cache)"
+    )
     server.add_argument(
         "--max-tiles", type=int, default=9, help="L3 tiles area_summary downloads at most per box"
     )

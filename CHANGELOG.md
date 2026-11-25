@@ -6,8 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+Next: a minor release (0.9.0).
+
 ### Added
 
+- `init()` and `egms init`: the Ortho L3 tiles of an area (`bbox` in degrees, or `tiles`), both components or those chosen, downloaded once into the data folder to work offline. Every tile goes through `fetch_tile`, so the result is the cache the rest of the library reads; a second run asks the archive nothing. At most two downloads at once (the archive's limit per account). A tile that fails is reported in the result (`InitResult`: downloaded, already there, absent, failed, bytes), not raised; a disk error raises. It takes your `httpx.AsyncClient` and `retries=0`, to leave every retry to the caller, and `keep` per component (`{"U": ("tiff", "csv")}`). `egms init` exits 1 if a tile failed.
 - The card of a point opens over the map, slightly see-through: an arrow for the motion, a chart of the point against the median 5 km around, a meter for reliability, the period measured, and a line for the series of other sources nearby.
 - Where the ground moves most: the eight 1 km squares with the largest median vertical velocity (at least 5 mm/year, where EGMS measures at least a quarter of the cells), numbered on the map and ranked in the panel (`/api/hotspots`). Zones to follow, not an alert.
 - The boundaries of the Comuni from ISTAT (generalised, 1 January 2025, CC BY 4.0), downloaded once at startup: data gaps count land only, the Comune of the page gets its own count, and its outline is on the map (`/api/boundary`). The sea is no longer a gap.
@@ -76,6 +79,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- The default data folder follows `DATA_ROOT`, the root shared with Limen and the other libraries: `$DATA_ROOT/egms-client`. `EGMS_DATA_DIR` still wins when set, for compatibility, but leaves `.env.example`; without either, the user cache as before. `compose.yaml` keeps the tiles in `${DATA_ROOT:-./data}/egms-client` on the host instead of the volume `egms-data` (copy them over, or let them download again).
 - The page still opens on Pozzuoli when no Comune is set (Gioia del Colle was tried, and left: EGMS measures much more of Pozzuoli).
 - The API never waits for the archive's list of releases: it uses the latest known one at once and asks the archive in the background.
 

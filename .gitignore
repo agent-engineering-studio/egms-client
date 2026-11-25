@@ -25,3 +25,6 @@ next-env.d.ts
 # Your records (demo/api.py reads them): kept out of git, but the folder stays
 records/*
 !records/README.md
+
+# The data folder of compose.yaml, when DATA_ROOT is not set
+/data/
