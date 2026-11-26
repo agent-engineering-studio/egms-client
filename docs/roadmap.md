@@ -201,6 +201,20 @@ with the same checks.
 
 ## 7 · Release 0.8.0 and the fourth episode
 
-The release on PyPI, Limen's pin, the fourth episode of the Open Data series
-on [agentengineering.it](https://agentengineering.it/), which closes the
-landslide chapter.
+The release ([#32](https://github.com/agent-engineering-studio/egms-client/pull/32)):
+version 0.8.0, wheel 83 KB, `publiccode.yml` updated. It goes to PyPI with
+the tag `v0.8.0`, when the maintainer says so. Then Limen's pin becomes
+`egms-client[raster]~=0.8.0`.
+
+The fourth episode of the Open Data series on
+[agentengineering.it](https://agentengineering.it/), in Italian and
+English, closes the landslide chapter: how much it rains, how much is
+enough, where it has already slid, where the ground moves. Its figures are
+made from the benchmark crops by `scripts/blog_figures.py`.
+
+**Check:** the snippet of the article runs against the real archive and gives
+Rione Terra +145.2 mm/year, score 1, window 2020-12-09 to 2025-11-19.
+
+**What is not there.** The release on PyPI and the article online wait for
+the maintainer. The article must go out after the release: its snippet uses
+`facts` and `check`, which 0.7.0 does not have.
