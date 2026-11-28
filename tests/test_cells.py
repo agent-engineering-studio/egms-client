@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from limen_reference import per_cella
+from limen_reference import per_cella, salva_attributi, su_griglia
 
 from egms_client.cells import Cell, CellStats, on_grid, per_cell, square_cells, to_frame
 from egms_client.mosaic import Mosaic, mosaic
@@ -152,3 +152,45 @@ def test_parity_with_limen_on_the_benchmark_crops(case: str) -> None:
     up, east = mosaic([folder / "U.tif"], **box), mosaic([folder / "E.tif"], **box)
     cells = square_cells(minx, miny, maxx, maxy)
     assert _parity(up, east, cells) >= 10
+
+
+def _tile_csv(path: Path, rows: list[tuple[float, float, float, float]]) -> Path:
+    """A CSV shaped like a tile's: attributes, then two dates of series."""
+    lines = ["pid,easting,northing,rmse_ts,acceleration,seasonality,20201209,20201215"]
+    lines += [f"p{i},{x},{y},1.0,{a},{s},0.1,0.2" for i, (x, y, a, s) in enumerate(rows)]
+    path.write_text("\n".join(lines) + "\n")
+    return path
+
+
+def test_attributes_on_the_grid_match_limens_cache(tmp_path: Path) -> None:
+    """Limen read four columns of each CSV into an ``.npz`` and gridded those.
+
+    ``csv_attributes`` (what ``fetch_tile(keep=["attributes"])`` writes), then
+    ``read_csv`` and ``on_grid`` over the tiles together, give the same grids.
+    """
+    pd = pytest.importorskip("pandas")
+    pytest.importorskip("pyarrow")
+    from egms_client.tables import csv_attributes, read_csv
+
+    like = _grid([[0.0] * 4] * 3, left=1000, top=2300)
+    tiles = [
+        _tile_csv(
+            tmp_path / "a.csv",
+            [(1050, 2250, -0.57, 0.9), (1150, 2050, 0.123456789, 1.6), (9999, 0, 5.0, 5.0)],
+        ),
+        # The second tile: one pixel beside the first, one outside the grid.
+        _tile_csv(tmp_path / "b.csv", [(1350, 2150, -1.25, 0.0), (1450, 2150, 7.0, 7.0)]),
+    ]
+    theirs = []
+    for csv in tiles:
+        salva_attributi(csv, csv.with_suffix(".npz"))
+        theirs.append(csv.with_suffix(".npz"))
+    columns = ["easting", "northing", "acceleration", "seasonality"]
+    frame = pd.concat(
+        [read_csv(csv_attributes(csv), series=False, columns=columns) for csv in tiles]
+    )
+    for column in ("acceleration", "seasonality"):
+        ours = on_grid(frame, column, like)
+        np.testing.assert_array_equal(ours, su_griglia(theirs, column, like))
+        assert ours.dtype == np.float32
+    assert np.isnan(on_grid(frame, "acceleration", like)).sum() == 9

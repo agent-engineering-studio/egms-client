@@ -396,6 +396,7 @@ download the tiles of an area once:
 ```bash
 egms init --bbox 15.3,40.0,16.9,41.3 --release 2020-2025   # both components, the GeoTIFFs
 egms init --tile E47N19 --component U --keep tiff --keep csv
+egms init --tile E47N19 --component U --keep tiff --keep attributes   # the CSV without its series: a few MB, not 250
 ```
 
 ```python
@@ -758,12 +759,16 @@ import pandas as pd
 
 from egms_client.cells import on_grid, per_cell, square_cells, to_frame
 from egms_client.mosaic import mosaic
+from egms_client.tables import read_csv
 
 box = dict(minx=4_450_000, miny=2_010_000, maxx=4_470_000, maxy=2_030_000)  # EPSG:3035
-# up_tiffs, east_tiffs: the L3 tiles over the box, from fetch_tile (component U, then E)
+# up_tiffs, east_tiffs: the L3 tiles over the box, from fetch_tile (component U, then E);
+# for U with keep=("tiff", "attributes"): the CSV without its series, beside each GeoTIFF
 up = mosaic(up_tiffs, **box)
 east = mosaic(east_tiffs, **box)
-attributes = pd.read_parquet("egms/EGMS_L3_E44N20_100km_U_2020_2025_1.parquet")
+attributes = pd.concat(
+    read_csv(tiff.with_suffix(".attributes.csv"), series=False) for tiff in up_tiffs
+)
 stats = per_cell(
     square_cells(**box, size_m=1_000),
     up,
@@ -921,6 +926,7 @@ All checked against the live archive on 3 November 2026.
 | `tables.read_csv(path, series=, columns=)` | A CSV as a pandas DataFrame (extra `tables`). |
 | `tables.dates(df)` / `.attributes(df)` / `.series_long(df)` | Its dates, its attributes, its series one row per date. |
 | `tables.csv_to_geoparquet(csv)` / `.to_geoparquet(df, path)` | GeoParquet, points in EPSG:3035. |
+| `tables.csv_attributes(csv, out=None)` | A CSV without its date columns (`<stem>.attributes.csv`): what `fetch_tile(keep=["attributes"])` writes. No extra needed. |
 | `mosaic.to_xarray(m)` / `tables.to_xarray(df)` | A map over `(y, x)`, series over `(pid, time)`, as `xarray.DataArray` (extra `xarray`). |
 | `analysis.fit(df, start=, end=)` / `.trend_change(df)` / `.unwrapping_jumps(df)` | The archive's model on any window, with the seasonal peak; the date a velocity changes; ±27.7 mm processing steps. |
 | `reliability.trust(tiffs, lon, lat, attributes=)` / `.coverage_map(values)` | How far to trust the velocity at a point: score, coverage, reasons, regional median; the coverage of every cell of a grid. |

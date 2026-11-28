@@ -11,7 +11,7 @@ from typing import Any
 import httpx
 import pytest
 
-from egms_client import EgmsArchive, EgmsError, ServiceKey
+from egms_client import EgmsArchive, EgmsError, ServiceKey, TileKeep
 from egms_client.archive import Hit
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -20,18 +20,22 @@ ARCHIVE = "https://a/archive"
 STEM = "EGMS_L3_E47N19_100km_U_2020_2025_1"
 
 
-def _zip() -> bytes:
+def _zip(table: bytes = b"series") -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as z:
         z.writestr(f"{STEM}.tiff", b"TIFF")
-        z.writestr(f"{STEM}.csv", b"series")
+        z.writestr(f"{STEM}.csv", table)
     return buffer.getvalue()
 
 
 class Archive:
     """A fake archive that records every request."""
 
-    def __init__(self, *, download_status: int = 200, expired: int = 0) -> None:
+    def __init__(
+        self, *, download_status: int = 200, expired: int = 0, table: bytes = b"series"
+    ) -> None:
+        #: The CSV inside the ZIP of a tile.
+        self.table = table
         self.requests: list[httpx.Request] = []
         self.tokens = 0
         self.download_status = download_status
@@ -58,7 +62,7 @@ class Archive:
                 return httpx.Response(401, text="gone")
             if self.download_status != 200:
                 return httpx.Response(self.download_status, text="gone")
-            return httpx.Response(200, content=_zip())
+            return httpx.Response(200, content=_zip(self.table))
         raise AssertionError(path)
 
 
@@ -207,6 +211,41 @@ def test_a_tile_keeps_other_files_of_its_zip(service_key: ServiceKey, tmp_path: 
     # The GeoTIFF alone was not enough for the second call; the third asks nothing.
     assert sum("/download/" in r.url.path for r in archive.requests) == 2
     assert sorted(p.name for p in tmp_path.iterdir()) == [f"{STEM}.csv", f"{STEM}.tiff"]
+
+
+def test_a_tile_keeps_its_attributes_without_the_series(
+    service_key: ServiceKey, tmp_path: Path
+) -> None:
+    table = (FIXTURES / f"{STEM}.csv").read_bytes()
+    archive = Archive(table=table)
+    keep: tuple[TileKeep, ...] = ("tiff", "attributes")
+
+    async def body(a: EgmsArchive) -> tuple[Path | None, Path | None, Path | None]:
+        only_tiff = await a.fetch_tile((47, 19), "U", "2020_2025", tmp_path)
+        slim = await a.fetch_tile((47, 19), "U", "2020_2025", tmp_path, keep=keep)
+        again = await a.fetch_tile((47, 19), "U", "2020_2025", tmp_path, keep=keep)
+        return only_tiff, slim, again
+
+    only_tiff, slim, again = run(archive, service_key, body)
+    assert only_tiff == slim == again == tmp_path / f"{STEM}.tiff"
+    # The 250 MB CSV is not left behind; the third call asks nothing.
+    assert sorted(p.name for p in tmp_path.iterdir()) == [f"{STEM}.attributes.csv", f"{STEM}.tiff"]
+    assert sum("/download/" in r.url.path for r in archive.requests) == 2
+    header, first, *_ = (tmp_path / f"{STEM}.attributes.csv").read_text().splitlines()
+    assert header == table.decode().splitlines()[0].split(",20201209")[0]
+    assert first == "10NAgpcbbl,4773750,1900050,7.3,1.0,-0.6,0.0,-0.57,0.06,0.9,0.1,2.4,0.5,-0.6"
+
+
+def test_attributes_and_the_csv_can_both_be_kept(service_key: ServiceKey, tmp_path: Path) -> None:
+    table = (FIXTURES / f"{STEM}.csv").read_bytes()
+    keep: tuple[TileKeep, ...] = ("csv", "attributes")
+    run(
+        Archive(table=table),
+        service_key,
+        lambda a: a.fetch_tile((47, 19), "U", "2020_2025", tmp_path, keep=keep),
+    )
+    assert (tmp_path / f"{STEM}.csv").read_bytes() == table
+    assert (tmp_path / f"{STEM}.attributes.csv").exists()
 
 
 def test_without_retries_a_busy_archive_says_its_status(

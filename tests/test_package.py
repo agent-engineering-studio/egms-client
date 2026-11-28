@@ -11,6 +11,7 @@ SRC = Path(egms_client.__file__).parent
 #: another, Limen would get a circular dependency and pins in conflict.
 FORBIDDEN = {
     "limen",
+    "limen_core",
     "dpc_radar",
     "ispra_idrogeo",
     "rainfall_thresholds",

@@ -59,8 +59,9 @@ RENEW_MARGIN_S = 300
 #: (``tiff`` for L3 only; ``csv`` and ``xml`` for all levels), or ``parquet``:
 #: the CSV as GeoParquet (needs the ``tables`` extra).
 Keep = Literal["zip", "tiff", "csv", "xml", "parquet"]
-#: What :meth:`EgmsArchive.fetch_tile` can keep of a tile's ZIP.
-TileKeep = Literal["tiff", "csv", "xml"]
+#: What :meth:`EgmsArchive.fetch_tile` can keep of a tile's ZIP. ``attributes``
+#: is the CSV without its time series (``<stem>.attributes.csv``, a few MB).
+TileKeep = Literal["tiff", "csv", "xml", "attributes"]
 
 _RETRY_STATUS = frozenset({429, 502, 503, 504})
 
@@ -336,7 +337,10 @@ class EgmsArchive:
         ``keep`` adds other files of the same ZIP (``"csv"``, ``"xml"``),
         written beside the GeoTIFF with its name and their suffix. A tile whose
         GeoTIFF is there and whose other kept files are not is downloaded
-        again. The CSV of a tile is about 250 MB.
+        again. The CSV of a tile is about 250 MB: ``"attributes"`` keeps it
+        without the time series (``<stem>.attributes.csv``, a few MB, see
+        :func:`egms_client.tables.csv_attributes`), enough for
+        :func:`egms_client.cells.on_grid`.
 
         A search id that expired before the download (HTTP 401) is searched
         again, once. ``on_progress(hit, received, total)`` is called as the
@@ -348,7 +352,7 @@ class EgmsArchive:
 
         def cached() -> Path | None:
             found = sorted(directory.glob(f"{prefix}*.tiff"), key=lambda p: _sub_release(p.stem))
-            if found and all(found[-1].with_suffix(f".{k}").exists() for k in others):
+            if found and all(_beside(found[-1], k).exists() for k in others):
                 return found[-1]
             return None
 
@@ -376,10 +380,23 @@ class EgmsArchive:
             if archive is None:
                 marker.touch()
                 return None
+            members = [k for k in others if k != "attributes"]
+            slim = "attributes" in others
             try:
-                path, *_ = extract(archive, ["tiff", *others], directory)
+                path, *_ = extract(
+                    archive, ["tiff", *members, *(["csv"] if slim else [])], directory
+                )
             finally:
                 archive.unlink()
+            if slim:
+                from egms_client.tables import csv_attributes
+
+                table = path.with_suffix(".csv")
+                try:
+                    await asyncio.to_thread(csv_attributes, table, _beside(path, "attributes"))
+                finally:
+                    if "csv" not in members:
+                        table.unlink()
         return path
 
     async def _tile_hit(
@@ -575,6 +592,11 @@ class EgmsArchive:
                     return response
             await self._sleep(self._backoff_s * 2**attempt)
         raise AssertionError("unreachable")  # pragma: no cover
+
+
+def _beside(tiff: Path, kept: str) -> Path:
+    """The file of a tile kept beside its GeoTIFF."""
+    return tiff.with_suffix(".attributes.csv" if kept == "attributes" else f".{kept}")
 
 
 def _outputs(hit: Hit, keep: tuple[Keep, ...], directory: Path) -> list[Path]:

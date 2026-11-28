@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-28
+
+Next: a minor release (0.10.0).
+
+### Added
+
+- `fetch_tile(..., keep=("tiff", "attributes"))`, `init(keep=...)` and `egms init --keep attributes`: the attributes of a tile (position, velocity, acceleration, seasonality, RMSE) without its time series, in `<stem>.attributes.csv` beside the GeoTIFF: a few MB instead of the 250 MB of the CSV, which is not left on the disk. A tile whose GeoTIFF is there and whose attributes are not is downloaded again, once. Read it with `tables.read_csv(path, series=False)` and put a column on a mosaic with `cells.on_grid`.
+- `tables.csv_attributes(csv, out=None)`: a CSV of the archive without its date columns. Standard library only, streamed.
+
+### Changed
+
+- The package may not import `limen_core` either (`tests/test_package.py`).
+
 ## [0.9.0] - 2026-11-25
 
 Next: a minor release (0.9.0).
