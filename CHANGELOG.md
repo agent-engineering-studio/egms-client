@@ -6,6 +6,25 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+Next: a minor release (0.11.0).
+
+### Added
+
+- `opendata-record/v2` (`src/egms_client/schema/opendata-record-v2.json`), the exchange format of `limen-core`. It adds to v1: the kind `event` (a landslide, a rainfall event); `where: null` for a fact or an event with no place, and `where_accuracy_m`; in `time`, an instant and a window together, `precision` (`hour`, `day`, `interval`), `days`, `local_time` (`HH:MM`, no zone) and `convention` (the instant is a convention, not a measurement); values that are a flag (yes/no) or a category with its `scheme`. v1 is not edited, and a v1 record is checked against v1.
+- `records.schema("opendata-record/v2")`, `records.SCHEMA_V2`, `records.SCHEMAS`; `problems`, `validate`, `read` and `egms records` pick the schema from the record. Three rules more for v2: an interval covers more than one day, `days` is the days from `first` to `last`, a place that is absent has no accuracy.
+- Examples of v2 in `examples/records-v2`: three real dated landslides of ispra-idrogeo (to the hour, to the day, a whole year) and an `EventAssessment` of rainfall-thresholds 0.4.0. `tests/contracts.py` maps both contracts, key by key.
+- Both schema files are served by the documentation site at their `$id` (`docs/schema/`).
+- `SECURITY.md`: how to report a vulnerability, and what the project handles (the CLMS key, the back office, the sensor tokens).
+- `make init`: install everything for development and say what to run next.
+
+### Fixed
+
+- The attributes file of a tile (`keep="attributes"`, 0.10.0) was documented as «a few MB». Its 14 columns are about a twentieth of the bytes of the CSV (75 of 1,494 characters a row in the 2020-2025 release): about 13 MB for a 250 MB CSV.
+
+### Changed
+
+- The page sets aside records of `opendata-record/v2` and says so in «Fonti»: they are valid, but the page shows v1.
+
 ## [0.10.0] - 2026-11-28
 
 Next: a minor release (0.10.0).

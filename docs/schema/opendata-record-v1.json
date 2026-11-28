@@ -1,0 +1,204 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentengineering.it/egms-client/schema/opendata-record-v1.json",
+  "title": "opendata-record/v1",
+  "description": "One record of open data: an observation, a fact already computed, or a map layer. Every record carries its source, licence, time, place and how far to trust it. Not measured is null, never 0. No record is an alert.",
+  "type": "object",
+  "required": ["schema", "kind", "source", "made_by", "time", "where", "reliability"],
+  "properties": {
+    "schema": {"const": "opendata-record/v1"},
+    "kind": {"enum": ["observation", "fact", "layer"]},
+    "id": {"type": "string", "minLength": 1},
+    "source": {"$ref": "#/$defs/source"},
+    "made_by": {"$ref": "#/$defs/made_by"},
+    "time": {"$ref": "#/$defs/time"},
+    "where": {"$ref": "#/$defs/geometry"},
+    "reliability": {"$ref": "#/$defs/reliability"},
+    "notes": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "label": {
+      "description": "What the record is about, in words for people: one text, or one per language ({\"it\": \"Pioggia\", \"en\": \"Rain\"})",
+      "oneOf": [
+        {"type": "string", "minLength": 1, "maxLength": 80},
+        {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"pattern": "^[a-z]{2}$"},
+          "additionalProperties": {"type": "string", "minLength": 1, "maxLength": 80}
+        }
+      ]
+    },
+    "headline": {"type": "string", "minLength": 1, "description": "In a fact: the name of the value to show first"},
+    "thing": {"type": "string", "minLength": 1, "description": "The device or station, as a SensorThings Thing"},
+    "property": {"$ref": "#/$defs/property"},
+    "value": {"type": ["number", "null"], "description": "null when not measured; never 0 in its place"},
+    "unit": {"$ref": "#/$defs/unit"},
+    "meaning": {"type": "string", "minLength": 1, "description": "What the sign or the value says, e.g. 'vertical; positive = up'"},
+    "quality": {"$ref": "#/$defs/quality"},
+    "question": {"type": "string", "minLength": 1},
+    "values": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {"$ref": "#/$defs/quantity"}
+    },
+    "href": {"type": "string", "minLength": 1},
+    "media_type": {"enum": ["image/tiff; application=geotiff; profile=cloud-optimized", "image/tiff; application=geotiff", "application/geo+json"]},
+    "no_data": {"type": "string", "minLength": 1}
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {"properties": {"kind": {"const": "observation"}}},
+      "then": {
+        "required": ["property", "value", "unit"],
+        "properties": {"question": false, "values": false, "href": false, "media_type": false, "no_data": false}
+      }
+    },
+    {
+      "if": {"properties": {"kind": {"const": "fact"}}},
+      "then": {
+        "required": ["question", "values"],
+        "properties": {"value": false, "href": false, "media_type": false, "no_data": false, "quality": false}
+      }
+    },
+    {
+      "if": {"properties": {"kind": {"const": "layer"}}},
+      "then": {
+        "required": ["property", "unit", "href", "media_type", "no_data"],
+        "properties": {"value": false, "question": false, "values": false, "quality": false}
+      }
+    }
+  ],
+  "$defs": {
+    "source": {
+      "type": "object",
+      "required": ["name", "licence"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "url": {"type": "string", "minLength": 1},
+        "licence": {"type": "string", "minLength": 1},
+        "attribution": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "made_by": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "time": {
+      "description": "an instant, a window, or null when the source gives no dates",
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["instant"],
+          "properties": {"instant": {"type": "string", "format": "date-time"}},
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["first", "last", "exact"],
+          "properties": {
+            "first": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}"},
+            "last": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}"},
+            "exact": {"type": "boolean", "description": "false when the dates are the release name, not the measurements"}
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "position": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 3,
+      "items": {"type": "number"},
+      "prefixItems": [
+        {"type": "number", "minimum": -180, "maximum": 180},
+        {"type": "number", "minimum": -90, "maximum": 90}
+      ]
+    },
+    "geometry": {
+      "description": "GeoJSON geometry, longitude and latitude in WGS84",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["type", "coordinates"],
+          "properties": {"type": {"const": "Point"}, "coordinates": {"$ref": "#/$defs/position"}},
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["type", "coordinates"],
+          "properties": {
+            "type": {"const": "Polygon"},
+            "coordinates": {"type": "array", "minItems": 1, "items": {"type": "array", "minItems": 4, "items": {"$ref": "#/$defs/position"}}}
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["type", "coordinates"],
+          "properties": {
+            "type": {"const": "MultiPolygon"},
+            "coordinates": {"type": "array", "minItems": 1, "items": {"type": "array", "minItems": 1, "items": {"type": "array", "minItems": 4, "items": {"$ref": "#/$defs/position"}}}}
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "reliability": {
+      "description": "null when nobody says how far to trust the number",
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["method"],
+          "properties": {
+            "score": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+            "reliable": {"type": ["boolean", "null"]},
+            "method": {"type": "string", "minLength": 1},
+            "reasons": {"type": "array", "items": {"type": "string", "minLength": 1}}
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "property": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "What is measured, e.g. rainfall, displacement, velocity, soil_moisture, water_level"
+    },
+    "unit": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "description": "A UCUM code, e.g. mm, mm/a, mm/h, kPa, Cel, %"
+    },
+    "quality": {
+      "type": "object",
+      "required": ["flags"],
+      "properties": {
+        "flags": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"enum": ["ok", "gap", "flatline", "spike", "range", "unit"]}
+        }
+      },
+      "additionalProperties": false
+    },
+    "quantity": {
+      "type": "object",
+      "required": ["value", "unit"],
+      "properties": {
+        "value": {"type": ["number", "null"]},
+        "unit": {"$ref": "#/$defs/unit"},
+        "meaning": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -6,12 +6,16 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from contracts import ASSESSMENT, RECORD_KEYS, assessment_record, landslide_record
 from jsonschema import Draft202012Validator
 
 from egms_client import cli
-from egms_client.records import RecordError, problems, read, schema, validate
+from egms_client.records import SCHEMA_V2, RecordError, problems, read, schema, validate
 
-EXAMPLES = Path(__file__).resolve().parent.parent / "examples" / "records"
+ROOT = Path(__file__).resolve().parent.parent
+EXAMPLES = ROOT / "examples" / "records"
+EXAMPLES_V2 = ROOT / "examples" / "records-v2"
+LANDSLIDES = json.loads((ROOT / "tests" / "fixtures" / "ispra_dated_landslides.json").read_text())
 
 
 def _observation(**changes: Any) -> dict[str, Any]:
@@ -328,3 +332,163 @@ def test_a_csv_without_the_columns_is_refused(tmp_path: Path) -> None:
     empty.write_text("")
     with pytest.raises(RecordError, match="csv: the columns"):
         read(empty)
+
+
+# --- opendata-record/v2
+
+
+def _event(**changes: Any) -> dict[str, Any]:
+    record = landslide_record(LANDSLIDES[1])  # an event dated to the hour, within 100 m
+    record.update(changes)
+    return record
+
+
+def test_v2_is_a_valid_json_schema_with_its_own_id() -> None:
+    v2 = schema(SCHEMA_V2)
+    Draft202012Validator.check_schema(v2)
+    assert v2["title"] == "opendata-record/v2" and v2["$id"].endswith("opendata-record-v2.json")
+    assert v2["$id"] != schema()["$id"]
+    with pytest.raises(ValueError, match="no schema"):
+        schema("opendata-record/v3")
+
+
+def test_the_schemas_on_the_site_are_those_of_the_package() -> None:
+    for name in ("opendata-record-v1.json", "opendata-record-v2.json"):
+        packaged = ROOT / "src" / "egms_client" / "schema" / name
+        assert (ROOT / "docs" / "schema" / name).read_bytes() == packaged.read_bytes()
+
+
+def test_v1_is_not_edited() -> None:
+    """A v1 record is checked against v1: nothing of v2 is allowed in it."""
+    assert problems(_observation(where=None))[0].startswith("where: None is not")
+    assert problems(_observation(where_accuracy_m=5)) != []
+    assert problems(_fact(values={"flag": {"value": True}})) != []
+    assert (
+        "is not one of ['observation', 'fact', 'layer']" in problems(_observation(kind="event"))[-1]
+    )
+
+
+def test_a_record_says_which_schema_it_follows() -> None:
+    assert problems(_event(schema="opendata-record/v3")) == [
+        "schema: 'opendata-record/v3' is not one of opendata-record/v1, opendata-record/v2"
+    ]
+
+
+@pytest.mark.parametrize("path", sorted(EXAMPLES.iterdir()), ids=lambda p: p.name)
+def test_every_v1_example_is_valid_as_v2_too(path: Path) -> None:
+    """v2 only adds: a v1 record with its schema field changed is a v2 record."""
+    for record in read(path):
+        assert problems({**record, "schema": SCHEMA_V2}) == []
+
+
+@pytest.mark.parametrize("path", sorted(EXAMPLES_V2.iterdir()), ids=lambda p: p.name)
+def test_every_v2_example_is_valid(path: Path) -> None:
+    assert all(r["schema"] == SCHEMA_V2 for r in read(path))
+
+
+@pytest.mark.parametrize("row", LANDSLIDES, ids=lambda r: r["id"])
+def test_every_key_of_a_dated_landslide_has_a_place(row: dict[str, Any]) -> None:
+    """ispra-idrogeo's ``dated.RECORD_KEYS``, on real landslides of 28 November 2026."""
+    assert tuple(row) == RECORD_KEYS
+    record = landslide_record(row)  # asserts that no key is left over
+    assert problems(record) == []
+    assert record["time"]["days"] == row["interval_days"]
+    assert record["where_accuracy_m"] == row["position_m"]
+    assert record["values"]["main_event"]["value"] is row["main_event"]
+
+
+def test_a_landslide_with_no_time_takes_the_end_of_its_day_and_says_so() -> None:
+    day = landslide_record(LANDSLIDES[3])["time"]
+    assert day["instant"] == "2010-01-01T23:00:00Z"  # the next midnight in Rome, in winter
+    assert day["convention"] == "end of the day, Europe/Rome" and "local_time" not in day
+    hour = landslide_record(LANDSLIDES[1])["time"]
+    assert hour["instant"] == "2014-11-06T07:41:00Z" and hour["local_time"] == "08:41"
+    assert "convention" not in hour
+    year = landslide_record(LANDSLIDES[2])["time"]
+    assert (year["first"], year["last"], year["days"]) == ("2010-01-01", "2010-12-31", 365)
+    assert year["instant"] == "2010-12-31T23:00:00Z"  # the end of its last day
+    summer = landslide_record({**LANDSLIDES[3], "start": "2010-07-01", "end": "2010-07-01"})
+    assert summer["time"]["instant"] == "2010-07-01T22:00:00Z"
+    # The day the clock goes back has 25 hours: the next midnight, not +24 h.
+    autumn = landslide_record({**LANDSLIDES[3], "start": "2010-10-31", "end": "2010-10-31"})
+    assert autumn["time"]["instant"] == "2010-10-31T23:00:00Z"
+    # Before 1893 Rome kept its local mean time: the zone, never a fixed offset.
+    assert landslide_record(LANDSLIDES[0])["time"]["instant"] == "1545-06-09T23:10:04Z"
+
+
+def test_an_event_assessment_is_a_fact_with_its_yes_and_no() -> None:
+    """rainfall-thresholds' ``EventAssessment`` (0.4.0): nothing is lost in v2."""
+    record = assessment_record(ASSESSMENT)
+    assert problems(record) == []
+    values = record["values"]
+    assert values["borders_unmeasured"] == {"value": True}
+    assert values["rain_source"]["value"] == "rain gauge"
+    assert values["ratio"]["value"] == pytest.approx(2.2109, abs=1e-4)
+    # The same record cannot be written in v1: a yes/no has no unit.
+    assert any(
+        "borders_unmeasured" in p for p in problems({**record, "schema": "opendata-record/v1"})
+    )
+
+
+def test_a_place_may_be_absent_but_then_has_no_accuracy() -> None:
+    assert problems(_event(where=None, where_accuracy_m=None)) == []
+    assert problems(_event(where=None)) == [
+        "where_accuracy_m: there is no place, so no accuracy: write null"
+    ]
+    assert problems(_event(where_accuracy_m=-1)) == [
+        "where_accuracy_m: -1 is less than the minimum of 0"
+    ]
+    moved = {**_observation(), "schema": SCHEMA_V2, "where": None}
+    assert problems(moved)[-1] == "where: a record of kind observation has a place"
+
+
+def test_the_width_of_a_date_is_said_without_contradiction() -> None:
+    time = _event()["time"]
+    assert problems(_event(time={**time, "precision": "interval"})) == [
+        "time/precision: an interval covers more than one day"
+    ]
+    assert problems(_event(time={**time, "last": "2014-11-08"})) == [
+        "time/precision: a date known to the hour covers one day",
+        "time/days: 1, but first to last are 3 days",
+    ]
+    assert problems(_event(time={**time, "local_time": "8:41"}))[0].startswith("time/local_time")
+    no_clock = {k: v for k, v in time.items() if k != "local_time"}
+    assert problems(_event(time={**no_clock, "convention": "end of the day"})) == [
+        "time/precision: known to the hour, so the instant is not a convention"
+    ]
+    assert problems(_event(time={"first": "2014-11-06", "convention": "x"}))[:3] == [
+        "time: 'last' is a required property",
+        "time: 'exact' is a required property",
+        "time: 'instant' is a dependency of 'convention'",
+    ]
+    assert problems(_event(time=None)) == []
+
+
+def test_a_value_is_a_quantity_a_flag_or_a_category() -> None:
+    def with_value(value: dict[str, Any]) -> list[str]:
+        return problems(_event(values={"x": value}))
+
+    assert with_value({"value": 3.5, "unit": "m"}) == []
+    assert with_value({"value": None}) == []
+    assert with_value({"value": "debris flow", "scheme": "a word of the source"}) == []
+    assert with_value({"value": None, "scheme": "ISTAT region code"}) == []
+    assert with_value({"value": True, "unit": "m"}) != []
+    assert with_value({"value": 3.5, "scheme": "codes"}) != []
+    assert with_value({"value": float("nan"), "unit": "m"}) == [
+        "values/x: nan is not a value; write null when it is not measured"
+    ]
+
+
+def test_an_event_is_not_an_alert_either() -> None:
+    assert problems(_event(event="landslide_alert")) == [
+        "landslide_alert: a record is a measurement, not a warning; 'alert' is not allowed"
+    ]
+    assert problems(_event(question="why")) == ["question: not part of a record of kind event"]
+    missing = _event()
+    del missing["event"]
+    assert problems(missing) == ["record: 'event' is a required property"]
+
+
+def test_the_command_checks_v2_files(capsys: pytest.CaptureFixture[str]) -> None:
+    assert cli.main(["records", *(str(p) for p in sorted(EXAMPLES_V2.iterdir()))]) == 0
+    assert capsys.readouterr().out.count(": 1 record(s), valid") == 4

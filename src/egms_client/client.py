@@ -60,7 +60,7 @@ RENEW_MARGIN_S = 300
 #: the CSV as GeoParquet (needs the ``tables`` extra).
 Keep = Literal["zip", "tiff", "csv", "xml", "parquet"]
 #: What :meth:`EgmsArchive.fetch_tile` can keep of a tile's ZIP. ``attributes``
-#: is the CSV without its time series (``<stem>.attributes.csv``, a few MB).
+#: is the CSV without its time series (``<stem>.attributes.csv``, about a twentieth of it).
 TileKeep = Literal["tiff", "csv", "xml", "attributes"]
 
 _RETRY_STATUS = frozenset({429, 502, 503, 504})
@@ -338,7 +338,7 @@ class EgmsArchive:
         written beside the GeoTIFF with its name and their suffix. A tile whose
         GeoTIFF is there and whose other kept files are not is downloaded
         again. The CSV of a tile is about 250 MB: ``"attributes"`` keeps it
-        without the time series (``<stem>.attributes.csv``, a few MB, see
+        without the time series (``<stem>.attributes.csv``, about 13 MB, see
         :func:`egms_client.tables.csv_attributes`), enough for
         :func:`egms_client.cells.on_grid`.
 

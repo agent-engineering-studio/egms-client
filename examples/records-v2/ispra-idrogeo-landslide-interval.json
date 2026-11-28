@@ -1,0 +1,56 @@
+{
+  "schema": "opendata-record/v2",
+  "kind": "event",
+  "event": "landslide",
+  "id": "iffi:0076356200",
+  "source": {
+    "name": "IdroGEO, IFFI",
+    "url": "https://idrogeo.isprambiente.it/",
+    "licence": "CC BY-SA 4.0",
+    "attribution": "ISPRA – Regioni e Province Autonome. Inventario dei Fenomeni Franosi in Italia - IFFI. idrogeo.isprambiente.it, CC BY-SA 4.0"
+  },
+  "made_by": {
+    "name": "ispra-idrogeo",
+    "version": "0.14.0"
+  },
+  "time": {
+    "first": "2010-01-01",
+    "last": "2010-12-31",
+    "exact": true,
+    "precision": "interval",
+    "days": 365,
+    "instant": "2010-12-31T23:00:00Z",
+    "convention": "end of the day, Europe/Rome"
+  },
+  "where": {
+    "type": "Point",
+    "coordinates": [
+      7.14079184282549,
+      45.7161058701368
+    ]
+  },
+  "where_accuracy_m": null,
+  "reliability": null,
+  "values": {
+    "movement": {
+      "value": 0,
+      "scheme": "IFFI movement type"
+    },
+    "region": {
+      "value": 2,
+      "scheme": "ISTAT region code"
+    },
+    "province": {
+      "value": 7,
+      "scheme": "ISTAT province code"
+    },
+    "municipality": {
+      "value": 7006,
+      "scheme": "ISTAT municipality code"
+    },
+    "main_event": {
+      "value": null,
+      "meaning": "the main event of a series"
+    }
+  }
+}

@@ -72,7 +72,7 @@ from egms_client.check import words
 from egms_client.client import default_directory
 from egms_client.facts import area, moving_points, to_records, velocity
 from egms_client.mosaic import lonlat_to_laea, mosaic
-from egms_client.records import RecordError, read
+from egms_client.records import SCHEMA, RecordError, read
 from egms_client.releases import KNOWN_RELEASES
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -408,7 +408,21 @@ class Shelf:
             except (OSError, ValueError) as exc:
                 refused.append({"file": path.name, "problems": [f"not JSON: {exc}"]})
             else:
-                items += [{"file": path.name, "record": r} for r in records]
+                # The page shows v1 only: a v2 record may have no place, or be an event.
+                newer = sum(r["schema"] != SCHEMA for r in records)
+                if newer:
+                    refused.append(
+                        {
+                            "file": path.name,
+                            "problems": [
+                                f"{newer} record(s) of a newer schema: valid, but this page "
+                                f"shows {SCHEMA} only"
+                            ],
+                        }
+                    )
+                items += [
+                    {"file": path.name, "record": r} for r in records if r["schema"] == SCHEMA
+                ]
         self.items, self.refused, self.seen = items, refused, stamp
 
     def sources(self) -> list[dict[str, Any]]:

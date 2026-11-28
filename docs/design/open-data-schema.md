@@ -228,3 +228,68 @@ Limen's job.
    a hash): upload a file, connect a sensor (HTTP SenML, one token per
    sensor), see what was refused, and a log.
 5. `to_records()` in the other libraries, one PR each.
+6. ✅ Version 2 of the schema (28 November 2026), below.
+
+## Version 2: events, and how wide a date and a place are
+
+Decided on 28 November 2026: `limen-core` exchanges dated landslides as
+records. v1 could not describe one. A landslide of the IFFI inventory is an
+**event**, not a measurement. Its date may be an hour, a day or a whole year.
+Its point may be exact, or known within 10 km, or missing. Its attributes are
+codes (the type of movement, the ISTAT codes), not numbers with a unit.
+
+v2 is a new file with a new id
+([`opendata-record-v2.json`](../schema/opendata-record-v2.json)). **v1 is not
+edited**: a record says which schema it follows in `schema`, and a v1 record
+is checked against v1. v2 only adds: every v1 example is valid as v2 with
+that one field changed.
+
+| New in v2 | Meaning |
+|---|---|
+| `kind: "event"` | something that happened. `event` says what: `landslide`, `rainfall_event` |
+| `where: null` | the source gives no place. For a fact or an event only |
+| `where_accuracy_m` | the true position is within this many metres. `0` is exact, `null` is "not stated" |
+| `time.precision`, `time.days` | how wide the date is: `hour`, `day` or `interval`, and the days it covers |
+| `time.local_time` | the time of day as the source writes it, `HH:MM`, with no time zone |
+| `time.convention` | present when `time.instant` is a convention, not a measurement, and says which |
+| `values` | each one is a quantity (number and unit), a flag (yes or no), or a category (a code or a word, with its `scheme`) |
+
+`time` may now hold an instant and a window together. A landslide dated
+"2010" has the window 1 January to 31 December, `precision: "interval"`,
+`days: 365`. To join it with rain, a program needs one instant. By
+convention it is the end of the last day: the next local midnight in
+Europe/Rome (the calendar day plus one, not 24 hours later: the two differ
+on the days the clock changes). The rain is hourly and each hour ends at its
+time stamp, so a midnight falls on an hour. The record says so:
+
+```json
+"time": {"first": "2010-01-01", "last": "2010-12-31", "exact": true,
+         "precision": "interval", "days": 365,
+         "instant": "2010-12-31T23:00:00Z",
+         "convention": "end of the day, Europe/Rome"}
+```
+
+A landslide with a written time (08:41 on 6 November 2014) has
+`local_time: "08:41"`, the instant `07:41:00Z`, and no `convention`.
+
+The rules of v1 stay: not known is `null`, never 0 or `false`; no event, no
+property and no value may be named alert or risk. The validator adds three:
+an interval covers more than one day; `days` is the days from `first` to
+`last`; a place that is absent has no accuracy.
+
+**Checked on two real contracts** (`tests/contracts.py`, examples in
+`examples/records-v2`):
+
+- ispra-idrogeo, `dated.RECORD_KEYS`: the 16 keys of a dated landslide all
+  have a place, on five real landslides read on 28 November 2026.
+- rainfall-thresholds 0.4.0, `EventAssessment`: a `fact`, with its two yes/no
+  (`borders_unmeasured`, `at_least`) as flags. In v1 they had to become text.
+
+Compute the instant with the time zone, never with a fixed offset: before
+1893 Rome kept its local mean time, and 9 June 1545 ends at `23:10:04Z`.
+
+**Limits.** The schema carries the convention as text: it cannot check that
+every library writes the same instant for the same day. A category says its
+scheme in words, not as a link to a code list. The page of this repository
+shows v1 only: a v2 record is valid, and is set aside, because a record with
+no place has nowhere to go on a map.

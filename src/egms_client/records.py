@@ -1,9 +1,18 @@
 """Records of open data: one shape for every source the application reads.
 
-A record is a JSON object valid against ``schema/opendata-record-v1.json``.
+A record is a JSON object valid against ``schema/opendata-record-v1.json``
+or ``schema/opendata-record-v2.json``: its ``schema`` field says which.
 It is an ``observation`` (one value at one place and time), a ``fact`` (an
 answer already computed) or a ``layer`` (a map). Every record says its
 source, licence, time window, place and how far to trust it.
+
+v2 adds what a dated landslide or a rainfall event needs, and v1 could not
+say: the kind ``event`` (something that happened); a place that may be
+absent (``where: null``) and how wide it is (``where_accuracy_m``); how wide
+a date is (``time.precision``, ``time.days``), a time of day with no zone
+(``time.local_time``) and an instant that is a convention, not a
+measurement (``time.convention``); values that are yes/no or a category.
+v1 is not changed: a v1 record is checked against v1.
 
 The schema is the contract between sources. A library, an IoT gateway or a
 CSV from a municipality writes records; the application reads records. No
@@ -14,7 +23,10 @@ Some rules a JSON Schema cannot say. :func:`problems` checks them too:
 * not measured is ``null``, never 0 or NaN;
 * a signed property (a velocity, a displacement) says what its sign means;
 * the time window does not end before it starts;
-* nothing is an alert or a risk.
+* nothing is an alert or a risk;
+* in v2: a date said to be an interval covers more than one day, ``days``
+  is the days from ``first`` to ``last``, and a place that is absent has no
+  accuracy.
 
 Validation needs the extra ``records`` (``jsonschema``).
 """
@@ -32,6 +44,13 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA = "opendata-record/v1"
+SCHEMA_V2 = "opendata-record/v2"
+
+#: Every version of the schema, and its file in the package.
+SCHEMAS = {
+    SCHEMA: "schema/opendata-record-v1.json",
+    SCHEMA_V2: "schema/opendata-record-v2.json",
+}
 
 #: The reason a source gives when a place has no measurement.
 NOT_MEASURED = "not_measured"
@@ -49,6 +68,13 @@ ONLY = {
     "fact": frozenset({"question", "values", "headline"}),
     "layer": frozenset({"href", "media_type", "no_data"}),
 }
+#: The same for v2, where an event has values too.
+ONLY_V2 = {
+    "observation": frozenset({"value", "quality"}),
+    "fact": frozenset({"question", "headline"}),
+    "layer": frozenset({"href", "media_type", "no_data"}),
+    "event": frozenset({"event"}),
+}
 
 
 class RecordError(ValueError):
@@ -60,28 +86,33 @@ class RecordError(ValueError):
 
 
 @cache
-def schema() -> dict[str, Any]:
-    """The JSON Schema of opendata-record/v1."""
-    text = files("egms_client").joinpath("schema/opendata-record-v1.json").read_text("utf-8")
+def schema(version: str = SCHEMA) -> dict[str, Any]:
+    """The JSON Schema of a version: ``"opendata-record/v1"`` (default) or ``/v2``."""
+    if version not in SCHEMAS:
+        raise ValueError(f"no schema {version!r}: {', '.join(SCHEMAS)}")
+    text = files("egms_client").joinpath(SCHEMAS[version]).read_text("utf-8")
     loaded: dict[str, Any] = json.loads(text)
     return loaded
 
 
 @cache
-def _validator() -> Any:
+def _validator(version: str = SCHEMA) -> Any:
     try:
         from jsonschema import Draft202012Validator
     except ImportError as exc:  # pragma: no cover - depends on the extra
         raise ImportError(
             "checking records needs jsonschema: pip install 'egms-client[records]'"
         ) from exc
-    return Draft202012Validator(schema())
+    return Draft202012Validator(schema(version))
 
 
 def problems(record: Any) -> list[str]:
     """Everything wrong with one record, as short sentences; empty if it is valid."""
     if not isinstance(record, dict):
         return ["record: a record is a JSON object"]
+    version = record.get("schema")
+    if "schema" in record and version not in SCHEMAS:
+        return [f"schema: {version!r} is not one of {', '.join(SCHEMAS)}"]
     found = _schema_errors(record)
     if found and any(f.startswith(("schema:", "kind:")) for f in found):
         return found
@@ -92,6 +123,8 @@ def problems(record: Any) -> list[str]:
     found += _time(record)
     found += _names(record)
     found += _headline(record)
+    if version == SCHEMA_V2:
+        found += _width(record)
     return found
 
 
@@ -219,7 +252,8 @@ def _csv_time(text: str) -> dict[str, Any]:
 
 def _schema_errors(record: Any) -> list[str]:
     found = []
-    for error in _validator().iter_errors(record):
+    version = record.get("schema") if isinstance(record, dict) else None
+    for error in _validator(version if version in SCHEMAS else SCHEMA).iter_errors(record):
         for e in _closest(error):
             place = "/".join(str(p) for p in e.absolute_path) or "record"
             # A field of another kind: jsonschema loses its name, so _fields says it.
@@ -230,11 +264,12 @@ def _schema_errors(record: Any) -> list[str]:
 
 def _fields(record: dict[str, Any]) -> list[str]:
     kind = record.get("kind")
+    only = ONLY_V2 if record.get("schema") == SCHEMA_V2 else ONLY
     return [
         f"{name}: not part of a record of kind {kind}"
-        for other, names in ONLY.items()
+        for other, names in only.items()
         if other != kind
-        for name in sorted(names - ONLY.get(str(kind), frozenset()))
+        for name in sorted(names - only.get(str(kind), frozenset()))
         if name in record
     ]
 
@@ -260,7 +295,7 @@ def _closest(error: Any) -> list[Any]:
 
 
 def _quantities(record: dict[str, Any]) -> list[tuple[str, Any]]:
-    if record.get("kind") == "fact" and isinstance(record.get("values"), dict):
+    if record.get("kind") in ("fact", "event") and isinstance(record.get("values"), dict):
         return [
             (f"values/{name}", q.get("value"))
             for name, q in record["values"].items()
@@ -305,7 +340,10 @@ def _time(record: dict[str, Any]) -> list[str]:
             moment = datetime.fromisoformat(str(time["instant"]))
         except ValueError:
             return [f"time/instant: {time['instant']!r} is not an ISO 8601 date and time"]
-        return [] if moment.tzinfo else ["time/instant: give the time zone (use UTC)"]
+        if not moment.tzinfo:
+            return ["time/instant: give the time zone (use UTC)"]
+        if "first" not in time:
+            return []
     try:
         first = date.fromisoformat(str(time.get("first"))[:10])
         last = date.fromisoformat(str(time.get("last"))[:10])
@@ -315,7 +353,7 @@ def _time(record: dict[str, Any]) -> list[str]:
 
 
 def _names(record: dict[str, Any]) -> list[str]:
-    names = [str(record.get("property", ""))]
+    names = [str(record.get("property", "")), str(record.get("event", ""))]
     if isinstance(record.get("values"), dict):
         names += list(record["values"])
     return [
@@ -331,3 +369,32 @@ def _headline(record: dict[str, Any]) -> list[str]:
     if headline is None or not isinstance(values, dict) or headline in values:
         return []
     return [f"headline: {headline!r} is not one of the values ({', '.join(values)})"]
+
+
+def _width(record: dict[str, Any]) -> list[str]:
+    """v2: how wide the date and the place are, said without contradiction."""
+    found = []
+    if record.get("where") is None:
+        if record.get("kind") not in ("fact", "event"):
+            found.append(f"where: a record of kind {record.get('kind')} has a place")
+        if record.get("where_accuracy_m") is not None:
+            found.append("where_accuracy_m: there is no place, so no accuracy: write null")
+    time = record.get("time")
+    if not isinstance(time, dict):
+        return found
+    precision, days = time.get("precision"), time.get("days")
+    span: int | None
+    try:
+        first = date.fromisoformat(str(time.get("first"))[:10])
+        span = (date.fromisoformat(str(time.get("last"))[:10]) - first).days + 1
+    except ValueError:
+        span = None
+    if precision == "interval" and (span == 1 or days == 1):
+        found.append("time/precision: an interval covers more than one day")
+    if precision in ("hour", "day") and ((span or 1) > 1 or (days or 1) > 1):
+        found.append(f"time/precision: a date known to the {precision} covers one day")
+    if days is not None and span is not None and span >= 1 and days != span:
+        found.append(f"time/days: {days}, but first to last are {span} days")
+    if precision == "hour" and "local_time" not in time and "convention" in time:
+        found.append("time/precision: known to the hour, so the instant is not a convention")
+    return found
