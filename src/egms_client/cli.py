@@ -360,8 +360,9 @@ def _parser() -> argparse.ArgumentParser:
     offline.add_argument(
         "--keep",
         action="append",
-        choices=["tiff", "csv", "xml"],
-        help="repeatable; tiff if none (the CSV is ~250 MB a tile)",
+        choices=["tiff", "csv", "xml", "attributes"],
+        help="repeatable; tiff if none (the CSV is ~250 MB a tile; attributes is "
+        "the CSV without its time series, a few MB)",
     )
     offline.add_argument("--out", help="directory (default: $DATA_ROOT/egms-client or user cache)")
     offline.add_argument(

@@ -17,6 +17,7 @@ mm/year. An L3 CSV is ~250 MB for ~170,000 cells and ~300 dates.
 
 from __future__ import annotations
 
+import csv
 import json
 import re
 from collections.abc import Sequence
@@ -48,6 +49,34 @@ def read_csv(path: Path, *, series: bool = True, columns: Sequence[str] | None =
     dtypes = dict.fromkeys(dates, "float32")
     dtypes |= {c: "string" for c in ("pid", "mp_type") if c in names}
     return pd.read_csv(path, usecols=[*names, *dates], dtype=dtypes, engine="pyarrow")
+
+
+def csv_attributes(csv_path: Path, out: Path | None = None) -> Path:
+    """A CSV of the archive without its date columns, next to it by default.
+
+    The CSV of an L3 tile is about 250 MB, nearly all of it the time series;
+    its attributes (position, velocity, acceleration, seasonality, RMSE) are a
+    few MB. The file is ``<stem>.attributes.csv``, read back with
+    :func:`read_csv`. Streamed with the standard library: needs no extra.
+    Written to ``.part`` first, so a file that exists is whole.
+    """
+    path = out or csv_path.with_suffix(".attributes.csv")
+    partial = path.with_name(f"{path.name}.part")
+    try:
+        with csv_path.open(newline="") as src, partial.open("w", newline="") as dst:
+            rows = csv.reader(src)
+            header = next(rows, [])
+            keep = [i for i, c in enumerate(header) if not DATE_COLUMN.fullmatch(c)]
+            if not keep or len(keep) == len(header):
+                raise ValueError(f"{csv_path.name} has no date columns: not a CSV of the archive")
+            writer = csv.writer(dst, lineterminator="\n")
+            writer.writerow([header[i] for i in keep])
+            writer.writerows([row[i] for i in keep] for row in rows)
+    except BaseException:
+        partial.unlink(missing_ok=True)
+        raise
+    partial.rename(path)
+    return path
 
 
 def dates(frame: Any) -> list[date]:

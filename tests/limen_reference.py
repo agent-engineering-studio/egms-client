@@ -3,16 +3,52 @@
 Copied from limen ``src/limen/integrations/egms/aggregate.py`` (``per_cella``)
 at commit 72ba418, with Limen's row type replaced by a dict. The package
 never imports Limen (tests/test_package.py); this copy is test data.
+
+``leggi_attributi``, ``salva_attributi`` and ``su_griglia`` are Limen's own
+cache of a tile's attributes (``aggregate.py`` and ``clms.py`` at commit
+89e1932, logging removed): what ``fetch_tile(keep=["attributes"])``,
+``tables.read_csv`` and ``cells.on_grid`` replace.
 """
 
 from __future__ import annotations
 
 import math
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 
 PASSO_M = 100.0
+
+COLONNE_ATTRIBUTI = ("acceleration", "seasonality")
+
+
+def leggi_attributi(csv: Any) -> dict[str, Any]:
+    import pandas as pd
+
+    tabella = pd.read_csv(csv, usecols=["easting", "northing", *COLONNE_ATTRIBUTI])
+    return {c: tabella[c].to_numpy(dtype="float64") for c in tabella.columns}
+
+
+def salva_attributi(csv: Path, path: Path) -> None:
+    try:
+        colonne = leggi_attributi(csv)
+    except ValueError:
+        colonne = {c: np.empty(0) for c in ("easting", "northing", *COLONNE_ATTRIBUTI)}
+    with path.open("wb") as f:
+        np.savez(f, **colonne)
+
+
+def su_griglia(attributi: list[Path], colonna: str, come: Any) -> Any:
+    righe, colonne = come.values.shape
+    out = np.full((righe, colonne), np.nan, dtype="float32")
+    for path in attributi:
+        with np.load(path) as a:
+            col = np.floor((a["easting"] - come.left) / come.pixel).astype(np.int64)
+            riga = np.floor((come.top - a["northing"]) / come.pixel).astype(np.int64)
+            dentro = (riga >= 0) & (riga < righe) & (col >= 0) & (col < colonne)
+            out[riga[dentro], col[dentro]] = a[colonna][dentro]
+    return out
 
 
 def _p90_modulo(a: Any, b: Any) -> float | None:

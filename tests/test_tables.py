@@ -17,6 +17,7 @@ from egms_client import EgmsArchive, EgmsError, Query, ServiceKey
 from egms_client.cli import main
 from egms_client.tables import (
     attributes,
+    csv_attributes,
     csv_to_geoparquet,
     dates,
     read_csv,
@@ -246,3 +247,26 @@ def test_a_conversion_that_fails_midway_leaves_nothing(tmp_path: Path) -> None:
     with pytest.raises(Exception, match="oops"):
         csv_to_geoparquet(csv)
     assert sorted(p.name for p in tmp_path.iterdir()) == [L3.name]
+
+
+def test_csv_attributes_drops_the_series_and_reads_back(tmp_path: Path) -> None:
+    slim = csv_attributes(L3, tmp_path / "slim.csv")
+    frame = read_csv(slim, series=False, columns=["easting", "northing", "acceleration"])
+    whole = read_csv(L3, series=False, columns=["easting", "northing", "acceleration"])
+    pd.testing.assert_frame_equal(frame, whole)
+    assert dates(read_csv(slim)) == []
+    assert not list(tmp_path.glob("*.part"))
+
+
+def test_csv_attributes_goes_beside_the_csv_by_default(tmp_path: Path) -> None:
+    copy = tmp_path / L3.name
+    shutil.copy(L3, copy)
+    assert csv_attributes(copy) == tmp_path / f"{L3.stem}.attributes.csv"
+
+
+def test_csv_attributes_refuses_a_table_without_dates(tmp_path: Path) -> None:
+    other = tmp_path / "other.csv"
+    other.write_text("a,b\n1,2\n")
+    with pytest.raises(ValueError, match="no date columns"):
+        csv_attributes(other)
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["other.csv"]
