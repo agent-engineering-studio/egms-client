@@ -933,6 +933,7 @@ All checked against the live archive on 3 November 2026.
 | `facts.velocity(tiffs, lon, lat, release=)` / `.area(...)` / `.moving_points(...)` | Answers as data for people and agents: every number with release, window, files, reliability, licence, notes. |
 | `check.words(facts, lang)` / `.check_text` / `.check_signs` / `.check_claims` | A text in English or Italian that only quotes the facts; checks for invented numbers, flipped signs, swaps. |
 | `cells.per_cell(cells, up, east, acceleration=, seasonality=, rmse=)` / `.square_cells(...)` / `.on_grid(frame, column, like)` / `.to_frame(stats)` | Per-cell statistics for a model: medians and tails with their sign, signed acceleration on the velocity's pixels, valid pixels, score; `None` where not measured. |
+| `asof.motion_before(frame, rows, window_days=, min_points=, min_acquisitions=)` / `.Series(frame)` / `.to_frame(rows)` | Ground motion as of a date, per cell: the velocity of the months before the date next to the long-term one, with the counts they rest on; nothing after the date is read; `None` where there are too few. |
 | `releases.window(release, level)` / `.age_days(w, today)` / `.new_releases(published)` | The real dates a release covers; how old it is; releases this version has not seen (`egms releases --check`). |
 | `EgmsError` | The server answered, but refused. |
 

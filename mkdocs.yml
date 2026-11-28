@@ -82,6 +82,7 @@ nav:
       - How far to trust it: api/reliability.md
       - Releases and windows: api/releases.md
       - Cells for a model: api/cells.md
+      - Motion before a date: api/asof.md
       - Facts for agents: api/facts.md
       - Checking a text: api/check.md
       - Records of open data: api/records.md

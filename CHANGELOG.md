@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+Next: a minor release (0.12.0). Not to release before `limen-core` has measured whether the feature tells cells with a landslide from the others.
+
+### Added
+
+- `egms_client.asof`: ground motion as of a date. `motion_before(frame, rows, *, window_days, min_points, min_acquisitions, min_history_days=365, include_day=False, z=None)` takes an L3 table with its series and pairs of a cell and a date, and gives one `MotionBefore` per pair: `velocity_before` (the last `window_days` before the date) and `velocity_long` (from the first acquisition to the start of the window) as two numbers, their `change`, `change_z` against the noise of each point, the counts they rest on (`points`, `points_used`, `acquisitions_long`, `acquisitions_before`, `window_first`, `window_last`), and `None` with a reason where there are too few. Nothing after the date is read, and an acquisition on the day itself does not count unless `include_day=True`. The annual cycle of the earlier series is taken off the window, so six months of a season are not read as a trend. `Series(frame)` reads a table once for many rows (10,000 rows on a tile of 170,000 points: under a second); `to_frame(rows)` gives a DataFrame. No network, no calibration: the minimums have no default.
+
 ## [0.11.0] - 2026-11-28
 
 Next: a minor release (0.11.0).
