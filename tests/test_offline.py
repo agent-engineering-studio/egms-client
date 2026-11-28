@@ -237,3 +237,25 @@ def test_egms_error_is_a_failure_too(service_key: ServiceKey, tmp_path: Path) ->
     result = run(Odd(), service_key, directory=tmp_path, tiles=[(47, 19)], release="2020-2025")
     assert len(result.failed) == 2
     assert all("Server busy" in t.error for t in result.failed)
+
+
+def test_a_failure_with_no_message_says_what_it_was(
+    service_key: ServiceKey, tmp_path: Path
+) -> None:
+    """httpx.ConnectTimeout has an empty message: the outcome names the exception."""
+
+    class Unreachable(Archive):
+        async def __call__(self, request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectTimeout("")
+
+    result = run(
+        Unreachable(),
+        service_key,
+        directory=tmp_path,
+        tiles=[(47, 19)],
+        components=["U"],
+        release="2020-2025",
+        retries=0,
+    )
+    [failed] = result.failed
+    assert failed.error == "ConnectTimeout"

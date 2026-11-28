@@ -179,8 +179,10 @@ async def init(
                         tile, component, chosen, folder, keep=kept[component], on_progress=progress
                     )
                 except (EgmsError, httpx.HTTPError) as exc:
+                    # A timeout of httpx has no message: say at least what it was.
+                    why = str(exc) or type(exc).__name__
                     outcome = TileOutcome(
-                        tile, component, "failed", bytes=received, error=str(exc)[:300]
+                        tile, component, "failed", bytes=received, error=why[:300]
                     )
                 else:
                     status: Status = (
