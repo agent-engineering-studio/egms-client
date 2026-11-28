@@ -5,7 +5,7 @@ name: egms-client
 url: "https://github.com/agent-engineering-studio/egms-client.git"
 landingURL: "https://agentengineering.it/egms-client/"
 releaseDate: "2026-11-28"
-softwareVersion: "0.10.0"
+softwareVersion: "0.11.0"
 platforms: [linux, mac, windows]
 categories: [geographic-information-systems, data-analytics, data-collection]
 developmentStatus: beta
