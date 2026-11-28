@@ -1,7 +1,8 @@
 # Your records
 
 Put here the records of your sources: files `.json` (one record or a list)
-or `.jsonl` (one record per line), valid against `opendata-record/v1`.
+or `.jsonl` (one record per line), valid against `opendata-record/v1`
+(the page shows v1; `egms records` also checks `opendata-record/v2`).
 The page reads them next to EGMS, and says in «Fonti» why a file is refused.
 
 Check a file first:

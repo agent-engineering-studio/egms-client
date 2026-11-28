@@ -1,8 +1,15 @@
 .DEFAULT_GOAL := help
-.PHONY: help check lint format typecheck test build docs notebooks notebooks-offline bench up demo down logs clean
+.PHONY: help init check lint format typecheck test build docs notebooks notebooks-offline bench up demo down logs clean
 
 help: ## List the targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z-]+:.*## / {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+init: ## Install everything for development (needs uv), and say what to run next
+	uv sync --locked --all-extras
+	@echo "no key needed:  make check   |   make demo (the page on the benchmark crops)"
+	@echo "with the CLMS key in .env (cp .env.example .env):"
+	@echo "  uv run egms init --bbox west,south,east,north   # the tiles of an area, once"
+	@echo "  make up                                         # the page, notebooks and MCP"
 
 check: lint typecheck test ## The gate of CI: lint, typecheck, test
 

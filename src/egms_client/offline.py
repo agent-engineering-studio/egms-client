@@ -128,8 +128,8 @@ async def init(
     there), ``components`` to both.
 
     ``keep`` adds other files of each ZIP beside the GeoTIFF (``"csv"``, about
-    250 MB a tile; ``"attributes"``, the CSV without its time series, a few
-    MB; ``"xml"``), for every component or per component:
+    250 MB a tile; ``"attributes"``, the CSV without its time series, about
+    13 MB; ``"xml"``), for every component or per component:
     ``{"U": ("tiff", "attributes"), "E": ("tiff",)}``.
 
     ``client`` and ``key`` are passed to :class:`~egms_client.client.EgmsArchive`;

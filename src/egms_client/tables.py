@@ -55,8 +55,9 @@ def csv_attributes(csv_path: Path, out: Path | None = None) -> Path:
     """A CSV of the archive without its date columns, next to it by default.
 
     The CSV of an L3 tile is about 250 MB, nearly all of it the time series;
-    its attributes (position, velocity, acceleration, seasonality, RMSE) are a
-    few MB. The file is ``<stem>.attributes.csv``, read back with
+    its attributes (position, velocity, acceleration, seasonality, RMSE) are
+    14 columns of 316 and about a twentieth of the bytes: about 13 MB.
+    The file is ``<stem>.attributes.csv``, read back with
     :func:`read_csv`. Streamed with the standard library: needs no extra.
     Written to ``.part`` first, so a file that exists is whole.
     """

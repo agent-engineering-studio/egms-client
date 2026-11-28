@@ -249,6 +249,28 @@ def test_an_invalid_file_is_refused_whole_and_says_why(
         assert [s["records"] for s in c.get("/api/sources").json()["sources"]] == [2]
 
 
+def test_the_page_sets_aside_records_of_the_newer_schema(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A v2 record may have no place: valid, but the page shows v1."""
+    v2 = ROOT / "examples" / "records-v2" / "ispra-idrogeo-landslide-day.json"
+    (tmp_path / "landslide.json").write_text(v2.read_text())
+    monkeypatch.setenv("EGMS_UI_SOURCE", "demo")
+    monkeypatch.setattr(api, "RECORDS", [tmp_path])
+    with TestClient(api.app) as c:
+        answer = c.get("/api/sources").json()
+        assert answer["sources"] == []
+        assert answer["refused"] == [
+            {
+                "file": "landslide.json",
+                "problems": [
+                    "1 record(s) of a newer schema: valid, but this page shows "
+                    "opendata-record/v1 only"
+                ],
+            }
+        ]
+
+
 def test_the_bounds_of_every_shape() -> None:
     assert api.bounds({"type": "Point", "coordinates": [14.1, 40.8]}) == (14.1, 40.8, 14.1, 40.8)
     square = [[[0, 0], [2, 0], [2, 1], [0, 1], [0, 0]]]

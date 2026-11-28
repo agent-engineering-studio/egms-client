@@ -362,7 +362,7 @@ def _parser() -> argparse.ArgumentParser:
         action="append",
         choices=["tiff", "csv", "xml", "attributes"],
         help="repeatable; tiff if none (the CSV is ~250 MB a tile; attributes is "
-        "the CSV without its time series, a few MB)",
+        "the CSV without its time series, about 13 MB)",
     )
     offline.add_argument("--out", help="directory (default: $DATA_ROOT/egms-client or user cache)")
     offline.add_argument(
@@ -390,7 +390,7 @@ def _parser() -> argparse.ArgumentParser:
     check.add_argument("facts", help="the facts, as JSON (an MCP answer, or egms_client.facts)")
     check.add_argument("--lang", choices=("en", "it"), default="en")
     records = commands.add_parser(
-        "records", help="check files of records against opendata-record/v1 (extra records)"
+        "records", help="check files of records against opendata-record v1 or v2 (extra records)"
     )
     records.add_argument("files", nargs="+", help=".json (one record or a list) or .jsonl")
     convert = commands.add_parser("convert", help="CSV of the archive to GeoParquet (extra tables)")

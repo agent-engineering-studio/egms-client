@@ -396,7 +396,7 @@ download the tiles of an area once:
 ```bash
 egms init --bbox 15.3,40.0,16.9,41.3 --release 2020-2025   # both components, the GeoTIFFs
 egms init --tile E47N19 --component U --keep tiff --keep csv
-egms init --tile E47N19 --component U --keep tiff --keep attributes   # the CSV without its series: a few MB, not 250
+egms init --tile E47N19 --component U --keep tiff --keep attributes   # the CSV without its series: about 13 MB, not 250
 ```
 
 ```python

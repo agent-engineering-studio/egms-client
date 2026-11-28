@@ -1,0 +1,93 @@
+{
+  "schema": "opendata-record/v2",
+  "kind": "fact",
+  "question": "How does this rainfall event compare with the threshold at its duration?",
+  "headline": "ratio",
+  "source": {
+    "name": "a simulated rain gauge",
+    "licence": "CC0-1.0"
+  },
+  "made_by": {
+    "name": "rainfall-thresholds",
+    "version": "0.4.0"
+  },
+  "time": {
+    "first": "2026-11-20T06:00:00Z",
+    "last": "2026-11-20T14:00:00Z",
+    "exact": true
+  },
+  "where": {
+    "type": "Point",
+    "coordinates": [
+      14.1205,
+      40.8225
+    ]
+  },
+  "reliability": {
+    "reliable": false,
+    "method": "every hour of the event and of the dry break around it was measured",
+    "reasons": [
+      "hours_not_measured",
+      "borders_not_measured"
+    ]
+  },
+  "values": {
+    "duration": {
+      "value": 8.0,
+      "unit": "h"
+    },
+    "total": {
+      "value": 40.5,
+      "unit": "mm"
+    },
+    "intensity": {
+      "value": 5.0625,
+      "unit": "mm/h"
+    },
+    "threshold_intensity": {
+      "value": 2.2898329986183925,
+      "unit": "mm/h"
+    },
+    "threshold_total": {
+      "value": 18.31866398894714,
+      "unit": "mm"
+    },
+    "threshold_alpha": {
+      "value": 8.754,
+      "unit": "mm/h"
+    },
+    "threshold_beta": {
+      "value": 0.6449,
+      "unit": "1"
+    },
+    "ratio": {
+      "value": 2.210859919939376,
+      "unit": "1",
+      "meaning": "event intensity over threshold intensity; above 1 is above the line"
+    },
+    "excess_decades": {
+      "value": 0.34456122655673416,
+      "unit": "1",
+      "meaning": "log10 of ratio"
+    },
+    "unmeasured_hours": {
+      "value": 1,
+      "unit": "h"
+    },
+    "borders_unmeasured": {
+      "value": true
+    },
+    "at_least": {
+      "value": true,
+      "meaning": "true: the measured rain is a lower bound of the real one"
+    },
+    "rain_source": {
+      "value": "rain gauge",
+      "scheme": "label given by the caller"
+    }
+  },
+  "notes": [
+    "The hourly series is made up, to show the shape; the numbers are what rainfall-thresholds 0.4.0 computes on it.",
+    "A threshold exceeded is not an alert. The official alert is the criticality bulletin of the Dipartimento della Protezione Civile."
+  ]
+}

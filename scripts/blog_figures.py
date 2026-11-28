@@ -189,8 +189,75 @@ def acceleration() -> None:
         _save(fig, "accelerazione", lang)
 
 
+def record_v2() -> None:
+    """A real dated landslide as an opendata-record/v2 event: what each new field says."""
+    import json
+
+    record = json.loads(
+        (ROOT / "examples" / "records-v2" / "ispra-idrogeo-landslide-interval.json").read_text()
+    )
+    lines = [
+        (
+            '"kind": "event",  "event": "landslide"',
+            ("un fatto accaduto, non una misura", "something that happened, not a measurement"),
+        ),
+        (
+            f'"first": "{record["time"]["first"]}",  "last": "{record["time"]["last"]}"',
+            ("la fonte dice solo «2010»", 'the source says only "2010"'),
+        ),
+        (
+            f'"precision": "interval",  "days": {record["time"]["days"]}',
+            ("quanto è larga la data", "how wide the date is"),
+        ),
+        (
+            f'"instant": "{record["time"]["instant"]}"',
+            ("l'istante da usare con la pioggia", "the instant to use with the rain"),
+        ),
+        (
+            f'"convention": "{record["time"]["convention"]}"',
+            ("è una convenzione, e lo dice", "it is a convention, and says so"),
+        ),
+        (
+            '"where_accuracy_m": null',
+            (
+                "la fonte non dice quanto è preciso il punto",
+                "the source does not say how exact the point is",
+            ),
+        ),
+        (
+            '"movement": {"value": 0, "scheme": "IFFI movement type"}',
+            ("un codice, con il suo elenco", "a code, with its list"),
+        ),
+        (
+            '"main_event": {"value": null}',
+            (
+                "sì, no, o non si sa: mai falso al posto di vuoto",
+                "yes, no, or not known: never false for empty",
+            ),
+        ),
+    ]
+    title = {
+        "it": "Una frana dell'inventario IFFI datata «2010», scritta come record",
+        "en": 'A landslide of the IFFI inventory dated "2010", written as a record',
+    }
+    credit = "ISPRA - Regioni e Province Autonome, IFFI, idrogeo.isprambiente.it, CC BY-SA 4.0."
+    for i, lang in enumerate(("it", "en")):
+        fig, ax = plt.subplots(figsize=(12.5, 4.6))
+        ax.axis("off")
+        ax.set_title(title[lang], loc="left", fontsize=13, fontweight="bold")
+        for row, (code, note) in enumerate(lines):
+            y = 0.92 - row * 0.115
+            ax.text(0.0, y, code, family="monospace", fontsize=10.5, va="center")
+            ax.text(0.62, y, note[i], fontsize=10.5, va="center", color="#b3541e")
+        fig.text(0.01, 0.01, f"{('Dati', 'Data')[i]}: {credit}", fontsize=8, color="#5a6772")
+        fig.savefig(OUT / f"record-v2-{lang}.png", dpi=110, bbox_inches="tight", facecolor="white")
+        plt.close(fig)
+    print("record-v2:", record["id"], record["time"])
+
+
 if __name__ == "__main__":
     OUT.mkdir(parents=True, exist_ok=True)
+    record_v2()
     pozzuoli()
     posatora()
     acceleration()
